@@ -1,0 +1,95 @@
+# Langoose Roadmap
+
+This document is the readable roadmap overview for the project. The live execution board stays in the GitHub
+`Langoose MVP` project, while detailed implementation work lives in GitHub issues and pull requests.
+
+## Product Goal
+
+Ship a deployable MVP for Russian speakers learning English that supports:
+
+- real user accounts
+- durable persisted data
+- dictionary management
+- study sessions with tolerant grading
+- a repeatable deployment path
+
+## MVP Definition
+
+The MVP is done when:
+
+- the app is deployable outside local development
+- data persists in PostgreSQL across restarts and redeploys
+- users can sign in, sign out, and keep their own data
+- dictionary and study flows work end to end
+- staging deployment exists before production launch
+- core changes are validated through GitHub pull requests and CI
+
+## Roadmap Phases
+
+### M1 Foundation
+
+Build the technical base required for a deployable MVP.
+
+- Add a Docker-based local development stack
+- Add CI checks for backend and frontend
+- Add pull request workflow hygiene
+- Replace the JSON store with PostgreSQL-backed persistence
+- Decide and rework the authentication approach for a deployable MVP
+- Deploy the first staging environment
+
+### M2 Core Learning
+
+Complete the core product loop for a returning learner.
+
+- dictionary search, browse, and quick add
+- study sessions backed by persisted progress
+- user-scoped vocabulary and study data
+- progress visibility for daily use
+
+### M3 Deployable Beta
+
+Harden the app for broader real-world use.
+
+- CSV import and export on top of the database-backed model
+- duplicate-handling rules preserved in the new persistence model
+- staging stability and deployment confidence
+- unresolved MVP gaps closed from testing and user feedback
+
+### M4 Launch
+
+Prepare the app for a first public release.
+
+- production deployment readiness
+- bug fixing and polish
+- basic operational runbooks
+- backup and recovery confidence for persisted data
+
+## Current Priorities
+
+The current implementation order is:
+
+1. Docker-based local development stack
+2. CI checks for backend and frontend
+3. Pull request workflow notes and template
+4. PostgreSQL-backed persistence
+5. Authentication decision and rework
+6. First staging deployment
+
+## Guiding Decisions
+
+These decisions currently shape the roadmap:
+
+- GitHub Projects is the source of truth for roadmap execution.
+- This document is the one-page roadmap summary.
+- Docker is the local and deployment packaging layer.
+- PostgreSQL replaces the JSON file store for deployable persistence.
+- Authentication is being revisited before the deployable MVP is considered complete.
+- Managed hosting is preferred over self-hosting the production database in Docker.
+
+## Working Model
+
+- Use GitHub issues for executable work.
+- Use epics for roadmap-level outcomes.
+- Use pull requests to merge small, reviewable changes into `main`.
+- Keep `main` deployable.
+- Record deeper architectural choices separately as ADRs or decision notes.
