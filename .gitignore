@@ -1,0 +1,9 @@
+# Shared local caches
+.local/
+
+# IDE and OS files
+.vs/
+.vscode/
+*.user
+*.suo
+.DS_Store
