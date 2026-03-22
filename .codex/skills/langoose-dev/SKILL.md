@@ -1,6 +1,6 @@
 ---
 name: langoose-dev
-description: Work effectively in the Langoose repository. Use when Codex is implementing, debugging, reviewing, or extending the React/Vite frontend, the ASP.NET Core API, the local JSON-backed dictionary and study flow, CSV import/export, or the executable MVP test harness in this project.
+description: Work effectively in the Langoose repository. Use when Codex is implementing, debugging, reviewing, or extending the React/Vite frontend, the ASP.NET Core API, the local JSON-backed dictionary and study flow, CSV import/export, or the xUnit-based backend test suite in this project.
 ---
 
 # Langoose Dev
@@ -15,6 +15,7 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Keep backend work inside `apps/api` with controller-based endpoints and service-layer business logic.
 - Prefer extending existing services over adding new abstractions.
 - Respect `.gitattributes` and keep line endings normalized when creating or editing files.
+- Preserve non-ASCII product text safely. Keep Russian and other non-ASCII literals as valid UTF-8, or switch to explicit C# `\u` escapes when Windows tooling or shell encoding could corrupt them.
 - Prefer the repository line-length standard of 120 characters where practical.
 - In C# code, prefer one top-level type per file unless a tiny local exception is clearly justified.
 - Prefer primary constructors for C# types when dependency injection or simple state capture makes them a cleaner fit than a separate constructor body.
@@ -25,7 +26,7 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 
 ## Validate In The Smallest Useful Way
 
-- Run the executable backend checks for backend behavior changes.
+- Run the discoverable xUnit backend tests for backend behavior changes.
 - Run the frontend build for web changes.
 - Prefer targeted validation over broad churn.
 

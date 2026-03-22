@@ -1,20 +1,13 @@
-﻿using Langoose.Api.Infrastructure;
+using Langoose.Api.Infrastructure;
 using Langoose.Api.Models;
 
 namespace Langoose.Api.Services;
 
-public sealed class DataSeeder
+public sealed class DataSeeder(IDataStore dataStore)
 {
-    private readonly IDataStore _dataStore;
-
-    public DataSeeder(IDataStore dataStore)
-    {
-        _dataStore = dataStore;
-    }
-
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
-        var store = await _dataStore.LoadAsync(cancellationToken);
+        var store = await dataStore.LoadAsync(cancellationToken);
         var changed = false;
 
         if (store.DictionaryItems.Count == 0)
@@ -34,7 +27,7 @@ public sealed class DataSeeder
 
         if (changed)
         {
-            await _dataStore.SaveAsync(store, cancellationToken);
+            await dataStore.SaveAsync(store, cancellationToken);
         }
     }
 
@@ -46,7 +39,10 @@ public sealed class DataSeeder
         {
             var existingItem = store.DictionaryItems.FirstOrDefault(item =>
                 item.SourceType == SourceType.Base &&
-                string.Equals(item.EnglishText, seedItem.EnglishText, StringComparison.OrdinalIgnoreCase));
+                string.Equals(
+                    item.EnglishText,
+                    seedItem.EnglishText,
+                    StringComparison.OrdinalIgnoreCase));
 
             if (existingItem is null)
             {
@@ -68,7 +64,9 @@ public sealed class DataSeeder
                 changed = true;
             }
 
-            var existingSentence = store.ExampleSentences.FirstOrDefault(sentence => sentence.ItemId == existingItem.Id);
+            var existingSentence = store.ExampleSentences.FirstOrDefault(
+                sentence => sentence.ItemId == existingItem.Id);
+
             if (existingSentence is null)
             {
                 store.ExampleSentences.Add(new ExampleSentence
@@ -81,8 +79,11 @@ public sealed class DataSeeder
                     QualityScore = seedSentence.QualityScore
                 });
                 changed = true;
+                continue;
             }
-            else if (existingSentence.ClozeText != seedSentence.ClozeText || existingSentence.TranslationHint != seedSentence.TranslationHint)
+
+            if (existingSentence.ClozeText != seedSentence.ClozeText ||
+                existingSentence.TranslationHint != seedSentence.TranslationHint)
             {
                 existingSentence.SentenceText = seedSentence.SentenceText;
                 existingSentence.ClozeText = seedSentence.ClozeText;

@@ -1,14 +1,8 @@
+using Langoose.Api.Models;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Langoose.Api.Models;
 
 namespace Langoose.Api.Infrastructure;
-
-public interface IDataStore
-{
-    Task<DataStore> LoadAsync(CancellationToken cancellationToken = default);
-    Task SaveAsync(DataStore store, CancellationToken cancellationToken = default);
-}
 
 public sealed class FileDataStore : IDataStore
 {
@@ -22,15 +16,13 @@ public sealed class FileDataStore : IDataStore
 
     public FileDataStore(IConfiguration configuration, IWebHostEnvironment environment)
     {
-        var dataDirectory = configuration["Storage:DataDirectory"] ?? "App_Data";
-        var root = Path.IsPathRooted(dataDirectory) ? dataDirectory : Path.Combine(environment.ContentRootPath, dataDirectory);
-        Directory.CreateDirectory(root);
-        _filePath = Path.Combine(root, "store.json");
+        _filePath = BuildFilePath(configuration, environment);
     }
 
     public async Task<DataStore> LoadAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken);
+
         try
         {
             if (!File.Exists(_filePath))
@@ -39,7 +31,12 @@ public sealed class FileDataStore : IDataStore
             }
 
             await using var stream = File.OpenRead(_filePath);
-            return await JsonSerializer.DeserializeAsync<DataStore>(stream, _jsonOptions, cancellationToken) ?? new DataStore();
+
+            return await JsonSerializer.DeserializeAsync<DataStore>(
+                       stream,
+                       _jsonOptions,
+                       cancellationToken)
+                   ?? new DataStore();
         }
         finally
         {
@@ -50,6 +47,7 @@ public sealed class FileDataStore : IDataStore
     public async Task SaveAsync(DataStore store, CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken);
+
         try
         {
             await using var stream = File.Create(_filePath);
@@ -59,5 +57,17 @@ public sealed class FileDataStore : IDataStore
         {
             _gate.Release();
         }
+    }
+
+    private static string BuildFilePath(IConfiguration configuration, IWebHostEnvironment environment)
+    {
+        var dataDirectory = configuration["Storage:DataDirectory"] ?? "App_Data";
+        var root = Path.IsPathRooted(dataDirectory)
+            ? dataDirectory
+            : Path.Combine(environment.ContentRootPath, dataDirectory);
+
+        Directory.CreateDirectory(root);
+
+        return Path.Combine(root, "store.json");
     }
 }

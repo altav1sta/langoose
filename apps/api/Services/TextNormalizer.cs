@@ -48,7 +48,9 @@ public static class TextNormalizer
             .Replace('\u201D', '"')
             .Trim();
 
-        if (cleaned.Length >= 2 && cleaned.StartsWith('"') && cleaned.EndsWith('"'))
+        if (cleaned.Length >= 2 &&
+            cleaned.StartsWith('"') &&
+            cleaned.EndsWith('"'))
         {
             cleaned = cleaned[1..^1].Trim();
         }
@@ -63,8 +65,13 @@ public static class TextNormalizer
 
     public static bool TokensMatchIgnoringArticles(string submitted, string expected)
     {
-        var left = NormalizeTokens(submitted).Where(token => !ArticleWords.Contains(token)).ToList();
-        var right = NormalizeTokens(expected).Where(token => !ArticleWords.Contains(token)).ToList();
+        var left = NormalizeTokens(submitted)
+            .Where(token => !ArticleWords.Contains(token))
+            .ToList();
+        var right = NormalizeTokens(expected)
+            .Where(token => !ArticleWords.Contains(token))
+            .ToList();
+
         return left.SequenceEqual(right);
     }
 
@@ -105,6 +112,7 @@ public static class TextNormalizer
     {
         var left = NormalizeForComparison(submitted);
         var right = NormalizeForComparison(expected);
+
         if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
         {
             return false;
@@ -112,13 +120,17 @@ public static class TextNormalizer
 
         var tokenizedLeft = NormalizeTokens(left);
         var tokenizedRight = NormalizeTokens(right);
+
         if (tokenizedLeft.Count == tokenizedRight.Count && tokenizedLeft.Count > 1)
         {
-            return tokenizedLeft.Zip(tokenizedRight, (l, r) => LevenshteinDistance(l, r)).All(distance => distance <= 1);
+            return tokenizedLeft
+                .Zip(tokenizedRight, (l, r) => LevenshteinDistance(l, r))
+                .All(distance => distance <= 1);
         }
 
         var distance = LevenshteinDistance(left, right);
         var threshold = Math.Max(1, right.Length >= 7 ? 2 : 1);
+
         return distance <= threshold;
     }
 
@@ -141,7 +153,9 @@ public static class TextNormalizer
             for (var j = 1; j <= target.Length; j++)
             {
                 var cost = source[i - 1] == target[j - 1] ? 0 : 1;
-                dp[i, j] = Math.Min(Math.Min(dp[i - 1, j] + 1, dp[i, j - 1] + 1), dp[i - 1, j - 1] + cost);
+                dp[i, j] = Math.Min(
+                    Math.Min(dp[i - 1, j] + 1, dp[i, j - 1] + 1),
+                    dp[i - 1, j - 1] + cost);
             }
         }
 

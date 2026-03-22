@@ -6,4 +6,12 @@
 .vscode/
 *.user
 *.suo
+*.rsuser
 .DS_Store
+
+# .NET build outputs
+**/bin/
+**/obj/
+TestResults/
+*.coverage
+*.coveragexml

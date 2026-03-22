@@ -6,58 +6,71 @@ namespace Langoose.Api.Controllers;
 
 [ApiController]
 [Route("dictionary")]
-public sealed class DictionaryController : ControllerBase
+public sealed class DictionaryController(
+    AuthService authService,
+    DictionaryService dictionaryService) : ControllerBase
 {
-    private readonly AuthService _authService;
-    private readonly DictionaryService _dictionaryService;
-
-    public DictionaryController(AuthService authService, DictionaryService dictionaryService)
-    {
-        _authService = authService;
-        _dictionaryService = dictionaryService;
-    }
-
     [HttpGet("items")]
     public async Task<ActionResult<IReadOnlyList<DictionaryItem>>> GetItems(CancellationToken cancellationToken)
     {
-        var user = await _authService.GetUserFromTokenAsync(Request.Headers.Authorization, cancellationToken);
+        var user = await authService.GetUserFromTokenAsync(
+            Request.Headers.Authorization,
+            cancellationToken);
+
         if (user is null)
         {
             return Unauthorized();
         }
 
-        return Ok(await _dictionaryService.GetItemsAsync(user.Id, cancellationToken));
+        return Ok(await dictionaryService.GetItemsAsync(user.Id, cancellationToken));
     }
 
     [HttpPost("items")]
-    public async Task<ActionResult<DictionaryItem>> AddItem([FromBody] DictionaryItemRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<DictionaryItem>> AddItem(
+        [FromBody] DictionaryItemRequest request,
+        CancellationToken cancellationToken)
     {
-        var user = await _authService.GetUserFromTokenAsync(Request.Headers.Authorization, cancellationToken);
+        var user = await authService.GetUserFromTokenAsync(
+            Request.Headers.Authorization,
+            cancellationToken);
+
         if (user is null)
         {
             return Unauthorized();
         }
 
-        return Ok(await _dictionaryService.AddItemAsync(user.Id, request, cancellationToken));
+        return Ok(await dictionaryService.AddItemAsync(user.Id, request, cancellationToken));
     }
 
     [HttpPatch("items/{itemId:guid}")]
-    public async Task<ActionResult<DictionaryItem>> PatchItem(Guid itemId, [FromBody] DictionaryItemPatchRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<DictionaryItem>> PatchItem(
+        Guid itemId,
+        [FromBody] DictionaryItemPatchRequest request,
+        CancellationToken cancellationToken)
     {
-        var user = await _authService.GetUserFromTokenAsync(Request.Headers.Authorization, cancellationToken);
+        var user = await authService.GetUserFromTokenAsync(
+            Request.Headers.Authorization,
+            cancellationToken);
+
         if (user is null)
         {
             return Unauthorized();
         }
 
-        var updated = await _dictionaryService.PatchItemAsync(user.Id, itemId, request, cancellationToken);
+        var updated = await dictionaryService.PatchItemAsync(user.Id, itemId, request, cancellationToken);
+
         return updated is null ? NotFound() : Ok(updated);
     }
 
     [HttpPost("import")]
-    public async Task<ActionResult<ImportCsvResponse>> Import([FromBody] ImportCsvRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<ImportCsvResponse>> Import(
+        [FromBody] ImportCsvRequest request,
+        CancellationToken cancellationToken)
     {
-        var user = await _authService.GetUserFromTokenAsync(Request.Headers.Authorization, cancellationToken);
+        var user = await authService.GetUserFromTokenAsync(
+            Request.Headers.Authorization,
+            cancellationToken);
+
         if (user is null)
         {
             return Unauthorized();
@@ -65,7 +78,7 @@ public sealed class DictionaryController : ControllerBase
 
         try
         {
-            return Ok(await _dictionaryService.ImportCsvAsync(user.Id, request, cancellationToken));
+            return Ok(await dictionaryService.ImportCsvAsync(user.Id, request, cancellationToken));
         }
         catch (ArgumentException exception)
         {
@@ -81,25 +94,34 @@ public sealed class DictionaryController : ControllerBase
     [HttpGet("export")]
     public async Task<ActionResult<string>> Export(CancellationToken cancellationToken)
     {
-        var user = await _authService.GetUserFromTokenAsync(Request.Headers.Authorization, cancellationToken);
+        var user = await authService.GetUserFromTokenAsync(
+            Request.Headers.Authorization,
+            cancellationToken);
+
         if (user is null)
         {
             return Unauthorized();
         }
 
-        return Content(await _dictionaryService.ExportCsvAsync(user.Id, cancellationToken), "text/csv");
+        return Content(
+            await dictionaryService.ExportCsvAsync(user.Id, cancellationToken),
+            "text/csv");
     }
 
     [HttpDelete("custom-data")]
     public async Task<IActionResult> ClearCustomData(CancellationToken cancellationToken)
     {
-        var user = await _authService.GetUserFromTokenAsync(Request.Headers.Authorization, cancellationToken);
+        var user = await authService.GetUserFromTokenAsync(
+            Request.Headers.Authorization,
+            cancellationToken);
+
         if (user is null)
         {
             return Unauthorized();
         }
 
-        await _dictionaryService.ClearCustomDataAsync(user.Id, cancellationToken);
+        await dictionaryService.ClearCustomDataAsync(user.Id, cancellationToken);
+
         return NoContent();
     }
 }

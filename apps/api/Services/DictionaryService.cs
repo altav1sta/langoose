@@ -1,28 +1,25 @@
 using Langoose.Api.Infrastructure;
 using Langoose.Api.Models;
+using System.Text;
 
 namespace Langoose.Api.Services;
 
-public sealed class DictionaryService
+public sealed class DictionaryService(IDataStore dataStore, EnrichmentService enrichmentService)
 {
-    private static readonly string[] RequiredCsvHeaders = ["english term", "russian translation s", "type"];
+    private static readonly string[] RequiredCsvHeaders =
+        ["english term", "russian translation s", "type"];
+
     private static readonly string[] OptionalCsvHeaders = ["notes", "tags"];
 
-    private readonly IDataStore _dataStore;
-    private readonly EnrichmentService _enrichmentService;
-
-    public DictionaryService(IDataStore dataStore, EnrichmentService enrichmentService)
+    public async Task<IReadOnlyList<DictionaryItem>> GetItemsAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
     {
-        _dataStore = dataStore;
-        _enrichmentService = enrichmentService;
-    }
+        var store = await dataStore.LoadAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<DictionaryItem>> GetItemsAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        var store = await _dataStore.LoadAsync(cancellationToken);
         if (NormalizeCustomDuplicates(store, userId))
         {
-            await _dataStore.SaveAsync(store, cancellationToken);
+            await dataStore.SaveAsync(store, cancellationToken);
         }
 
         return GetVisibleItems(store, userId)
@@ -31,16 +28,27 @@ public sealed class DictionaryService
             .ToList();
     }
 
-    public async Task<DictionaryItem> AddItemAsync(Guid userId, DictionaryItemRequest request, CancellationToken cancellationToken)
+    public async Task<DictionaryItem> AddItemAsync(
+        Guid userId,
+        DictionaryItemRequest request,
+        CancellationToken cancellationToken)
     {
         var (item, _) = await UpsertItemAsync(userId, request, cancellationToken);
+
         return item;
     }
 
-    public async Task<DictionaryItem?> PatchItemAsync(Guid userId, Guid itemId, DictionaryItemPatchRequest request, CancellationToken cancellationToken)
+    public async Task<DictionaryItem?> PatchItemAsync(
+        Guid userId,
+        Guid itemId,
+        DictionaryItemPatchRequest request,
+        CancellationToken cancellationToken)
     {
-        var store = await _dataStore.LoadAsync(cancellationToken);
-        var item = store.DictionaryItems.FirstOrDefault(candidate => candidate.Id == itemId && candidate.OwnerId == userId);
+        var store = await dataStore.LoadAsync(cancellationToken);
+        var item = store.DictionaryItems.FirstOrDefault(candidate =>
+            candidate.Id == itemId &&
+            candidate.OwnerId == userId);
+
         if (item is null)
         {
             return null;
@@ -48,7 +56,7 @@ public sealed class DictionaryService
 
         if (request.RussianGlosses is not null)
         {
-            item.RussianGlosses = request.RussianGlosses.Where(value => !string.IsNullOrWhiteSpace(value)).Select(TextNormalizer.CleanInput).Where(value => !string.IsNullOrWhiteSpace(value)).ToList();
+            item.RussianGlosses = CleanValues(request.RussianGlosses);
         }
 
         if (!string.IsNullOrWhiteSpace(request.PartOfSpeech))
@@ -68,7 +76,7 @@ public sealed class DictionaryService
 
         if (request.Tags is not null)
         {
-            item.Tags = request.Tags.Where(value => !string.IsNullOrWhiteSpace(value)).Select(TextNormalizer.CleanInput).Where(value => !string.IsNullOrWhiteSpace(value)).ToList();
+            item.Tags = CleanValues(request.Tags);
         }
 
         if (!string.IsNullOrWhiteSpace(request.Status) &&
@@ -77,13 +85,18 @@ public sealed class DictionaryService
             item.Status = status;
         }
 
-        await _dataStore.SaveAsync(store, cancellationToken);
+        await dataStore.SaveAsync(store, cancellationToken);
+
         return item;
     }
 
-    public async Task<ImportCsvResponse> ImportCsvAsync(Guid userId, ImportCsvRequest request, CancellationToken cancellationToken)
+    public async Task<ImportCsvResponse> ImportCsvAsync(
+        Guid userId,
+        ImportCsvRequest request,
+        CancellationToken cancellationToken)
     {
         var rows = request.CsvContent.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
+
         if (rows.Length == 0)
         {
             throw new ArgumentException("CSV file is empty.");
@@ -97,6 +110,7 @@ public sealed class DictionaryService
         foreach (var row in rows.Skip(1))
         {
             var columns = ParseCsvRow(row);
+
             if (columns.Count < 3 || columns.Count > 5)
             {
                 errors.Add($"Malformed row: {row}");
@@ -104,16 +118,12 @@ public sealed class DictionaryService
             }
 
             var english = TextNormalizer.CleanInput(columns[0]);
-            var russianGlosses = columns[1]
-                .Split('|', StringSplitOptions.RemoveEmptyEntries)
-                .Select(TextNormalizer.CleanInput)
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .ToList();
+            var russianGlosses = SplitPipeValues(columns[1]);
             var type = TextNormalizer.CleanInput(columns[2]);
-            var notes = columns.Count > 3 ? TextNormalizer.CleanInput(columns[3]) : string.Empty;
-            var tags = columns.Count > 4
-                ? columns[4].Split('|', StringSplitOptions.RemoveEmptyEntries).Select(TextNormalizer.CleanInput).Where(value => !string.IsNullOrWhiteSpace(value)).ToList()
-                : [];
+            var notes = columns.Count > 3
+                ? TextNormalizer.CleanInput(columns[3])
+                : string.Empty;
+            var tags = columns.Count > 4 ? SplitPipeValues(columns[4]) : [];
 
             if (string.IsNullOrWhiteSpace(english) || russianGlosses.Count == 0)
             {
@@ -121,19 +131,33 @@ public sealed class DictionaryService
                 continue;
             }
 
-            candidates.Add(new DictionaryItemRequest(english, russianGlosses, type, null, null, notes, tags, "csv-import"));
+            candidates.Add(new DictionaryItemRequest(
+                english,
+                russianGlosses,
+                type,
+                null,
+                null,
+                notes,
+                tags,
+                "csv-import"));
         }
 
         if (errors.Count > 0)
         {
-            return new ImportCsvResponse(Math.Max(0, rows.Length - 1), 0, Math.Max(0, rows.Length - 1), errors);
+            return new ImportCsvResponse(
+                Math.Max(0, rows.Length - 1),
+                0,
+                Math.Max(0, rows.Length - 1),
+                errors);
         }
 
         var imported = 0;
         var skipped = 0;
+
         foreach (var candidate in candidates)
         {
             var (_, created) = await UpsertItemAsync(userId, candidate, cancellationToken);
+
             if (created)
             {
                 imported++;
@@ -144,7 +168,7 @@ public sealed class DictionaryService
             }
         }
 
-        var store = await _dataStore.LoadAsync(cancellationToken);
+        var store = await dataStore.LoadAsync(cancellationToken);
         store.Imports.Add(new ImportRecord
         {
             UserId = userId,
@@ -153,23 +177,29 @@ public sealed class DictionaryService
             ImportedRows = imported,
             SkippedRows = skipped
         });
-        await _dataStore.SaveAsync(store, cancellationToken);
+        await dataStore.SaveAsync(store, cancellationToken);
 
         return new ImportCsvResponse(Math.Max(0, rows.Length - 1), imported, skipped, []);
     }
 
     public async Task<string> ExportCsvAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var store = await _dataStore.LoadAsync(cancellationToken);
+        var store = await dataStore.LoadAsync(cancellationToken);
+
         if (NormalizeCustomDuplicates(store, userId))
         {
-            await _dataStore.SaveAsync(store, cancellationToken);
+            await dataStore.SaveAsync(store, cancellationToken);
         }
 
         var rows = new List<string> { "English term,Russian translation(s),Type,Notes,Tags" };
-        foreach (var item in GetVisibleItems(store, userId).Where(candidate => candidate.OwnerId == userId).OrderBy(candidate => candidate.EnglishText))
+        var visibleCustomItems = GetVisibleItems(store, userId)
+            .Where(candidate => candidate.OwnerId == userId)
+            .OrderBy(candidate => candidate.EnglishText);
+
+        foreach (var item in visibleCustomItems)
         {
-            rows.Add(string.Join(",",
+            rows.Add(string.Join(
+                ",",
                 EscapeCsv(item.EnglishText),
                 EscapeCsv(string.Join('|', item.RussianGlosses)),
                 item.ItemKind.ToString().ToLowerInvariant(),
@@ -182,7 +212,7 @@ public sealed class DictionaryService
 
     public async Task ClearCustomDataAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var store = await _dataStore.LoadAsync(cancellationToken);
+        var store = await dataStore.LoadAsync(cancellationToken);
         var customItemIds = store.DictionaryItems
             .Where(item => item.OwnerId == userId)
             .Select(item => item.Id)
@@ -190,17 +220,22 @@ public sealed class DictionaryService
 
         store.DictionaryItems.RemoveAll(item => item.OwnerId == userId);
         store.ExampleSentences.RemoveAll(sentence => customItemIds.Contains(sentence.ItemId));
-        store.ReviewStates.RemoveAll(state => state.UserId == userId && customItemIds.Contains(state.ItemId));
-        store.StudyEvents.RemoveAll(ev => ev.UserId == userId && customItemIds.Contains(ev.ItemId));
+        store.ReviewStates.RemoveAll(state => state.UserId == userId);
+        store.StudyEvents.RemoveAll(ev => ev.UserId == userId);
         store.Imports.RemoveAll(importRecord => importRecord.UserId == userId);
-        store.ContentFlags.RemoveAll(flag => flag.UserId == userId || customItemIds.Contains(flag.ItemId));
+        store.ContentFlags.RemoveAll(flag =>
+            flag.UserId == userId ||
+            customItemIds.Contains(flag.ItemId));
 
-        await _dataStore.SaveAsync(store, cancellationToken);
+        await dataStore.SaveAsync(store, cancellationToken);
     }
 
-    private async Task<(DictionaryItem Item, bool Created)> UpsertItemAsync(Guid userId, DictionaryItemRequest request, CancellationToken cancellationToken)
+    private async Task<(DictionaryItem Item, bool Created)> UpsertItemAsync(
+        Guid userId,
+        DictionaryItemRequest request,
+        CancellationToken cancellationToken)
     {
-        var store = await _dataStore.LoadAsync(cancellationToken);
+        var store = await dataStore.LoadAsync(cancellationToken);
         NormalizeCustomDuplicates(store, userId);
 
         var cleanedEnglish = TextNormalizer.CleanInput(request.EnglishText);
@@ -213,31 +248,37 @@ public sealed class DictionaryService
             item.OwnerId is null &&
             TextNormalizer.NormalizeForComparison(item.EnglishText) == normalizedEnglish);
 
-        var enrichment = _enrichmentService.Enrich(new EnrichmentRequest(cleanedEnglish, request.RussianGlosses, request.ItemKind));
-        var glosses = (request.RussianGlosses?.Count ?? 0) > 0 ? request.RussianGlosses! : enrichment.RussianGlosses;
-        var cleanedGlosses = glosses
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(TextNormalizer.CleanInput)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .ToList();
-        var cleanedTags = request.Tags?
-            .Where(tag => !string.IsNullOrWhiteSpace(tag))
-            .Select(TextNormalizer.CleanInput)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList() ?? [];
+        var enrichment = enrichmentService.Enrich(
+            new EnrichmentRequest(cleanedEnglish, request.RussianGlosses, request.ItemKind));
+        var glosses = (request.RussianGlosses?.Count ?? 0) > 0
+            ? request.RussianGlosses!
+            : enrichment.RussianGlosses;
+        var cleanedGlosses = CleanValues(glosses);
+        var cleanedTags = CleanValues(request.Tags ?? []);
         var cleanedNotes = TextNormalizer.CleanInput(request.Notes ?? string.Empty);
 
         if (existingCustom is not null)
         {
-            MergeIntoCustom(existingCustom, cleanedEnglish, cleanedGlosses, cleanedTags, cleanedNotes, itemKind, enrichment.AcceptedVariants, normalizedEnglish);
-            await _dataStore.SaveAsync(store, cancellationToken);
+            MergeIntoCustom(
+                existingCustom,
+                cleanedEnglish,
+                cleanedGlosses,
+                cleanedTags,
+                cleanedNotes,
+                itemKind,
+                enrichment.AcceptedVariants,
+                normalizedEnglish);
+            await dataStore.SaveAsync(store, cancellationToken);
+
             return (existingCustom, false);
         }
 
         if (existingBase is not null)
         {
-            var reviewState = store.ReviewStates.FirstOrDefault(state => state.UserId == userId && state.ItemId == existingBase.Id);
+            var reviewState = store.ReviewStates.FirstOrDefault(state =>
+                state.UserId == userId &&
+                state.ItemId == existingBase.Id);
+
             if (reviewState is null)
             {
                 store.ReviewStates.Add(new ReviewState
@@ -246,7 +287,7 @@ public sealed class DictionaryService
                     ItemId = existingBase.Id,
                     DueAtUtc = DateTimeOffset.UtcNow
                 });
-                await _dataStore.SaveAsync(store, cancellationToken);
+                await dataStore.SaveAsync(store, cancellationToken);
             }
 
             return (existingBase, false);
@@ -281,7 +322,11 @@ public sealed class DictionaryService
 
         if (request.GenerateExamples)
         {
-            foreach (var example in enrichment.Examples.Where(candidate => !enrichment.ValidationWarnings.Contains("Example sentence must include the target term.")))
+            var validExamples = enrichment.Examples.Where(candidate =>
+                !enrichment.ValidationWarnings.Contains(
+                    "Example sentence must include the target term."));
+
+            foreach (var example in validExamples)
             {
                 store.ExampleSentences.Add(new ExampleSentence
                 {
@@ -302,7 +347,8 @@ public sealed class DictionaryService
             DueAtUtc = DateTimeOffset.UtcNow
         });
 
-        await _dataStore.SaveAsync(store, cancellationToken);
+        await dataStore.SaveAsync(store, cancellationToken);
+
         return (item, true);
     }
 
@@ -326,14 +372,17 @@ public sealed class DictionaryService
 
         if (headers.Count < 3 || headers.Count > 5)
         {
-            throw new ArgumentException("CSV header must contain 3 to 5 columns: English term, Russian translation(s), Type, optional Notes, optional Tags.");
+            throw new ArgumentException(
+                "CSV header must contain 3 to 5 columns: English term, " +
+                "Russian translation(s), Type, optional Notes, optional Tags.");
         }
 
         for (var index = 0; index < RequiredCsvHeaders.Length; index++)
         {
             if (headers.Count <= index || headers[index] != RequiredCsvHeaders[index])
             {
-                throw new ArgumentException("CSV header must start with: English term, Russian translation(s), Type.");
+                throw new ArgumentException(
+                    "CSV header must start with: English term, Russian translation(s), Type.");
             }
         }
 
@@ -341,7 +390,8 @@ public sealed class DictionaryService
         {
             if (!OptionalCsvHeaders.Contains(headers[index], StringComparer.Ordinal))
             {
-                throw new ArgumentException("Only Notes and Tags are allowed as optional CSV columns.");
+                throw new ArgumentException(
+                    "Only Notes and Tags are allowed as optional CSV columns.");
             }
         }
     }
@@ -376,16 +426,23 @@ public sealed class DictionaryService
             .Select(TextNormalizer.CleanInput)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        existing.ItemKind = existing.ItemKind == ItemKind.Phrase || itemKind == ItemKind.Phrase ? ItemKind.Phrase : ItemKind.Word;
-        if (!string.IsNullOrWhiteSpace(cleanedNotes) && !existing.Notes.Contains(cleanedNotes, StringComparison.OrdinalIgnoreCase))
+        existing.ItemKind = existing.ItemKind == ItemKind.Phrase || itemKind == ItemKind.Phrase
+            ? ItemKind.Phrase
+            : ItemKind.Word;
+
+        if (!string.IsNullOrWhiteSpace(cleanedNotes) &&
+            !existing.Notes.Contains(cleanedNotes, StringComparison.OrdinalIgnoreCase))
         {
-            existing.Notes = string.IsNullOrWhiteSpace(existing.Notes) ? cleanedNotes : $"{existing.Notes}; {cleanedNotes}";
+            existing.Notes = string.IsNullOrWhiteSpace(existing.Notes)
+                ? cleanedNotes
+                : $"{existing.Notes}; {cleanedNotes}";
         }
     }
 
     private static ItemKind ResolveItemKind(string? rawItemKind, string englishText)
     {
         var cleanedKind = TextNormalizer.CleanInput(rawItemKind ?? string.Empty);
+
         if (string.Equals(cleanedKind, "phrase", StringComparison.OrdinalIgnoreCase))
         {
             return ItemKind.Phrase;
@@ -419,6 +476,7 @@ public sealed class DictionaryService
         foreach (var group in duplicates)
         {
             var primary = group.OrderBy(item => item.CreatedAtUtc).First();
+
             foreach (var duplicate in group.Where(item => item.Id != primary.Id))
             {
                 MergeItemInto(store, primary, duplicate, userId);
@@ -428,7 +486,11 @@ public sealed class DictionaryService
         return true;
     }
 
-    private static void MergeItemInto(DataStore store, DictionaryItem primary, DictionaryItem duplicate, Guid userId)
+    private static void MergeItemInto(
+        DataStore store,
+        DictionaryItem primary,
+        DictionaryItem duplicate,
+        Guid userId)
     {
         primary.RussianGlosses = primary.RussianGlosses
             .Concat(duplicate.RussianGlosses)
@@ -453,13 +515,16 @@ public sealed class DictionaryService
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        primary.ItemKind = primary.ItemKind == ItemKind.Phrase || duplicate.ItemKind == ItemKind.Phrase ? ItemKind.Phrase : ItemKind.Word;
+        primary.ItemKind = primary.ItemKind == ItemKind.Phrase || duplicate.ItemKind == ItemKind.Phrase
+            ? ItemKind.Phrase
+            : ItemKind.Word;
 
         if (string.IsNullOrWhiteSpace(primary.Notes))
         {
             primary.Notes = duplicate.Notes;
         }
-        else if (!string.IsNullOrWhiteSpace(duplicate.Notes) && !primary.Notes.Contains(duplicate.Notes, StringComparison.OrdinalIgnoreCase))
+        else if (!string.IsNullOrWhiteSpace(duplicate.Notes) &&
+                 !primary.Notes.Contains(duplicate.Notes, StringComparison.OrdinalIgnoreCase))
         {
             primary.Notes = $"{primary.Notes}; {duplicate.Notes}";
         }
@@ -469,9 +534,14 @@ public sealed class DictionaryService
             sentence.ItemId = primary.Id;
         }
 
-        foreach (var state in store.ReviewStates.Where(state => state.UserId == userId && state.ItemId == duplicate.Id).ToList())
+        foreach (var state in store.ReviewStates.Where(state =>
+                     state.UserId == userId &&
+                     state.ItemId == duplicate.Id).ToList())
         {
-            var existingState = store.ReviewStates.FirstOrDefault(candidate => candidate.UserId == userId && candidate.ItemId == primary.Id);
+            var existingState = store.ReviewStates.FirstOrDefault(candidate =>
+                candidate.UserId == userId &&
+                candidate.ItemId == primary.Id);
+
             if (existingState is null)
             {
                 state.ItemId = primary.Id;
@@ -479,7 +549,9 @@ public sealed class DictionaryService
             }
 
             existingState.Stability = Math.Max(existingState.Stability, state.Stability);
-            existingState.DueAtUtc = existingState.DueAtUtc <= state.DueAtUtc ? existingState.DueAtUtc : state.DueAtUtc;
+            existingState.DueAtUtc = existingState.DueAtUtc <= state.DueAtUtc
+                ? existingState.DueAtUtc
+                : state.DueAtUtc;
             existingState.LapseCount += state.LapseCount;
             existingState.SuccessCount += state.SuccessCount;
             existingState.LastSeenAtUtc = new[] { existingState.LastSeenAtUtc, state.LastSeenAtUtc }
@@ -489,7 +561,9 @@ public sealed class DictionaryService
             store.ReviewStates.Remove(state);
         }
 
-        foreach (var studyEvent in store.StudyEvents.Where(ev => ev.UserId == userId && ev.ItemId == duplicate.Id).ToList())
+        foreach (var studyEvent in store.StudyEvents.Where(ev =>
+                     ev.UserId == userId &&
+                     ev.ItemId == duplicate.Id).ToList())
         {
             studyEvent.ItemId = primary.Id;
         }
@@ -505,7 +579,7 @@ public sealed class DictionaryService
     private static List<string> ParseCsvRow(string row)
     {
         var result = new List<string>();
-        var current = new System.Text.StringBuilder();
+        var current = new StringBuilder();
         var inQuotes = false;
 
         foreach (var ch in row)
@@ -527,6 +601,7 @@ public sealed class DictionaryService
         }
 
         result.Add(current.ToString());
+
         return result;
     }
 
@@ -538,5 +613,24 @@ public sealed class DictionaryService
         }
 
         return value;
+    }
+
+    private static List<string> CleanValues(IEnumerable<string> values)
+    {
+        return values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(TextNormalizer.CleanInput)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static List<string> SplitPipeValues(string value)
+    {
+        return value
+            .Split('|', StringSplitOptions.RemoveEmptyEntries)
+            .Select(TextNormalizer.CleanInput)
+            .Where(candidate => !string.IsNullOrWhiteSpace(candidate))
+            .ToList();
     }
 }

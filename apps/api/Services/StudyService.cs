@@ -3,32 +3,32 @@ using Langoose.Api.Models;
 
 namespace Langoose.Api.Services;
 
-public sealed class StudyService
+public sealed class StudyService(IDataStore dataStore)
 {
-    private readonly IDataStore _dataStore;
-
-    public StudyService(IDataStore dataStore)
+    public async Task<StudyCardResponse?> GetNextCardAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
     {
-        _dataStore = dataStore;
-    }
-
-    public async Task<StudyCardResponse?> GetNextCardAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        var store = await _dataStore.LoadAsync(cancellationToken);
+        var store = await dataStore.LoadAsync(cancellationToken);
         var visibleItems = GetVisibleItems(store, userId)
             .Where(item => item.Status == DictionaryItemStatus.Active)
             .ToList();
 
-        var reviewStates = store.ReviewStates.Where(state => state.UserId == userId).ToDictionary(state => state.ItemId);
+        var reviewStates = store.ReviewStates
+            .Where(state => state.UserId == userId)
+            .ToDictionary(state => state.ItemId);
+
         foreach (var item in visibleItems.Where(item => !reviewStates.ContainsKey(item.Id)))
         {
-            reviewStates[item.Id] = new ReviewState
+            var reviewState = new ReviewState
             {
                 UserId = userId,
                 ItemId = item.Id,
                 DueAtUtc = DateTimeOffset.UtcNow
             };
-            store.ReviewStates.Add(reviewStates[item.Id]);
+
+            reviewStates[item.Id] = reviewState;
+            store.ReviewStates.Add(reviewState);
         }
 
         var dueStates = reviewStates.Values
@@ -39,7 +39,8 @@ public sealed class StudyService
 
         if (dueStates.Count == 0)
         {
-            await _dataStore.SaveAsync(store, cancellationToken);
+            await dataStore.SaveAsync(store, cancellationToken);
+
             return null;
         }
 
@@ -50,12 +51,12 @@ public sealed class StudyService
             {
                 ItemId = itemForStudy.Id,
                 SentenceText = itemForStudy.EnglishText,
-                ClozeText = $"Use ____ in a sentence.",
+                ClozeText = "Use ____ in a sentence.",
                 TranslationHint = string.Join(", ", itemForStudy.RussianGlosses),
                 Origin = ContentOrigin.Manual
             };
 
-        await _dataStore.SaveAsync(store, cancellationToken);
+        await dataStore.SaveAsync(store, cancellationToken);
 
         return new StudyCardResponse(
             itemForStudy.Id,
@@ -67,22 +68,30 @@ public sealed class StudyService
             itemForStudy.Difficulty);
     }
 
-    public async Task<StudyAnswerResult?> SubmitAnswerAsync(Guid userId, StudyAnswerRequest request, CancellationToken cancellationToken)
+    public async Task<StudyAnswerResult?> SubmitAnswerAsync(
+        Guid userId,
+        StudyAnswerRequest request,
+        CancellationToken cancellationToken)
     {
-        var store = await _dataStore.LoadAsync(cancellationToken);
-        var item = store.DictionaryItems.FirstOrDefault(candidate => candidate.Id == request.ItemId && (candidate.OwnerId is null || candidate.OwnerId == userId));
+        var store = await dataStore.LoadAsync(cancellationToken);
+        var item = store.DictionaryItems.FirstOrDefault(candidate =>
+            candidate.Id == request.ItemId &&
+            (candidate.OwnerId is null || candidate.OwnerId == userId));
+
         if (item is null)
         {
             return null;
         }
 
-        var reviewState = store.ReviewStates.FirstOrDefault(state => state.UserId == userId && state.ItemId == item.Id)
-            ?? new ReviewState
-            {
-                UserId = userId,
-                ItemId = item.Id,
-                DueAtUtc = DateTimeOffset.UtcNow
-            };
+        var reviewState = store.ReviewStates.FirstOrDefault(state =>
+                              state.UserId == userId &&
+                              state.ItemId == item.Id)
+                          ?? new ReviewState
+                          {
+                              UserId = userId,
+                              ItemId = item.Id,
+                              DueAtUtc = DateTimeOffset.UtcNow
+                          };
 
         if (!store.ReviewStates.Any(state => state.Id == reviewState.Id))
         {
@@ -102,7 +111,8 @@ public sealed class StudyService
             FeedbackCode = evaluation.FeedbackCode
         });
 
-        await _dataStore.SaveAsync(store, cancellationToken);
+        await dataStore.SaveAsync(store, cancellationToken);
+
         return evaluation with { NextDueAtUtc = reviewState.DueAtUtc };
     }
 
@@ -120,6 +130,7 @@ public sealed class StudyService
         if (acceptedVariants.Contains(normalizedSubmitted))
         {
             var isVariant = normalizedSubmitted != normalizedExpected;
+
             return new StudyAnswerResult(
                 isVariant ? StudyVerdict.AlmostCorrect : StudyVerdict.Correct,
                 normalizedSubmitted,
@@ -131,41 +142,73 @@ public sealed class StudyService
 
         if (TextNormalizer.TokensMatchIgnoringArticles(submittedAnswer, expected))
         {
-            return new StudyAnswerResult(StudyVerdict.AlmostCorrect, normalizedSubmitted, normalizedExpected, expected, FeedbackCode.MissingArticle, DateTimeOffset.UtcNow);
+            return CreateAlmostCorrectResult(
+                normalizedSubmitted,
+                normalizedExpected,
+                expected,
+                FeedbackCode.MissingArticle);
         }
 
         if (TextNormalizer.LooksLikeInflectionVariant(submittedAnswer, expected))
         {
-            return new StudyAnswerResult(StudyVerdict.AlmostCorrect, normalizedSubmitted, normalizedExpected, expected, FeedbackCode.InflectionMismatch, DateTimeOffset.UtcNow);
+            return CreateAlmostCorrectResult(
+                normalizedSubmitted,
+                normalizedExpected,
+                expected,
+                FeedbackCode.InflectionMismatch);
         }
 
         if (TextNormalizer.LooksLikeMinorTypo(submittedAnswer, expected))
         {
-            return new StudyAnswerResult(StudyVerdict.AlmostCorrect, normalizedSubmitted, normalizedExpected, expected, FeedbackCode.MinorTypo, DateTimeOffset.UtcNow);
+            return CreateAlmostCorrectResult(
+                normalizedSubmitted,
+                normalizedExpected,
+                expected,
+                FeedbackCode.MinorTypo);
         }
 
-        if (item.ItemKind == ItemKind.Phrase && PhraseSimilarity(normalizedSubmitted, normalizedExpected) >= 0.6)
+        if (item.ItemKind == ItemKind.Phrase &&
+            PhraseSimilarity(normalizedSubmitted, normalizedExpected) >= 0.6)
         {
-            return new StudyAnswerResult(StudyVerdict.AlmostCorrect, normalizedSubmitted, normalizedExpected, expected, FeedbackCode.AcceptedVariant, DateTimeOffset.UtcNow);
+            return CreateAlmostCorrectResult(
+                normalizedSubmitted,
+                normalizedExpected,
+                expected,
+                FeedbackCode.AcceptedVariant);
         }
 
-        return new StudyAnswerResult(StudyVerdict.Incorrect, normalizedSubmitted, null, expected, FeedbackCode.MeaningMismatch, DateTimeOffset.UtcNow);
+        return new StudyAnswerResult(
+            StudyVerdict.Incorrect,
+            normalizedSubmitted,
+            null,
+            expected,
+            FeedbackCode.MeaningMismatch,
+            DateTimeOffset.UtcNow);
     }
 
-    public async Task<ProgressDashboardResponse> GetDashboardAsync(Guid userId, CancellationToken cancellationToken)
+    public async Task<ProgressDashboardResponse> GetDashboardAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
     {
-        var store = await _dataStore.LoadAsync(cancellationToken);
+        var store = await dataStore.LoadAsync(cancellationToken);
         var items = GetVisibleItems(store, userId);
         var visibleItemIds = items.Select(item => item.Id).ToHashSet();
-        var states = store.ReviewStates.Where(state => state.UserId == userId && visibleItemIds.Contains(state.ItemId)).ToList();
+        var states = store.ReviewStates
+            .Where(state => state.UserId == userId && visibleItemIds.Contains(state.ItemId))
+            .ToList();
         var today = DateTimeOffset.UtcNow.Date;
+        var studiedToday = store.StudyEvents.Count(ev =>
+            ev.UserId == userId &&
+            ev.AnsweredAtUtc.UtcDateTime.Date == today &&
+            visibleItemIds.Contains(ev.ItemId));
+
         return new ProgressDashboardResponse(
             items.Count,
             states.Count(state => state.DueAtUtc <= DateTimeOffset.UtcNow),
             states.Count(state => state.SuccessCount == 0),
             items.Count(item => item.SourceType == SourceType.Base),
             items.Count(item => item.SourceType == SourceType.Custom),
-            store.StudyEvents.Count(ev => ev.UserId == userId && ev.AnsweredAtUtc.UtcDateTime.Date == today && visibleItemIds.Contains(ev.ItemId)));
+            studiedToday);
     }
 
     private static List<DictionaryItem> GetVisibleItems(DataStore store, Guid userId)
@@ -184,25 +227,32 @@ public sealed class StudyService
     {
         var leftTokens = left.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var rightTokens = right.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
         if (leftTokens.Length == 0 || rightTokens.Length == 0)
         {
             return 0;
         }
 
         var matches = leftTokens.Intersect(rightTokens).Count();
+
         return (double)matches / Math.Max(leftTokens.Length, rightTokens.Length);
     }
 
-    private static ReviewState PickBalancedItem(List<ReviewState> dueStates, List<DictionaryItem> visibleItems)
+    private static ReviewState PickBalancedItem(
+        List<ReviewState> dueStates,
+        List<DictionaryItem> visibleItems)
     {
         var sourceCounts = dueStates
-            .Join(visibleItems, state => state.ItemId, item => item.Id, (state, item) => item.SourceType)
+            .Join(visibleItems, state => state.ItemId, item => item.Id, (_, item) => item.SourceType)
             .GroupBy(sourceType => sourceType)
             .ToDictionary(group => group.Key, group => group.Count());
 
         var customCandidate = dueStates.FirstOrDefault(state =>
-            visibleItems.Any(item => item.Id == state.ItemId && item.SourceType == SourceType.Custom) &&
-            sourceCounts.GetValueOrDefault(SourceType.Custom) <= sourceCounts.GetValueOrDefault(SourceType.Base));
+            visibleItems.Any(item =>
+                item.Id == state.ItemId &&
+                item.SourceType == SourceType.Custom) &&
+            sourceCounts.GetValueOrDefault(SourceType.Custom) <=
+            sourceCounts.GetValueOrDefault(SourceType.Base));
 
         return customCandidate ?? dueStates[0];
     }
@@ -210,17 +260,20 @@ public sealed class StudyService
     private static void ApplyScheduler(ReviewState reviewState, StudyVerdict verdict)
     {
         reviewState.LastSeenAtUtc = DateTimeOffset.UtcNow;
+
         switch (verdict)
         {
             case StudyVerdict.Correct:
                 reviewState.SuccessCount += 1;
                 reviewState.Stability = Math.Min(0.95, reviewState.Stability + 0.15);
-                reviewState.DueAtUtc = DateTimeOffset.UtcNow.AddHours(12 * Math.Max(1, reviewState.SuccessCount));
+                reviewState.DueAtUtc = DateTimeOffset.UtcNow.AddHours(
+                    12 * Math.Max(1, reviewState.SuccessCount));
                 break;
             case StudyVerdict.AlmostCorrect:
                 reviewState.SuccessCount += 1;
                 reviewState.Stability = Math.Min(0.85, reviewState.Stability + 0.08);
-                reviewState.DueAtUtc = DateTimeOffset.UtcNow.AddHours(8 * Math.Max(1, reviewState.SuccessCount));
+                reviewState.DueAtUtc = DateTimeOffset.UtcNow.AddHours(
+                    8 * Math.Max(1, reviewState.SuccessCount));
                 break;
             default:
                 reviewState.LapseCount += 1;
@@ -228,5 +281,20 @@ public sealed class StudyService
                 reviewState.DueAtUtc = DateTimeOffset.UtcNow.AddMinutes(10);
                 break;
         }
+    }
+
+    private static StudyAnswerResult CreateAlmostCorrectResult(
+        string normalizedSubmitted,
+        string normalizedExpected,
+        string expected,
+        FeedbackCode feedbackCode)
+    {
+        return new StudyAnswerResult(
+            StudyVerdict.AlmostCorrect,
+            normalizedSubmitted,
+            normalizedExpected,
+            expected,
+            feedbackCode,
+            DateTimeOffset.UtcNow);
     }
 }

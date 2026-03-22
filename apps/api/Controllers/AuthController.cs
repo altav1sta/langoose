@@ -6,27 +6,27 @@ namespace Langoose.Api.Controllers;
 
 [ApiController]
 [Route("auth")]
-public sealed class AuthController : ControllerBase
+public sealed class AuthController(AuthService authService) : ControllerBase
 {
-    private readonly AuthService _authService;
-
-    public AuthController(AuthService authService)
-    {
-        _authService = authService;
-    }
-
     [HttpPost("email-sign-in")]
-    public Task<AuthResponse> EmailSignIn([FromBody] EmailSignInRequest request, CancellationToken cancellationToken) =>
-        _authService.EmailSignInAsync(request, cancellationToken);
+    public Task<AuthResponse> EmailSignIn(
+        [FromBody] EmailSignInRequest request,
+        CancellationToken cancellationToken) =>
+        authService.EmailSignInAsync(request, cancellationToken);
 
     [HttpPost("social-sign-in")]
-    public Task<AuthResponse> SocialSignIn([FromBody] SocialSignInRequest request, CancellationToken cancellationToken) =>
-        _authService.SocialSignInAsync(request, cancellationToken);
+    public Task<AuthResponse> SocialSignIn(
+        [FromBody] SocialSignInRequest request,
+        CancellationToken cancellationToken) =>
+        authService.SocialSignInAsync(request, cancellationToken);
 
     [HttpGet("me")]
     public async Task<ActionResult<MeResponse>> Me(CancellationToken cancellationToken)
     {
-        var user = await _authService.GetUserFromTokenAsync(Request.Headers.Authorization, cancellationToken);
+        var user = await authService.GetUserFromTokenAsync(
+            Request.Headers.Authorization,
+            cancellationToken);
+
         if (user is null)
         {
             return Unauthorized();

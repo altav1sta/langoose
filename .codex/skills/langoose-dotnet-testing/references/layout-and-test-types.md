@@ -19,8 +19,8 @@
 
 ## How To Classify Existing Langoose Tests
 
-- The current `apps/api/tests/Program.cs` suite uses the real file-backed store with temp directories and multiple services together.
-- That makes it closer to an integration or behavioral test suite than a pure unit-test suite.
+- The current `tests/Langoose.Api.Tests` suite uses the real file-backed store with temp directories and multiple services together.
+- That makes it closer to an integration or behavioral xUnit suite than a pure unit-test suite.
 - Keep that distinction in mind when naming or relocating the project.
 
 ## Practical Guidance For Future Refactors
@@ -28,7 +28,7 @@
 - When adding pure unit tests, target methods or classes that can run entirely in memory without touching the file store.
 - When adding functional API tests, consider `WebApplicationFactory<Program>` and make `Program` public partial if the test project needs access to it.
 - When a single test project becomes too broad, split by test type first, then by application area inside each project.
-- Keep application references one-way: test projects reference the app project; app projects do not know about test projects.
+- Keep application references one-way: test projects reference the app project; app projects do not know about test projects.`n- Prefer discoverable xUnit test projects over executable harnesses so `dotnet test` and Visual Studio Test Explorer can both discover the suite.
 - Respect `.gitattributes` so moving or splitting test files does not introduce line-ending-only diffs.
 - Prefer the repository line-length standard of 120 characters in test code too, except where test readability is better with a small local exception.
 - In C# projects, prefer one top-level type per file for both production code and tests. If a test helper, stub, or fixture grows beyond a tiny private helper, move it into its own file.

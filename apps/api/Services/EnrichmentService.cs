@@ -1,24 +1,53 @@
-﻿using Langoose.Api.Models;
+using Langoose.Api.Models;
 
 namespace Langoose.Api.Services;
 
 public sealed class EnrichmentService
 {
-    private static readonly Dictionary<string, (List<string> Glosses, string Pos, string Difficulty, List<string> Examples, List<string> Variants)> Lexicon =
+    private static readonly Dictionary<string, LexiconEntry> Lexicon =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["book"] = (["книга"], "noun", "A1", ["She bought a new book yesterday."], []),
-            ["decision"] = (["решение"], "noun", "B1", ["Making that decision took a long time."], ["choice"]),
-            ["take care of"] = (["заботиться о"], "phrase", "B1", ["I take care of my little brother after school."], ["look after"]),
-            ["look for"] = (["искать"], "phrase", "A2", ["We are looking for a small apartment."], ["search for"]),
-            ["improve"] = (["улучшать"], "verb", "B1", ["Practice every day to improve your English."], ["get better"])
+            ["book"] = new(
+                ["\u043A\u043D\u0438\u0433\u0430"],
+                "noun",
+                "A1",
+                ["She bought a new book yesterday."],
+                []),
+            ["decision"] = new(
+                ["\u0440\u0435\u0448\u0435\u043D\u0438\u0435"],
+                "noun",
+                "B1",
+                ["Making that decision took a long time."],
+                ["choice"]),
+            ["take care of"] = new(
+                ["\u0437\u0430\u0431\u043E\u0442\u0438\u0442\u044C\u0441\u044F \u043E"],
+                "phrase",
+                "B1",
+                ["I take care of my little brother after school."],
+                ["look after"]),
+            ["look for"] = new(
+                ["\u0438\u0441\u043A\u0430\u0442\u044C"],
+                "phrase",
+                "A2",
+                ["We are looking for a small apartment."],
+                ["search for"]),
+            ["improve"] = new(
+                ["\u0443\u043B\u0443\u0447\u0448\u0430\u0442\u044C"],
+                "verb",
+                "B1",
+                ["Practice every day to improve your English."],
+                ["get better"])
         };
 
     public EnrichmentResponse Enrich(EnrichmentRequest request)
     {
         var englishText = request.EnglishText.Trim();
         var warnings = new List<string>();
-        var inputGlosses = request.RussianGlosses?.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? [];
+        var inputGlosses = request.RussianGlosses?
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? [];
 
         List<string> glosses;
         string partOfSpeech;
@@ -29,7 +58,7 @@ public sealed class EnrichmentService
         if (Lexicon.TryGetValue(englishText, out var entry))
         {
             glosses = inputGlosses.Count > 0 ? inputGlosses : entry.Glosses;
-            partOfSpeech = InferPartOfSpeech(request.ItemKind, entry.Pos);
+            partOfSpeech = InferPartOfSpeech(request.ItemKind, entry.PartOfSpeech);
             difficulty = entry.Difficulty;
             examples = entry.Examples;
             acceptedVariants = [englishText, .. entry.Variants];
@@ -37,13 +66,19 @@ public sealed class EnrichmentService
         else
         {
             glosses = inputGlosses;
-            partOfSpeech = InferPartOfSpeech(request.ItemKind, englishText.Contains(' ') ? "phrase" : "word");
-            difficulty = englishText.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 1 ? "B1" : "A2";
+            partOfSpeech = InferPartOfSpeech(
+                request.ItemKind,
+                englishText.Contains(' ') ? "phrase" : "word");
+            difficulty = englishText.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 1
+                ? "B1"
+                : "A2";
             examples = [CreateFallbackSentence(englishText)];
             acceptedVariants = [englishText];
+
             if (glosses.Count == 0)
             {
-                warnings.Add("No free-tier translation was available. Add a Russian gloss manually for better quality.");
+                warnings.Add(
+                    "No free-tier translation was available. Add a Russian gloss manually for better quality.");
             }
         }
 
@@ -69,9 +104,13 @@ public sealed class EnrichmentService
             acceptedVariants.Distinct(StringComparer.OrdinalIgnoreCase).ToList());
     }
 
-    public static IReadOnlyList<string> Validate(string englishText, List<string> glosses, List<ExampleCandidate> examples)
+    public static IReadOnlyList<string> Validate(
+        string englishText,
+        List<string> glosses,
+        List<ExampleCandidate> examples)
     {
         var warnings = new List<string>();
+
         if (string.IsNullOrWhiteSpace(englishText))
         {
             warnings.Add("English text is required.");
@@ -99,16 +138,29 @@ public sealed class EnrichmentService
     }
 
     private static string InferPartOfSpeech(string? requestedKind, string fallback) =>
-        string.Equals(requestedKind, "phrase", StringComparison.OrdinalIgnoreCase) ? "phrase" : fallback;
+        string.Equals(requestedKind, "phrase", StringComparison.OrdinalIgnoreCase)
+            ? "phrase"
+            : fallback;
 
     private static string BuildTranslationHint(List<string> glosses) =>
-        glosses.Count == 0 ? "Добавьте перевод вручную" : string.Join(", ", glosses);
+        glosses.Count == 0
+            ? "\u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 " +
+                "\u043F\u0435\u0440\u0435\u0432\u043E\u0434 \u0432\u0440\u0443\u0447\u043D\u0443\u044E"
+            : string.Join(", ", glosses);
 
     private static string CreateFallbackSentence(string englishText)
     {
         var isPhrase = englishText.Contains(' ');
+
         return isPhrase
             ? $"Try to use {englishText} in a short everyday conversation."
             : $"I use the word {englishText} when I speak English.";
     }
+
+    private sealed record LexiconEntry(
+        List<string> Glosses,
+        string PartOfSpeech,
+        string Difficulty,
+        List<string> Examples,
+        List<string> Variants);
 }

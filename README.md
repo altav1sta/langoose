@@ -11,11 +11,12 @@ Langoose is a web-first MVP for Russian speakers learning English. It combines s
 - API style: controller-based JSON API
 - Persistence: local file-backed JSON store
 - Auth: lightweight token-based MVP auth
-- Tests: small executable .NET test harness
+- Tests: xUnit-based .NET test project under `tests/`
 
 ## Repo layout
 
-- `apps/api`: backend API, .NET solution, config, and tests
+- `apps/api`: backend API, .NET solution, and config
+- `tests/Langoose.Api.Tests`: discoverable xUnit backend behavior tests
 - `apps/web`: frontend SPA
 - `.local`: local-only cache used in restricted environments
 - root: shared repo files only
@@ -71,7 +72,7 @@ dotnet run --project apps/api/Langoose.Api.csproj --configfile D:\Projects\lango
 Run backend checks:
 
 ```powershell
-dotnet run --project apps/api/tests/Langoose.Api.Tests.csproj --configfile D:\Projects\langoose\apps\api\NuGet.Config
+dotnet test tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config
 ```
 
 ## Running the frontend
@@ -105,6 +106,6 @@ Open the local URL shown by Vite, usually:
 
 ## Ignore strategy
 
-- root `.gitignore`: shared repo/workstation noise only
+- root `.gitignore`: shared repo/workstation noise plus repo-wide .NET build/test outputs
 - `apps/api/.gitignore`: .NET outputs and backend-local runtime files
 - `apps/web/.gitignore`: Node and frontend build artifacts

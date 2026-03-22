@@ -34,8 +34,8 @@ Use this skill when the task is mainly about .NET test structure, test boundarie
 
 ## Langoose-Specific Recommendation
 
-- The current executable harness in `apps/api/tests` behaves more like an integration/behavior suite than pure unit tests because it exercises the file-backed store and service interactions together.
-- If it is moved, treat it as the first root-level API test project under `tests/`.
+- The current `tests/Langoose.Api.Tests` suite behaves more like an integration/behavior suite than pure unit tests because it exercises the file-backed store and service interactions together.
+- Keep it as the first root-level API test project under `tests/`, and prefer discoverable xUnit tests over executable harnesses so Test Explorer and `dotnet test` work by default.
 - If future pure unit tests are added for isolated logic like text normalization or answer evaluation helpers, keep those in a separate unit-test project.
 
 ## Load Additional Detail Only When Needed
