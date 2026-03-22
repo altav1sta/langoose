@@ -1,0 +1,4 @@
+version: 1
+display_name: Langoose Dev
+short_description: Work inside the Langoose MVP stack and preserve its dictionary and study-flow rules.
+default_prompt: Use this skill when working on the Langoose React/Vite frontend, ASP.NET Core API, CSV import/export flow, local JSON store, or executable MVP tests.

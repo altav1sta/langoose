@@ -1,0 +1,4 @@
+version: 1
+display_name: Langoose Study Engine
+short_description: Work on Langoose grading, scheduling, and study-loop behavior.
+default_prompt: Use this skill when changing Langoose card selection, answer grading, spaced repetition, normalization, or study dashboard behavior.

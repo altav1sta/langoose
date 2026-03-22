@@ -1,0 +1,4 @@
+version: 1
+display_name: Langoose .NET Testing
+short_description: Organize Langoose API tests using current .NET and ASP.NET Core guidance.
+default_prompt: Use this skill when working on Langoose test-project layout, test type boundaries, or ASP.NET Core testing patterns.

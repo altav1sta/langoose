@@ -1,0 +1,4 @@
+version: 1
+display_name: Langoose API Contracts
+short_description: Keep backend and frontend API contracts aligned in Langoose.
+default_prompt: Use this skill when changing Langoose request or response models, controller payloads, frontend API types, or endpoint behavior across apps/api and apps/web.

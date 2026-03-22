@@ -1,0 +1,4 @@
+version: 1
+display_name: Langoose React TypeScript
+short_description: Work on the Langoose frontend with current React and TypeScript guidance.
+default_prompt: Use this skill when working on Langoose React components, hooks, state structure, effects, frontend API typing, or TypeScript configuration.

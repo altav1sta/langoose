@@ -1,0 +1,4 @@
+version: 1
+display_name: Langoose Dictionary Imports
+short_description: Work on Langoose dictionary visibility, CSV import/export, and duplicate rules.
+default_prompt: Use this skill when changing Langoose dictionary behavior, CSV validation, import/export flow, duplicate merging, or custom-data clearing.
