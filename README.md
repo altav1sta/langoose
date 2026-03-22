@@ -18,8 +18,14 @@ Langoose is a web-first MVP for Russian speakers learning English. It combines s
 - `apps/api`: backend API, .NET solution, and config
 - `tests/Langoose.Api.Tests`: discoverable xUnit backend behavior tests
 - `apps/web`: frontend SPA
+- `docs`: roadmap and project documentation
 - `.local`: local-only cache used in restricted environments
 - root: shared repo files only
+
+## Project planning
+
+- Roadmap overview: `docs/roadmap.md`
+- Live execution tracking: GitHub `Langoose MVP` project
 
 ## What the MVP currently does
 
