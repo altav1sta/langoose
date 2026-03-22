@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color-scheme: light;
   --bg: #f4efe6;
   --panel: rgba(255, 250, 242, 0.88);
@@ -64,7 +64,7 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 0.9rem 1rem;
-  background: rgba(255,255,255,0.7);
+  background: rgba(255, 255, 255, 0.7);
 }
 
 form {
@@ -160,7 +160,7 @@ form {
 
 .metric-card {
   padding: 18px;
-  background: rgba(255,255,255,0.52);
+  background: rgba(255, 255, 255, 0.52);
   border-radius: 20px;
 }
 
@@ -189,7 +189,7 @@ form {
   color: var(--ink);
 }
 
-.file-picker input[type="file"] {
+.file-picker input[type='file'] {
   padding: 0.75rem;
 }
 
@@ -203,16 +203,28 @@ form {
   justify-content: space-between;
 }
 
+.study-actions {
+  justify-content: flex-start;
+}
+
 .result-chip {
   margin-top: 8px;
   padding: 14px;
   border-radius: 18px;
-  background: rgba(255,255,255,0.55);
+  background: rgba(255, 255, 255, 0.55);
 }
 
-.result-chip.correct { border-left: 5px solid var(--good); }
-.result-chip.almostcorrect { border-left: 5px solid var(--warn); }
-.result-chip.incorrect { border-left: 5px solid var(--bad); }
+.result-chip.correct {
+  border-left: 5px solid var(--good);
+}
+
+.result-chip.almostcorrect {
+  border-left: 5px solid var(--warn);
+}
+
+.result-chip.incorrect {
+  border-left: 5px solid var(--bad);
+}
 
 .dictionary-list {
   display: grid;
@@ -222,7 +234,7 @@ form {
 .dictionary-row {
   padding: 16px 18px;
   border-radius: 18px;
-  background: rgba(255,255,255,0.54);
+  background: rgba(255, 255, 255, 0.54);
   flex-direction: row;
   justify-content: space-between;
   align-items: center;

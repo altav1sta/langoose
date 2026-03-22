@@ -1,4 +1,4 @@
-export type AuthResponse = {
+﻿export type AuthResponse = {
   userId: string;
   email: string;
   name: string;
@@ -35,7 +35,13 @@ export type StudyAnswerResult = {
   normalizedAnswer: string;
   acceptedVariant?: string | null;
   expectedAnswer: string;
-  feedbackCode: string;
+  feedbackCode:
+    | 'ExactMatch'
+    | 'AcceptedVariant'
+    | 'MissingArticle'
+    | 'InflectionMismatch'
+    | 'MinorTypo'
+    | 'Incorrect';
   nextDueAtUtc: string;
 };
 
@@ -46,6 +52,41 @@ export type Dashboard = {
   baseItems: number;
   customItems: number;
   studiedToday: number;
+};
+
+export type SignInRequest = {
+  email: string;
+  name?: string;
+};
+
+export type AddDictionaryItemRequest = {
+  englishText: string;
+  russianGlosses: string[];
+  itemKind: 'word' | 'phrase';
+  createdByFlow: 'quick-add' | string;
+};
+
+export type ImportCsvRequest = {
+  fileName: string;
+  csvContent: string;
+};
+
+export type ImportCsvResult = {
+  totalRows: number;
+  importedRows: number;
+  skippedRows: number;
+  errors: string[];
+};
+
+export type SubmitAnswerRequest = {
+  itemId: string;
+  submittedAnswer: string;
+};
+
+export type ReportIssueRequest = {
+  itemId: string;
+  reason: string;
+  details: string;
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000';
@@ -83,24 +124,26 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
 
 export const api = {
   signIn(email: string, name?: string) {
+    const payload: SignInRequest = { email, name };
     return request<AuthResponse>('/auth/email-sign-in', {
       method: 'POST',
-      body: JSON.stringify({ email, name })
+      body: JSON.stringify(payload)
     });
   },
   getDictionary(token: string) {
     return request<DictionaryItem[]>('/dictionary/items', {}, token);
   },
-  addDictionaryItem(token: string, payload: Record<string, unknown>) {
+  addDictionaryItem(token: string, payload: AddDictionaryItemRequest) {
     return request<DictionaryItem>('/dictionary/items', {
       method: 'POST',
       body: JSON.stringify(payload)
     }, token);
   },
   importCsv(token: string, fileName: string, csvContent: string) {
-    return request<{ totalRows: number; importedRows: number; skippedRows: number; errors: string[] }>('/dictionary/import', {
+    const payload: ImportCsvRequest = { fileName, csvContent };
+    return request<ImportCsvResult>('/dictionary/import', {
       method: 'POST',
-      body: JSON.stringify({ fileName, csvContent })
+      body: JSON.stringify(payload)
     }, token);
   },
   exportCsv(token: string) {
@@ -115,19 +158,20 @@ export const api = {
     return request<StudyCard>('/study/next', {}, token);
   },
   submitAnswer(token: string, itemId: string, submittedAnswer: string) {
+    const payload: SubmitAnswerRequest = { itemId, submittedAnswer };
     return request<StudyAnswerResult>('/study/answer', {
       method: 'POST',
-      body: JSON.stringify({ itemId, submittedAnswer })
+      body: JSON.stringify(payload)
     }, token);
   },
   getDashboard(token: string) {
     return request<Dashboard>('/study/dashboard', {}, token);
   },
   reportIssue(token: string, itemId: string, reason: string, details: string) {
+    const payload: ReportIssueRequest = { itemId, reason, details };
     return request<void>('/content/report-issue', {
       method: 'POST',
-      body: JSON.stringify({ itemId, reason, details })
+      body: JSON.stringify(payload)
     }, token);
   }
 };
-

@@ -1,5 +1,13 @@
-import { useEffect, useState } from 'react';
-import { api, type AuthResponse, type Dashboard, type DictionaryItem, type StudyAnswerResult, type StudyCard } from './api';
+﻿import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  api,
+  type AddDictionaryItemRequest,
+  type AuthResponse,
+  type Dashboard,
+  type DictionaryItem,
+  type StudyAnswerResult,
+  type StudyCard
+} from './api';
 import './styles.css';
 
 type SessionState = {
@@ -19,8 +27,28 @@ type SessionSnapshot = {
   card?: StudyCard;
 };
 
+type AuthFormState = {
+  email: string;
+  name: string;
+};
+
+type QuickAddFormState = {
+  englishText: string;
+  russianText: string;
+};
+
 const initialState: SessionState = {
   dictionary: []
+};
+
+const initialAuthForm: AuthFormState = {
+  email: 'learner@example.com',
+  name: 'Learner'
+};
+
+const initialQuickAddForm: QuickAddFormState = {
+  englishText: 'look for',
+  russianText: 'искать'
 };
 
 function verdictClassName(verdict: StudyAnswerResult['verdict'] | undefined) {
@@ -28,7 +56,7 @@ function verdictClassName(verdict: StudyAnswerResult['verdict'] | undefined) {
     return '';
   }
 
-  return String(verdict).toLowerCase();
+  return verdict.toLowerCase();
 }
 
 function verdictLabel(verdict: StudyAnswerResult['verdict'] | undefined) {
@@ -44,8 +72,7 @@ function verdictLabel(verdict: StudyAnswerResult['verdict'] | undefined) {
 }
 
 function feedbackLabel(result: StudyAnswerResult) {
-  const code = String(result.feedbackCode);
-  switch (code) {
+  switch (result.feedbackCode) {
     case 'ExactMatch':
       return 'Perfect. That answer matches the expected wording.';
     case 'AcceptedVariant':
@@ -84,41 +111,76 @@ function buildRefreshNotice(previousCard: StudyCard | undefined, snapshot: Sessi
   return `Session synced. ${cardMessage} Due now: ${snapshot.dashboard.dueNow}. Custom items: ${snapshot.dashboard.customItems}.`;
 }
 
+function getCustomItemCount(items: DictionaryItem[]) {
+  return items.filter(item => item.ownerId).length;
+}
+
+function buildQuickAddPayload(form: QuickAddFormState): AddDictionaryItemRequest {
+  return {
+    englishText: form.englishText,
+    russianGlosses: form.russianText
+      .split(',')
+      .map(value => value.trim())
+      .filter(Boolean),
+    itemKind: form.englishText.includes(' ') ? 'phrase' : 'word',
+    createdByFlow: 'quick-add'
+  };
+}
+
+function parseStoredAuth() {
+  const stored = window.localStorage.getItem('langoose-auth');
+  if (!stored) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(stored) as AuthResponse;
+  } catch {
+    window.localStorage.removeItem('langoose-auth');
+    return undefined;
+  }
+}
+
+async function loadSession(auth: AuthResponse): Promise<SessionSnapshot> {
+  const [dictionary, dashboard] = await Promise.all([
+    api.getDictionary(auth.token),
+    api.getDashboard(auth.token)
+  ]);
+
+  const card = await api.getNextCard(auth.token).catch(() => undefined);
+  return { dictionary, dashboard, card };
+}
+
+async function loadStudyState(token: string) {
+  const [dashboard, card] = await Promise.all([
+    api.getDashboard(token),
+    api.getNextCard(token).catch(() => undefined)
+  ]);
+
+  return { dashboard, card };
+}
+
 export default function App() {
   const [state, setState] = useState<SessionState>(initialState);
-  const [email, setEmail] = useState('learner@example.com');
-  const [name, setName] = useState('Learner');
+  const [authForm, setAuthForm] = useState<AuthFormState>(initialAuthForm);
   const [answer, setAnswer] = useState('');
-  const [englishText, setEnglishText] = useState('look for');
-  const [russianText, setRussianText] = useState('\u0438\u0441\u043a\u0430\u0442\u044c');
+  const [quickAddForm, setQuickAddForm] = useState<QuickAddFormState>(initialQuickAddForm);
   const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [importSummary, setImportSummary] = useState<string>('');
+  const [importSummary, setImportSummary] = useState('');
 
   useEffect(() => {
-    const stored = window.localStorage.getItem('langoose-auth');
-    if (!stored) {
+    const auth = parseStoredAuth();
+    if (!auth) {
       return;
     }
 
-    const auth = JSON.parse(stored) as AuthResponse;
-    hydrate(auth).catch((error: Error) => setState(current => ({ ...current, error: error.message })));
+    void hydrate(auth).catch(error => {
+      setState(current => ({
+        ...current,
+        error: error instanceof Error ? error.message : 'Could not restore your session'
+      }));
+    });
   }, []);
-
-  async function loadSession(auth: AuthResponse): Promise<SessionSnapshot> {
-    const [dictionary, dashboard] = await Promise.all([
-      api.getDictionary(auth.token),
-      api.getDashboard(auth.token)
-    ]);
-
-    let card: StudyCard | undefined;
-    try {
-      card = await api.getNextCard(auth.token);
-    } catch {
-      card = undefined;
-    }
-
-    return { dictionary, dashboard, card };
-  }
 
   async function hydrate(auth: AuthResponse, notice?: string) {
     const snapshot = await loadSession(auth);
@@ -158,17 +220,23 @@ export default function App() {
         lastSyncedAt: new Date().toISOString()
       }));
     } catch (error) {
-      setState(current => ({ ...current, error: error instanceof Error ? error.message : 'Could not sync the session' }));
+      setState(current => ({
+        ...current,
+        error: error instanceof Error ? error.message : 'Could not sync the session'
+      }));
     }
   }
 
   async function signIn() {
     try {
-      const auth = await api.signIn(email, name);
+      const auth = await api.signIn(authForm.email, authForm.name);
       window.localStorage.setItem('langoose-auth', JSON.stringify(auth));
       await hydrate(auth, 'You are signed in and ready to study.');
     } catch (error) {
-      setState(current => ({ ...current, error: error instanceof Error ? error.message : 'Sign-in failed' }));
+      setState(current => ({
+        ...current,
+        error: error instanceof Error ? error.message : 'Sign-in failed'
+      }));
     }
   }
 
@@ -178,17 +246,12 @@ export default function App() {
     }
 
     try {
-      const beforeCount = state.dictionary.filter(item => item.ownerId).length;
-      const savedItem = await api.addDictionaryItem(state.auth.token, {
-        englishText,
-        russianGlosses: russianText.split(',').map(value => value.trim()).filter(Boolean),
-        itemKind: englishText.includes(' ') ? 'phrase' : 'word',
-        createdByFlow: 'quick-add'
-      });
-
+      const beforeCount = getCustomItemCount(state.dictionary);
+      const savedItem = await api.addDictionaryItem(state.auth.token, buildQuickAddPayload(quickAddForm));
       const snapshot = await hydrate(state.auth);
-      const afterCount = snapshot.dictionary.filter(item => item.ownerId).length;
+      const afterCount = getCustomItemCount(snapshot.dictionary);
       const merged = afterCount === beforeCount;
+
       setState(current => ({
         ...current,
         notice: savedItem.sourceType === 'base'
@@ -198,7 +261,10 @@ export default function App() {
             : 'Saved to your dictionary and added to the study pool.'
       }));
     } catch (error) {
-      setState(current => ({ ...current, error: error instanceof Error ? error.message : 'Could not add item' }));
+      setState(current => ({
+        ...current,
+        error: error instanceof Error ? error.message : 'Could not add item'
+      }));
     }
   }
 
@@ -210,13 +276,25 @@ export default function App() {
     try {
       const content = await csvFile.text();
       const result = await api.importCsv(state.auth.token, csvFile.name, content);
-      setImportSummary(`Imported ${result.importedRows} of ${result.totalRows} rows${result.skippedRows ? `, skipped ${result.skippedRows} rows that were already in your custom or base dictionary` : ''}.`);
+      setImportSummary(
+        `Imported ${result.importedRows} of ${result.totalRows} rows${result.skippedRows
+          ? ', skipped rows that were already in your custom or base dictionary'
+          : ''
+        }.`
+      );
       setCsvFile(null);
-      await hydrate(state.auth, result.skippedRows > 0
-        ? 'Import finished. Existing custom entries and base terms were skipped so the dictionary stays clean.'
-        : 'Import finished. New rows were added to your custom dictionary.');
+
+      await hydrate(
+        state.auth,
+        result.skippedRows > 0
+          ? 'Import finished. Existing custom entries and base terms were skipped so the dictionary stays clean.'
+          : 'Import finished. New rows were added to your custom dictionary.'
+      );
     } catch (error) {
-      setState(current => ({ ...current, error: error instanceof Error ? error.message : 'Import failed' }));
+      setState(current => ({
+        ...current,
+        error: error instanceof Error ? error.message : 'Import failed'
+      }));
     }
   }
 
@@ -227,18 +305,23 @@ export default function App() {
 
     try {
       const result = await api.submitAnswer(state.auth.token, state.card.itemId, answer);
+      const studyState = await loadStudyState(state.auth.token);
       setAnswer('');
-      const dashboard = await api.getDashboard(state.auth.token);
-      let card: StudyCard | undefined;
-      try {
-        card = await api.getNextCard(state.auth.token);
-      } catch {
-        card = undefined;
-      }
 
-      setState(current => ({ ...current, dashboard, card, result, notice: 'Answer saved.', lastSyncedAt: new Date().toISOString() }));
+      setState(current => ({
+        ...current,
+        dashboard: studyState.dashboard,
+        card: studyState.card,
+        result,
+        error: undefined,
+        notice: 'Answer saved.',
+        lastSyncedAt: new Date().toISOString()
+      }));
     } catch (error) {
-      setState(current => ({ ...current, error: error instanceof Error ? error.message : 'Answer submission failed' }));
+      setState(current => ({
+        ...current,
+        error: error instanceof Error ? error.message : 'Answer submission failed'
+      }));
     }
   }
 
@@ -250,9 +333,16 @@ export default function App() {
     try {
       const csv = await api.exportCsv(state.auth.token);
       await navigator.clipboard.writeText(csv);
-      setState(current => ({ ...current, notice: 'Export copied to clipboard.' }));
+      setState(current => ({
+        ...current,
+        error: undefined,
+        notice: 'Export copied to clipboard.'
+      }));
     } catch (error) {
-      setState(current => ({ ...current, error: error instanceof Error ? error.message : 'Export failed' }));
+      setState(current => ({
+        ...current,
+        error: error instanceof Error ? error.message : 'Export failed'
+      }));
     }
   }
 
@@ -261,7 +351,10 @@ export default function App() {
       return;
     }
 
-    const confirmed = window.confirm('Clear all custom words, imports, and progress for your account? Base content will stay available.');
+    const confirmed = window.confirm(
+      'Clear all custom words, imports, and progress for your account? Base content will stay available.'
+    );
+
     if (!confirmed) {
       return;
     }
@@ -272,9 +365,15 @@ export default function App() {
       setImportSummary('');
       setCsvFile(null);
       setState(current => ({ ...current, result: undefined }));
-      await hydrate(state.auth, 'Cleared your custom words, imports, and progress. Base study content is still available.');
+      await hydrate(
+        state.auth,
+        'Cleared your custom words, imports, and progress. Base study content is still available.'
+      );
     } catch (error) {
-      setState(current => ({ ...current, error: error instanceof Error ? error.message : 'Could not clear custom data' }));
+      setState(current => ({
+        ...current,
+        error: error instanceof Error ? error.message : 'Could not clear custom data'
+      }));
     }
   }
 
@@ -286,134 +385,313 @@ export default function App() {
     try {
       await api.reportIssue(state.auth.token, state.card.itemId, 'awkward sentence', 'Reported from study card UI');
       setAnswer('');
+      setImportSummary('');
       setState(current => ({ ...current, result: undefined }));
       await hydrate(state.auth, 'Thanks. We hid that card for now and loaded a different one.');
-      setImportSummary('');
     } catch (error) {
-      setState(current => ({ ...current, error: error instanceof Error ? error.message : 'Issue report failed' }));
+      setState(current => ({
+        ...current,
+        error: error instanceof Error ? error.message : 'Issue report failed'
+      }));
     }
   }
 
-  const customItemCount = state.dictionary.filter(item => item.ownerId).length;
+  const customItemCount = getCustomItemCount(state.dictionary);
 
   return (
     <main className="app-shell">
-      <section className="hero-card">
-        <div>
-          <p className="eyebrow">Russian speakers learning English</p>
-          <h1>Langoose</h1>
-          <p className="lede">A sentence-based learning loop with a private dictionary layered into the base training set.</p>
-        </div>
-        {!state.auth ? (
-          <form className="auth-panel" onSubmit={event => { event.preventDefault(); void signIn(); }}>
-            <input value={email} onChange={event => setEmail(event.target.value)} placeholder="Email" />
-            <input value={name} onChange={event => setName(event.target.value)} placeholder="Name" />
-            <button type="submit">Start learning</button>
-          </form>
-        ) : (
-          <div className="welcome-panel">
-            <span>{state.auth.name}</span>
-            <button type="button" onClick={() => void refreshSession()}>Sync session</button>
-            <p className="helper-text">Sync refreshes the dashboard and reloads whichever card is currently next in your study queue.</p>
-            <p className="sync-meta">Last synced: {formatTime(state.lastSyncedAt)}</p>
-          </div>
-        )}
-      </section>
+      <HeroSection
+        auth={state.auth}
+        authForm={authForm}
+        lastSyncedAt={state.lastSyncedAt}
+        onAuthChange={setAuthForm}
+        onRefresh={() => void refreshSession()}
+        onSignIn={() => void signIn()}
+      />
 
       {state.error ? <p className="error-banner">{state.error}</p> : null}
       {state.notice ? <p className="notice-banner">{state.notice}</p> : null}
 
       <section className="grid two-up">
-        <article className="panel stats-panel">
-          <h2>Progress</h2>
-          <div className="stats-grid">
-            <Metric label="Total items" value={state.dashboard?.totalItems ?? 0} />
-            <Metric label="Due now" value={state.dashboard?.dueNow ?? 0} />
-            <Metric label="New" value={state.dashboard?.newItems ?? 0} />
-            <Metric label="Custom" value={state.dashboard?.customItems ?? 0} />
-          </div>
-        </article>
-
-        <article className="panel study-panel">
-          <h2>Study</h2>
-          {state.card ? (
-            <form onSubmit={event => { event.preventDefault(); void submitAnswer(); }}>
-              <p className="prompt">{state.card.prompt}</p>
-              <p className="hint">{state.card.translationHint}</p>
-              <input value={answer} onChange={event => setAnswer(event.target.value)} placeholder="Type the missing English word or phrase" />
-              <div className="actions-row">
-                <button type="submit">Check answer</button>
-                <button type="button" className="secondary" onClick={() => void reportIssue()}>Report issue</button>
-              </div>
-            </form>
-          ) : (
-            <p>No due cards right now.</p>
-          )}
-          {state.result ? (
-            <div className={`result-chip ${verdictClassName(state.result.verdict)}`}>
-              <strong>{verdictLabel(state.result.verdict)}</strong>
-              <span>{feedbackLabel(state.result)}</span>
-              <span>Expected answer: {state.result.expectedAnswer}</span>
-            </div>
-          ) : null}
-        </article>
+        <ProgressPanel dashboard={state.dashboard} />
+        <StudyPanel
+          answer={answer}
+          card={state.card}
+          result={state.result}
+          onAnswerChange={setAnswer}
+          onReportIssue={() => void reportIssue()}
+          onSubmit={() => void submitAnswer()}
+        />
       </section>
 
       <section className="grid two-up">
-        <article className="panel">
-          <h2>Quick add</h2>
-          <form onSubmit={event => { event.preventDefault(); void addItem(); }}>
-            <input value={englishText} onChange={event => setEnglishText(event.target.value)} placeholder="English word or phrase" />
-            <input value={russianText} onChange={event => setRussianText(event.target.value)} placeholder="Russian glosses, comma separated" />
-            <button type="submit" disabled={!state.auth}>Add to my dictionary</button>
-          </form>
-        </article>
-
-        <article className="panel">
-          <h2>CSV import / export</h2>
-          <p className="helper-text">Import uses a CSV file only. Required columns: <code>English term</code>, <code>Russian translation(s)</code>, <code>Type</code>. Optional columns: <code>Notes</code>, <code>Tags</code>.</p>
-          <label className="file-picker">
-            <span>Choose CSV file</span>
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              onChange={event => setCsvFile(event.target.files?.[0] ?? null)}
-            />
-          </label>
-          <div className="actions-row">
-            <button type="button" onClick={() => void importItems()} disabled={!state.auth || !csvFile}>Import CSV</button>
-            <button type="button" className="secondary" onClick={() => void exportItems()} disabled={!state.auth}>Export CSV</button>
-          </div>
-          {csvFile ? <p className="helper-text">Selected file: {csvFile.name}</p> : null}
-          {importSummary ? <p className="helper-text">{importSummary}</p> : null}
-        </article>
+        <QuickAddPanel
+          auth={state.auth}
+          form={quickAddForm}
+          onFormChange={setQuickAddForm}
+          onSubmit={() => void addItem()}
+        />
+        <CsvPanel
+          auth={state.auth}
+          csvFile={csvFile}
+          importSummary={importSummary}
+          onCsvFileChange={setCsvFile}
+          onExport={() => void exportItems()}
+          onImport={() => void importItems()}
+        />
       </section>
 
-      <section className="panel">
-        <div className="section-header">
-          <div>
-            <h2>Dictionary</h2>
-            <span>{state.dictionary.length} visible items, {customItemCount} custom</span>
-          </div>
-          <button type="button" className="secondary danger" onClick={() => void clearCustomData()} disabled={!state.auth || customItemCount === 0}>Clear my custom data</button>
-        </div>
-        <div className="dictionary-list">
-          {state.dictionary.map(item => (
-            <article key={item.id} className="dictionary-row">
-              <div>
-                <strong>{item.englishText}</strong>
-                <p>{item.russianGlosses.join(', ')}</p>
-              </div>
-              <div className="pill-row">
-                <span>{item.sourceType}</span>
-                <span>{item.itemKind}</span>
-                <span>{item.difficulty}</span>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+      <DictionaryPanel
+        auth={state.auth}
+        customItemCount={customItemCount}
+        dictionary={state.dictionary}
+        onClearCustomData={() => void clearCustomData()}
+      />
     </main>
+  );
+}
+
+type HeroSectionProps = {
+  auth?: AuthResponse;
+  authForm: AuthFormState;
+  lastSyncedAt?: string;
+  onAuthChange: Dispatch<SetStateAction<AuthFormState>>;
+  onRefresh: () => void;
+  onSignIn: () => void;
+};
+
+function HeroSection({
+  auth,
+  authForm,
+  lastSyncedAt,
+  onAuthChange,
+  onRefresh,
+  onSignIn
+}: HeroSectionProps) {
+  return (
+    <section className="hero-card">
+      <div>
+        <p className="eyebrow">Russian speakers learning English</p>
+        <h1>Langoose</h1>
+        <p className="lede">
+          A sentence-based learning loop with a private dictionary layered into the base training set.
+        </p>
+      </div>
+      {!auth ? (
+        <form
+          className="auth-panel"
+          onSubmit={event => {
+            event.preventDefault();
+            onSignIn();
+          }}
+        >
+          <input
+            value={authForm.email}
+            onChange={event => onAuthChange(current => ({ ...current, email: event.target.value }))}
+            placeholder="Email"
+          />
+          <input
+            value={authForm.name}
+            onChange={event => onAuthChange(current => ({ ...current, name: event.target.value }))}
+            placeholder="Name"
+          />
+          <button type="submit">Start learning</button>
+        </form>
+      ) : (
+        <div className="welcome-panel">
+          <span>{auth.name}</span>
+          <button type="button" onClick={onRefresh}>Sync session</button>
+          <p className="helper-text">
+            Sync refreshes the dashboard and reloads whichever card is currently next in your study queue.
+          </p>
+          <p className="sync-meta">Last synced: {formatTime(lastSyncedAt)}</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ProgressPanel({ dashboard }: { dashboard?: Dashboard }) {
+  return (
+    <article className="panel stats-panel">
+      <h2>Progress</h2>
+      <div className="stats-grid">
+        <Metric label="Total items" value={dashboard?.totalItems ?? 0} />
+        <Metric label="Due now" value={dashboard?.dueNow ?? 0} />
+        <Metric label="New" value={dashboard?.newItems ?? 0} />
+        <Metric label="Custom" value={dashboard?.customItems ?? 0} />
+      </div>
+    </article>
+  );
+}
+
+type StudyPanelProps = {
+  answer: string;
+  card?: StudyCard;
+  result?: StudyAnswerResult;
+  onAnswerChange: (value: string) => void;
+  onReportIssue: () => void;
+  onSubmit: () => void;
+};
+
+function StudyPanel({ answer, card, result, onAnswerChange, onReportIssue, onSubmit }: StudyPanelProps) {
+  return (
+    <article className="panel study-panel">
+      <h2>Study</h2>
+      {card ? (
+        <form
+          onSubmit={event => {
+            event.preventDefault();
+            onSubmit();
+          }}
+        >
+          <p className="prompt">{card.prompt}</p>
+          <p className="hint">{card.translationHint}</p>
+          <input
+            value={answer}
+            onChange={event => onAnswerChange(event.target.value)}
+            placeholder="Type the missing English word or phrase"
+          />
+          <div className="actions-row study-actions">
+            <button type="submit">Check answer</button>
+            <button type="button" className="secondary" onClick={onReportIssue}>Report issue</button>
+          </div>
+        </form>
+      ) : (
+        <p>No due cards right now.</p>
+      )}
+      {result ? (
+        <div className={`result-chip ${verdictClassName(result.verdict)}`}>
+          <strong>{verdictLabel(result.verdict)}</strong>
+          <span>{feedbackLabel(result)}</span>
+          <span>Expected answer: {result.expectedAnswer}</span>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+type QuickAddPanelProps = {
+  auth?: AuthResponse;
+  form: QuickAddFormState;
+  onFormChange: Dispatch<SetStateAction<QuickAddFormState>>;
+  onSubmit: () => void;
+};
+
+function QuickAddPanel({ auth, form, onFormChange, onSubmit }: QuickAddPanelProps) {
+  return (
+    <article className="panel">
+      <h2>Quick add</h2>
+      <form
+        onSubmit={event => {
+          event.preventDefault();
+          onSubmit();
+        }}
+      >
+        <input
+          value={form.englishText}
+          onChange={event => onFormChange(current => ({ ...current, englishText: event.target.value }))}
+          placeholder="English word or phrase"
+        />
+        <input
+          value={form.russianText}
+          onChange={event => onFormChange(current => ({ ...current, russianText: event.target.value }))}
+          placeholder="Russian glosses, comma separated"
+        />
+        <button type="submit" disabled={!auth}>Add to my dictionary</button>
+      </form>
+    </article>
+  );
+}
+
+type CsvPanelProps = {
+  auth?: AuthResponse;
+  csvFile: File | null;
+  importSummary: string;
+  onCsvFileChange: (file: File | null) => void;
+  onExport: () => void;
+  onImport: () => void;
+};
+
+function CsvPanel({
+  auth,
+  csvFile,
+  importSummary,
+  onCsvFileChange,
+  onExport,
+  onImport
+}: CsvPanelProps) {
+  return (
+    <article className="panel">
+      <h2>CSV import / export</h2>
+      <p className="helper-text">
+        Import uses a CSV file only. Required columns: <code>English term</code>,{' '}
+        <code>Russian translation(s)</code>, <code>Type</code>. Optional columns: <code>Notes</code>,{' '}
+        <code>Tags</code>.
+      </p>
+      <label className="file-picker">
+        <span>Choose CSV file</span>
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          onChange={event => onCsvFileChange(event.target.files?.[0] ?? null)}
+        />
+      </label>
+      <div className="actions-row">
+        <button type="button" onClick={onImport} disabled={!auth || !csvFile}>Import CSV</button>
+        <button type="button" className="secondary" onClick={onExport} disabled={!auth}>Export CSV</button>
+      </div>
+      {csvFile ? <p className="helper-text">Selected file: {csvFile.name}</p> : null}
+      {importSummary ? <p className="helper-text">{importSummary}</p> : null}
+    </article>
+  );
+}
+
+type DictionaryPanelProps = {
+  auth?: AuthResponse;
+  customItemCount: number;
+  dictionary: DictionaryItem[];
+  onClearCustomData: () => void;
+};
+
+function DictionaryPanel({
+  auth,
+  customItemCount,
+  dictionary,
+  onClearCustomData
+}: DictionaryPanelProps) {
+  return (
+    <section className="panel">
+      <div className="section-header">
+        <div>
+          <h2>Dictionary</h2>
+          <span>{dictionary.length} visible items, {customItemCount} custom</span>
+        </div>
+        <button
+          type="button"
+          className="secondary danger"
+          onClick={onClearCustomData}
+          disabled={!auth || customItemCount === 0}
+        >
+          Clear my custom data
+        </button>
+      </div>
+      <div className="dictionary-list">
+        {dictionary.map(item => (
+          <article key={item.id} className="dictionary-row">
+            <div>
+              <strong>{item.englishText}</strong>
+              <p>{item.russianGlosses.join(', ')}</p>
+            </div>
+            <div className="pill-row">
+              <span>{item.sourceType}</span>
+              <span>{item.itemKind}</span>
+              <span>{item.difficulty}</span>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
