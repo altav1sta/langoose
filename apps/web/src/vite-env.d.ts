@@ -1,1 +1,7 @@
-﻿/// <reference types="vite/client" />
+/// <reference types="vite/client" />
+
+interface Window {
+  LANGOOSE_CONFIG?: {
+    apiBaseUrl?: string;
+  };
+}
