@@ -45,3 +45,4 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - For API contract synchronization, use [D:\Projects\langoose\.codex\skills\langoose-api-contracts\SKILL.md](D:\Projects\langoose\.codex\skills\langoose-api-contracts\SKILL.md).
 - For study-loop behavior, use [D:\Projects\langoose\.codex\skills\langoose-study-engine\SKILL.md](D:\Projects\langoose\.codex\skills\langoose-study-engine\SKILL.md).
 - For dictionary and CSV import/export rules, use [D:\Projects\langoose\.codex\skills\langoose-dictionary-imports\SKILL.md](D:\Projects\langoose\.codex\skills\langoose-dictionary-imports\SKILL.md).
+- For Docker and Compose setup, use [D:\Projects\langoose\.codex\skills\langoose-docker\SKILL.md](D:\Projects\langoose\.codex\skills\langoose-docker\SKILL.md).

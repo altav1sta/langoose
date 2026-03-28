@@ -1,0 +1,8 @@
+.vs/
+bin/
+obj/
+App_Data/
+*.user
+*.suo
+*.rsuser
+.DS_Store

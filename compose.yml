@@ -1,0 +1,17 @@
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: langoose-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      Storage__DataDirectory: /app/data
+    ports:
+      - "5000:8080"
+    volumes:
+      - langoose_api_data:/app/data
+
+volumes:
+  langoose_api_data:

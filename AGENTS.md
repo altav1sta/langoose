@@ -77,3 +77,4 @@
 - For request/response contract changes across backend and frontend, use the `langoose-api-contracts` skill in `.codex/skills`.
 - For grading, scheduling, and card-selection changes, use the `langoose-study-engine` skill in `.codex/skills`.
 - For CSV, duplicate normalization, and dictionary visibility rules, use the `langoose-dictionary-imports` skill in `.codex/skills`.
+- For Dockerfiles, Compose, containerized local development, and file-store persistence decisions, use the `langoose-docker` skill in `.codex/skills`.

@@ -81,6 +81,32 @@ Run backend checks:
 dotnet test tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config
 ```
 
+## Running the backend with Docker
+
+The API can also run in a Linux container with its JSON store mounted as persistent runtime data.
+
+Build and start it from the repo root:
+
+```powershell
+docker compose up --build api
+```
+
+The container publishes the API on:
+
+- `http://localhost:5000`
+
+Useful notes:
+
+- The image is built from `apps/api/Dockerfile`
+- Persistent API data is stored in the named Docker volume `langoose_api_data`
+- Inside the container, the JSON store lives at `/app/data/store.json`
+
+To stop the container:
+
+```powershell
+docker compose down
+```
+
 ## Running the frontend
 
 The frontend lives in `apps/web`.
