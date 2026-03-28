@@ -26,6 +26,7 @@ Langoose is a web-first MVP for Russian speakers learning English. It combines s
 
 - Roadmap overview: `docs/roadmap.md`
 - Live execution tracking: GitHub `Langoose MVP` project
+- Contribution workflow: `CONTRIBUTING.md`
 
 ## What the MVP currently does
 
