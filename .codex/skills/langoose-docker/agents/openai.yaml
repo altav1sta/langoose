@@ -1,0 +1,4 @@
+version: 1
+display_name: Langoose Docker
+short_description: Add and maintain Docker and Compose support for the Langoose repo.
+default_prompt: Use this skill when working on Dockerfiles, docker compose, containerized local development, image build strategy, or persistence mounts for Langoose.
