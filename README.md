@@ -81,6 +81,17 @@ Run backend checks:
 dotnet test tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config
 ```
 
+## CI checks
+
+GitHub Actions runs these pull-request checks:
+
+- `CI / Backend Build`
+- `CI / Backend Tests`
+- `CI / Frontend Build`
+
+The workflow does not require repository secrets. These check names are intended to stay stable so branch protection
+rules can require them before merge.
+
 ## Running the backend with Docker
 
 The API can also run in a Linux container with its JSON store mounted as persistent runtime data.
