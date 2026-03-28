@@ -107,6 +107,39 @@ To stop the container:
 docker compose down
 ```
 
+## Running the full Docker stack
+
+The repo also includes a local multi-service Docker setup for the web app, API, and PostgreSQL.
+
+Start everything from the repo root:
+
+```powershell
+docker compose up --build
+```
+
+Use `docker compose up` when the images are already current. Use `docker compose up --build` after changing
+Dockerfiles or files that are copied into the images.
+
+The stack publishes:
+
+- web: `http://localhost:5173`
+- api: `http://localhost:5000`
+- postgres: `localhost:5432`
+
+Useful notes:
+
+- The web container is built from `apps/web/Dockerfile`
+- The web container injects `LANGOOSE_API_BASE_URL` at startup so the same image can target different API hosts
+- PostgreSQL is included for local stack completeness and future work, but the current API still uses the JSON-backed file store
+- API runtime data is still persisted in the named volume `langoose_api_data`
+- PostgreSQL data is persisted in the named volume `langoose_postgres_data`
+
+To stop the full stack:
+
+```powershell
+docker compose down
+```
+
 ## Running the frontend
 
 The frontend lives in `apps/web`.

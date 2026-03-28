@@ -13,5 +13,37 @@ services:
     volumes:
       - langoose_api_data:/app/data
 
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: langoose-web
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      LANGOOSE_API_BASE_URL: http://localhost:5000
+    ports:
+      - "5173:80"
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: langoose-postgres
+    environment:
+      POSTGRES_DB: langoose
+      POSTGRES_USER: langoose
+      POSTGRES_PASSWORD: langoose
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langoose -d langoose"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    ports:
+      - "5432:5432"
+    volumes:
+      - langoose_postgres_data:/var/lib/postgresql/data
+
 volumes:
   langoose_api_data:
+  langoose_postgres_data:

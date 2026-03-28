@@ -1,4 +1,4 @@
-﻿export type AuthResponse = {
+export type AuthResponse = {
   userId: string;
   email: string;
   name: string;
@@ -89,7 +89,9 @@ export type ReportIssueRequest = {
   details: string;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000';
+const API_BASE = window.LANGOOSE_CONFIG?.apiBaseUrl
+  ?? import.meta.env.VITE_API_BASE_URL
+  ?? 'http://localhost:5000';
 
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
