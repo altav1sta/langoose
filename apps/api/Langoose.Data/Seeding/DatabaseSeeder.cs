@@ -55,12 +55,16 @@ public sealed class DatabaseSeeder(IDataStore dataStore)
             if (!existingItem.RussianGlosses.SequenceEqual(seedItem.RussianGlosses) ||
                 existingItem.ItemKind != seedItem.ItemKind ||
                 existingItem.PartOfSpeech != seedItem.PartOfSpeech ||
-                existingItem.Difficulty != seedItem.Difficulty)
+                existingItem.Difficulty != seedItem.Difficulty ||
+                !existingItem.AcceptedVariants.SequenceEqual(seedItem.AcceptedVariants) ||
+                !existingItem.Distractors.SequenceEqual(seedItem.Distractors))
             {
                 existingItem.RussianGlosses = [.. seedItem.RussianGlosses];
                 existingItem.ItemKind = seedItem.ItemKind;
                 existingItem.PartOfSpeech = seedItem.PartOfSpeech;
                 existingItem.Difficulty = seedItem.Difficulty;
+                existingItem.AcceptedVariants = [.. seedItem.AcceptedVariants];
+                existingItem.Distractors = [.. seedItem.Distractors];
                 changed = true;
             }
 

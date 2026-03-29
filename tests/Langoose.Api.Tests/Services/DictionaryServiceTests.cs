@@ -28,6 +28,34 @@ public sealed class DictionaryServiceTests
     }
 
     [Fact]
+    public async Task SeedData_WhenBaseItemDrifts_RepairRestoresVariantsAndDistractors()
+    {
+        var dataStore = new InMemoryDataStore();
+        var seeder = new DatabaseSeeder(dataStore);
+
+        await seeder.SeedAsync();
+
+        var store = await dataStore.LoadAsync();
+        var baseItem = Assert.Single(store.DictionaryItems, item =>
+            item.SourceType == SourceType.Base &&
+            item.EnglishText == "book");
+
+        baseItem.AcceptedVariants = ["book", "volume"];
+        baseItem.Distractors = ["alpha"];
+
+        await dataStore.SaveAsync(store);
+        await seeder.SeedAsync();
+
+        var repaired = await dataStore.LoadAsync();
+        var repairedItem = Assert.Single(repaired.DictionaryItems, item =>
+            item.SourceType == SourceType.Base &&
+            item.EnglishText == "book");
+
+        Assert.Equal(["book"], repairedItem.AcceptedVariants);
+        Assert.Equal(["make", "get", "use"], repairedItem.Distractors);
+    }
+
+    [Fact]
     public async Task AddItemAsync_WhenAddingPhrase_PersistsPhraseAndKnownVariants()
     {
         await using var context = await TestAppContext.CreateAsync();
