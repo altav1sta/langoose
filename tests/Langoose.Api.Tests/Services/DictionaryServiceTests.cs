@@ -1,6 +1,8 @@
 using Langoose.Api.Models;
+using Langoose.Domain.Models;
 using Langoose.Api.Services;
 using Langoose.Api.Tests.Infrastructure;
+using Langoose.Data.Seeding;
 using Xunit;
 
 namespace Langoose.Api.Tests.Services;
@@ -11,6 +13,47 @@ public sealed class DictionaryServiceTests
         "English term,Russian translation(s),Type,Notes,Tags\n" +
         "improve,uluchshat,word,,study|verbs\n" +
         "take off,snimat,phrase,,phrases";
+
+    [Fact]
+    public void SeedData_WhenLoaded_PreservesRussianGlossesAndHints()
+    {
+        var seedItems = SeedDataLoader.LoadBaseItems();
+
+        Assert.Contains(seedItems, pair => pair.Item.EnglishText == "book" &&
+            pair.Item.RussianGlosses.Contains("книга") &&
+            pair.Sentence.TranslationHint == "Я читаю книгу перед сном.");
+        Assert.DoesNotContain(seedItems, pair =>
+            pair.Item.RussianGlosses.Any(gloss => gloss.Contains('?')) ||
+            pair.Sentence.TranslationHint.Contains('?'));
+    }
+
+    [Fact]
+    public async Task SeedData_WhenBaseItemDrifts_RepairRestoresVariantsAndDistractors()
+    {
+        var dataStore = new InMemoryDataStore();
+        var seeder = new DatabaseSeeder(dataStore);
+
+        await seeder.SeedAsync();
+
+        var store = await dataStore.LoadAsync();
+        var baseItem = Assert.Single(store.DictionaryItems, item =>
+            item.SourceType == SourceType.Base &&
+            item.EnglishText == "book");
+
+        baseItem.AcceptedVariants = ["book", "volume"];
+        baseItem.Distractors = ["alpha"];
+
+        await dataStore.SaveAsync(store);
+        await seeder.SeedAsync();
+
+        var repaired = await dataStore.LoadAsync();
+        var repairedItem = Assert.Single(repaired.DictionaryItems, item =>
+            item.SourceType == SourceType.Base &&
+            item.EnglishText == "book");
+
+        Assert.Equal(["book"], repairedItem.AcceptedVariants);
+        Assert.Equal(["make", "get", "use"], repairedItem.Distractors);
+    }
 
     [Fact]
     public async Task AddItemAsync_WhenAddingPhrase_PersistsPhraseAndKnownVariants()

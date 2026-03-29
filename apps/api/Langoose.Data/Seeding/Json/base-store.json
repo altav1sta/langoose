@@ -1,0 +1,54 @@
+{
+  "items": [
+    {
+      "english": "book",
+      "glosses": ["книга"],
+      "kind": "Word",
+      "partOfSpeech": "noun",
+      "difficulty": "A1",
+      "cloze": "I read a ____ before bed.",
+      "translationHint": "Я читаю книгу перед сном.",
+      "acceptedVariants": []
+    },
+    {
+      "english": "go",
+      "glosses": ["идти", "ехать"],
+      "kind": "Word",
+      "partOfSpeech": "verb",
+      "difficulty": "A1",
+      "cloze": "We usually ____ to school by bus.",
+      "translationHint": "Мы обычно ездим в школу на автобусе.",
+      "acceptedVariants": ["travel"]
+    },
+    {
+      "english": "take care of",
+      "glosses": ["заботиться о"],
+      "kind": "Phrase",
+      "partOfSpeech": "phrase",
+      "difficulty": "B1",
+      "cloze": "They ____ their grandmother every weekend.",
+      "translationHint": "Они заботятся о своей бабушке каждые выходные.",
+      "acceptedVariants": ["look after"]
+    },
+    {
+      "english": "decision",
+      "glosses": ["решение"],
+      "kind": "Word",
+      "partOfSpeech": "noun",
+      "difficulty": "B1",
+      "cloze": "It was a difficult ____ to make.",
+      "translationHint": "Это было трудное решение.",
+      "acceptedVariants": ["choice"]
+    },
+    {
+      "english": "at least",
+      "glosses": ["по крайней мере"],
+      "kind": "Phrase",
+      "partOfSpeech": "phrase",
+      "difficulty": "A2",
+      "cloze": "Call me once a week, ____.",
+      "translationHint": "Позвони мне хотя бы раз в неделю.",
+      "acceptedVariants": []
+    }
+  ]
+}

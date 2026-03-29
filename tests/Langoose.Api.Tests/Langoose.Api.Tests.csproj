@@ -15,6 +15,6 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\apps\api\Langoose.Api.csproj" />
+    <ProjectReference Include="..\..\apps\api\Langoose.Api\Langoose.Api.csproj" />
   </ItemGroup>
 </Project>

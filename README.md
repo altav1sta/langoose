@@ -41,7 +41,7 @@ Langoose is a web-first MVP for Russian speakers learning English. It combines s
 
 ## Current implementation notes
 
-- The original product plan mentioned PostgreSQL, but this MVP still uses a local JSON file store so it can run without extra infrastructure.
+- The current MVP uses PostgreSQL-backed persistence and the local Docker stack runs the API, web app, and PostgreSQL together.
 - The current auth flow is MVP-only and not production auth.
 - CSV import is file-only.
 - CSV files must start with these columns in this order:
@@ -57,7 +57,7 @@ Langoose is a web-first MVP for Russian speakers learning English. It combines s
 
 The normal local workflow is Visual Studio:
 
-1. Open `apps/api/Langoose.Api.sln`
+1. Open `apps/api/Langoose.sln`
 2. Run the API from Visual Studio
 
 By default the API is configured to run on:
@@ -72,8 +72,8 @@ Useful endpoints:
 If you need the command-line flow:
 
 ```powershell
-dotnet build apps/api/Langoose.Api.csproj --configfile D:\Projects\langoose\apps\api\NuGet.Config
-dotnet run --project apps/api/Langoose.Api.csproj --configfile D:\Projects\langoose\apps\api\NuGet.Config
+dotnet build apps/api/Langoose.sln --configfile D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config
+dotnet run --project apps/api/Langoose.Api/Langoose.Api.csproj --configfile D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config
 ```
 
 Run backend checks:
@@ -109,7 +109,7 @@ The container publishes the API on:
 
 Useful notes:
 
-- The image is built from `apps/api/Dockerfile`
+- The image is built from `apps/api/Langoose.Api/Dockerfile`
 - Persistent API data is stored in the named Docker volume `langoose_api_data`
 - Inside the containerized stack, application data is stored in PostgreSQL
 
@@ -142,8 +142,7 @@ Useful notes:
 
 - The web container is built from `apps/web/Dockerfile`
 - The web container injects `LANGOOSE_API_BASE_URL` at startup so the same image can target different API hosts
-- PostgreSQL is included for local stack completeness and future work, but the current API still uses the JSON-backed file store
-- API runtime data is still persisted in the named volume `langoose_api_data`
+- PostgreSQL is the runtime data store for the current API
 - PostgreSQL data is persisted in the named volume `langoose_postgres_data`
 
 To stop the full stack:
