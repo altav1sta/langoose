@@ -56,8 +56,11 @@
 - Treat the GitHub Project `Langoose MVP` as the source of truth for roadmap status.
 - Keep issue, epic, and PR status aligned with the real state of the work.
 - Use one branch per issue or one tightly related chunk of work whenever practical.
+- Start issue branches from the latest `main` branch, especially for large refactors or project-structure changes.
 - Prefer one PR per issue whenever practical. If a task clearly belongs in one focused PR, do not split it
   unnecessarily.
+- For large refactors or project-structure changes, sync the branch with the current `main` branch and resolve merge
+  conflicts locally before calling the PR handoff complete.
 - Use squash merge into `main`.
 
 ### Branch Naming
@@ -92,6 +95,8 @@
 - PR titles should describe the actual change, not process commentary.
 - PR bodies should include a short summary, the linked issue via `Closes #...` or `Refs #...`, and the validation that
   was run.
+- Before reporting a PR as ready, verify that GitHub shows it as mergeable. If it is conflicted, resolve that before
+  treating the issue as handed off to review.
 - Do not mix unrelated changes in one PR.
 
 ## Product Invariants

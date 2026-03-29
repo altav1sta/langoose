@@ -56,8 +56,11 @@ Preferred dependency direction:
 - Identify the ownership problem first: growth, dependency cycle, tooling confusion, or mixed responsibilities.
 - Choose the smallest project split that fixes that problem.
 - If the current models must be shared between API behavior and EF persistence, decide whether they belong in `Domain` before creating a data project.
+- Start the refactor branch from the latest `main` branch so structural moves do not begin from an outdated base.
 - Update solution files, project references, Docker build context, and test references together.
 - Update repo guidance and relevant skills when the architecture decision changes the expected project layout.
+- Before opening the PR for a structural refactor, sync the branch with the current `main` branch and resolve merge
+  conflicts locally so the project move does not leave GitHub with unresolved rename conflicts.
 
 ## Validation
 
@@ -68,11 +71,11 @@ Preferred dependency direction:
 - If the refactor created new projects or moved many files, check for mixed line endings before finalizing.
 - If a validation step fails, is blocked by the environment, or does not complete, do not report it as passing from
   memory or inference. State the gap plainly, rerun it if possible, and only claim success after a real successful run.
+- Before reporting the refactor as ready for review, verify that the PR is actually mergeable after syncing with
+  `main`.
 
 ## Load Additional Detail Only When Needed
 
 - For EF Core-specific `API + Data` structure guidance, use [D:\Projects\langoose\.codex\skills\langoose-efcore-structure\SKILL.md](D:\Projects\langoose\.codex\skills\langoose-efcore-structure\SKILL.md).
 - For repo-wide implementation and finish discipline, use [D:\Projects\langoose\.codex\skills\langoose-dev\SKILL.md](D:\Projects\langoose\.codex\skills\langoose-dev\SKILL.md).
 - For the lightweight onion-style recommendations in this repo, read [D:\Projects\langoose\.codex\skills\langoose-architecture\references\architecture-guidance.md](D:\Projects\langoose\.codex\skills\langoose-architecture\references\architecture-guidance.md).
-
-

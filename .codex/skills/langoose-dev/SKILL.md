@@ -38,6 +38,9 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Before finalizing an issue, run both `git diff --check` and an explicit line-ending check over newly created or moved files so mixed newlines are caught before the user opens them in Visual Studio.
 - Before finalizing backend work, run an explicit unused-namespace-import check for C# files, preferably with `dotnet format analyzers ... --diagnostics IDE0005 --verify-no-changes`, and remove any stray imports before handing the change back.
 - If a verification step fails, is blocked by the environment, or does not complete, do not report it as passing from memory or inference. State the verification gap plainly, rerun it if possible, and only claim a clean result after a successful run.
+- Start each issue branch from the latest `main` branch, especially for large refactors or project-structure changes. Do not begin long-running structural work from a stale base if you can avoid it.
+- Before opening or handing off a PR for a large refactor or project-structure change, sync the branch with the current `main` branch again if needed and resolve conflicts locally. Do not leave mergeability as an assumption for GitHub to discover later.
+- Before declaring the review handoff complete, verify that the PR is actually mergeable. If merge conflicts remain, resolve them before reporting the task as ready for review.
 
 ## Validate In The Smallest Useful Way
 
