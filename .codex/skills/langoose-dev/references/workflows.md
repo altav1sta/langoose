@@ -4,8 +4,8 @@
 
 - Backend build:
   - `dotnet build apps/api/Langoose.Api.csproj --configfile D:\Projects\langoose\apps\api\NuGet.Config`
-- Backend test harness:
-  - `dotnet run --project apps/api/tests/Langoose.Api.Tests.csproj --configfile D:\Projects\langoose\apps\api\NuGet.Config`
+- Backend tests:
+  - `dotnet test tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config`
 - Run API:
   - `dotnet run --project apps/api/Langoose.Api.csproj --configfile D:\Projects\langoose\apps\api\NuGet.Config`
 - Frontend build:
@@ -18,7 +18,8 @@ Run frontend commands from `D:\Projects\langoose\apps\web`.
 ## API Reality Check
 
 - Startup and registration live in `apps/api/Program.cs`.
-- Persistence goes through `Infrastructure/FileDataStore.cs`.
+- Persistence goes through PostgreSQL and EF Core in `apps/api/Infrastructure/AppDbContext.cs` and
+  `apps/api/Infrastructure/PostgresDataStore.cs`.
 - Dictionary rules live in `Services/DictionaryService.cs`.
 - Study scheduling and answer evaluation live in `Services/StudyService.cs`.
 - Controller contracts live under `Controllers/`.
@@ -47,6 +48,6 @@ Run frontend commands from `D:\Projects\langoose\apps\web`.
 
 ## Practical Cautions
 
-- Avoid relying on files under `App_Data`, `bin`, `obj`, `.vs`, and `node_modules` as if they were source files.
+- Avoid relying on files under `bin`, `obj`, `.vs`, `.dotnet`, and `node_modules` as if they were source files.
 - If a change touches API behavior, inspect the executable tests first because they encode several product decisions more clearly than comments do.
 - If frontend and backend contracts move together, update `apps/web/src/api.ts` in the same change.

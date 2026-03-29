@@ -1,7 +1,6 @@
 .vs/
 bin/
 obj/
-App_Data/
 *.user
 *.suo
 *.rsuser

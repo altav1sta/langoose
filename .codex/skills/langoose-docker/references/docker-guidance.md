@@ -16,8 +16,9 @@
 - For the frontend, decide explicitly between:
   - a dev-oriented Vite container, or
   - a production-style static-serving image
-- Do not copy `App_Data` runtime contents into an image as if they were source artifacts.
-- If the API uses the default `App_Data` path in a container, mount that path to preserve data across container recreation.
+- Do not copy mutable runtime data or local database state into an image as if they were source artifacts.
+- If the API uses PostgreSQL, keep the database as a separate container or external service and persist its data through a
+  volume on the database service rather than the API container filesystem.
 - If Compose is used, expose the API and frontend ports explicitly and pass the frontend API base URL through env configuration.
 
 ## Recommended Defaults For This Repo
@@ -32,7 +33,7 @@
 ## Practical Review Checklist
 
 - Does the Dockerfile copy only what it needs, in a cache-friendly order?
-- Is mutable runtime data excluded from the image and persisted by volume or external path?
+- Is mutable runtime data excluded from the image and persisted by the database service volume or another external path?
 - Is the frontend API URL explicit and correct for the container network?
 - If Compose is used, are dependencies health-aware instead of only startup-ordered?
 - Are image contexts excluding `node_modules`, `bin`, `obj`, `.git`, `.vs`, `.local`, and other irrelevant files?

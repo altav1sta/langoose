@@ -4,7 +4,7 @@
 
 - `apps/api/Services/DictionaryService.cs`
 - `apps/api/Controllers/DictionaryController.cs`
-- `apps/api/tests/Program.cs`
+- `tests/Langoose.Api.Tests`
 - `apps/web/src/api.ts`
 - `apps/web/src/App.tsx`
 

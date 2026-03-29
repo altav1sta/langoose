@@ -1,11 +1,15 @@
 using Langoose.Api.Infrastructure;
 using Langoose.Api.Services;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+var connectionString = builder.Configuration.GetConnectionString("Langoose")
+    ?? throw new InvalidOperationException("Connection string 'Langoose' is not configured.");
 
 builder.Services.AddProblemDetails();
 builder.Services.AddHealthChecks();
-builder.Services.AddSingleton<IDataStore, FileDataStore>();
+builder.Services.AddDbContextFactory<AppDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddSingleton<IDataStore, PostgresDataStore>();
 builder.Services.AddSingleton<AuthService>();
 builder.Services.AddSingleton<EnrichmentService>();
 builder.Services.AddSingleton<DictionaryService>();
@@ -21,6 +25,14 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseExceptionHandler();
+
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+    await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+    await dbContext.Database.MigrateAsync();
+}
+
 await app.Services.GetRequiredService<DataSeeder>().SeedAsync();
 
 app.UseCors();
