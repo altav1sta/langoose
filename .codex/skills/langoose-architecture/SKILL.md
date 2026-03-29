@@ -58,6 +58,7 @@ Preferred dependency direction:
 - If the current models must be shared between API behavior and EF persistence, decide whether they belong in `Domain` before creating a data project.
 - Start the refactor branch from the latest `main` branch so structural moves do not begin from an outdated base.
 - Update solution files, project references, Docker build context, and test references together.
+- Update CI/workflow paths together with the structure change whenever build, test, Docker, or restore commands depend on moved files.
 - Update repo guidance and relevant skills when the architecture decision changes the expected project layout.
 - Before opening the PR for a structural refactor, sync the branch with the current `main` branch and resolve merge
   conflicts locally so the project move does not leave GitHub with unresolved rename conflicts.

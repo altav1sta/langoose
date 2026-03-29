@@ -41,6 +41,7 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Start each issue branch from the latest `main` branch, especially for large refactors or project-structure changes. Do not begin long-running structural work from a stale base if you can avoid it.
 - Before opening or handing off a PR for a large refactor or project-structure change, sync the branch with the current `main` branch again if needed and resolve conflicts locally. Do not leave mergeability as an assumption for GitHub to discover later.
 - Before declaring the review handoff complete, verify that the PR is actually mergeable. If merge conflicts remain, resolve them before reporting the task as ready for review.
+- If a refactor or project move changes solution paths, project paths, Dockerfile paths, or config locations, inspect CI/workflow files and update them in the same issue. Do not assume existing build and test workflows still point at the right files after the restructure.
 
 ## Validate In The Smallest Useful Way
 

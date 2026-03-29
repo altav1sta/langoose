@@ -61,6 +61,8 @@
   unnecessarily.
 - For large refactors or project-structure changes, sync the branch with the current `main` branch and resolve merge
   conflicts locally before calling the PR handoff complete.
+- If a change moves projects, solution files, Dockerfiles, or config paths, update CI/workflow files in the same change
+  and verify they still reference the correct locations.
 - Use squash merge into `main`.
 
 ### Branch Naming
