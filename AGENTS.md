@@ -30,6 +30,7 @@
 - Normalize line endings. Respect `.gitattributes`, avoid accidental whole-file line-ending churn, and prefer repository-consistent endings when editing files.
 - Before finishing a change, normalize edited files to the line endings required by .gitattributes and run git diff --check to catch EOF and whitespace issues.
 - Protect non-ASCII product text. When a file contains Russian or other non-ASCII user-facing text, preserve it as valid UTF-8 or use explicit C# `\u` escapes if tooling might corrupt the literal; do not replace such text with `?`, rely on shell-default encodings, or finish a change while mojibake or placeholder characters remain in source files.
+- Treat seed files and other baseline content assets as especially sensitive to non-ASCII corruption. Inspect the actual file contents before finishing when they contain Russian or other non-ASCII text; do not trust terminal display alone.
 - Prefer a standard maximum line length of 120 characters unless an existing file or construct clearly justifies an exception.
 - For backend work, validate repository rules against all source and test files under `apps/api` and `tests/Langoose.Api.Tests`, not only the files directly edited in the current change.
 - Treat Visual Studio `.sln` project-entry lines as a narrow exception to the 120-character rule when the solution format requires a longer line.
@@ -48,6 +49,7 @@
   and auth changes, prefer a live end-to-end check over code-only confidence.
 - Clean up machine-local and generated artifacts created during the task, including `.dotnet`, `bin`, `obj`, `.vs`, and
   any local config that does not belong in the repo.
+- If startup seeding or repair logic can rewrite base content, verify that the seed source is correct before finishing. Do not ship a corrupted seed file that would overwrite existing base data on startup.
 
 ## GitHub Workflow
 

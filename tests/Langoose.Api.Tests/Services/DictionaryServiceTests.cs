@@ -2,6 +2,7 @@ using Langoose.Api.Models;
 using Langoose.Domain.Models;
 using Langoose.Api.Services;
 using Langoose.Api.Tests.Infrastructure;
+using Langoose.Data.Seeding;
 using Xunit;
 
 namespace Langoose.Api.Tests.Services;
@@ -12,6 +13,19 @@ public sealed class DictionaryServiceTests
         "English term,Russian translation(s),Type,Notes,Tags\n" +
         "improve,uluchshat,word,,study|verbs\n" +
         "take off,snimat,phrase,,phrases";
+
+    [Fact]
+    public void SeedData_WhenLoaded_PreservesRussianGlossesAndHints()
+    {
+        var seedItems = SeedDataLoader.LoadBaseItems();
+
+        Assert.Contains(seedItems, pair => pair.Item.EnglishText == "book" &&
+            pair.Item.RussianGlosses.Contains("книга") &&
+            pair.Sentence.TranslationHint == "Я читаю книгу перед сном.");
+        Assert.DoesNotContain(seedItems, pair =>
+            pair.Item.RussianGlosses.Any(gloss => gloss.Contains('?')) ||
+            pair.Sentence.TranslationHint.Contains('?'));
+    }
 
     [Fact]
     public async Task AddItemAsync_WhenAddingPhrase_PersistsPhraseAndKnownVariants()

@@ -18,6 +18,7 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - When files are created or rewritten through shell commands, explicitly normalize their line endings before finishing.
 - If files were moved or created in bulk, verify they do not contain mixed line endings at the byte level before declaring the task clean.
 - Preserve non-ASCII product text safely. Keep Russian and other non-ASCII literals as valid UTF-8, or switch to explicit C# `\u` escapes when Windows tooling or shell encoding could corrupt them.
+- Treat seed assets and other baseline content files as high-risk for non-ASCII corruption. If they contain Russian or other non-ASCII text, inspect the actual file contents before finishing; do not assume terminal rendering tells the truth.
 - Prefer the repository line-length standard of 120 characters where practical.
 - In C# code, prefer one top-level type per file unless a tiny local exception is clearly justified.
 - Prefer primary constructors for C# types when dependency injection or simple state capture makes them a cleaner fit than a separate constructor body.
@@ -37,6 +38,7 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Before finalizing an issue, check whether the repo skills or their reference files still describe the pre-change state. If the work changed repo reality, commands, persistence, test locations, or finish flow expectations, update the affected skills in the same issue instead of leaving them stale.
 - Before finalizing an issue, run both `git diff --check` and an explicit line-ending check over newly created or moved files so mixed newlines are caught before the user opens them in Visual Studio.
 - Before finalizing backend work, run an explicit unused-namespace-import check for C# files, preferably with `dotnet format analyzers ... --diagnostics IDE0005 --verify-no-changes`, and remove any stray imports before handing the change back.
+- If startup seeding or repair logic can overwrite existing persisted base content, verify the seed source itself is not corrupted before shipping. A broken seed file is a data rewrite bug, not just a fixture bug.
 - If a verification step fails, is blocked by the environment, or does not complete, do not report it as passing from memory or inference. State the verification gap plainly, rerun it if possible, and only claim a clean result after a successful run.
 - Start each issue branch from the latest `main` branch, especially for large refactors or project-structure changes. Do not begin long-running structural work from a stale base if you can avoid it.
 - Before opening or handing off a PR for a large refactor or project-structure change, sync the branch with the current `main` branch again if needed and resolve conflicts locally. Do not leave mergeability as an assumption for GitHub to discover later.
