@@ -9,7 +9,7 @@ Langoose is a web-first MVP for Russian speakers learning English. It combines s
 - Styling: plain CSS
 - Backend: ASP.NET Core Web API on .NET 10 / C#
 - API style: controller-based JSON API
-- Persistence: local file-backed JSON store
+- Persistence: PostgreSQL-backed API storage
 - Auth: lightweight token-based MVP auth
 - Tests: xUnit-based .NET test project under `tests/`
 
@@ -95,7 +95,7 @@ rules can require them before merge.
 
 ## Running the backend with Docker
 
-The API can also run in a Linux container with its JSON store mounted as persistent runtime data.
+The API can also run in containers with PostgreSQL as the persistent runtime data store.
 
 Build and start it from the repo root:
 
@@ -111,7 +111,7 @@ Useful notes:
 
 - The image is built from `apps/api/Dockerfile`
 - Persistent API data is stored in the named Docker volume `langoose_api_data`
-- Inside the container, the JSON store lives at `/app/data/store.json`
+- Inside the containerized stack, application data is stored in PostgreSQL
 
 To stop the container:
 

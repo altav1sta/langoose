@@ -4,7 +4,7 @@
 
 - `apps/api/Services/StudyService.cs`
 - `apps/api/Services/TextNormalizer.cs`
-- `apps/api/tests/Program.cs`
+- `tests/Langoose.Api.Tests`
 
 ## Current Behavior
 

@@ -18,7 +18,7 @@ Use this skill when dictionary rules or CSV workflows are involved.
 - Inspect `apps/api/Services/DictionaryService.cs`.
 - Inspect `apps/api/Controllers/DictionaryController.cs`.
 - Inspect the corresponding frontend calls in `apps/web/src/api.ts` and UI behavior in `apps/web/src/App.tsx`.
-- Inspect the executable checks in `apps/api/tests/Program.cs` before changing behavior.
+- Inspect the discoverable tests in `tests/Langoose.Api.Tests` before changing behavior.
 
 ## Langoose-Specific Guidance
 

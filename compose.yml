@@ -7,11 +7,12 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      Storage__DataDirectory: /app/data
+      ConnectionStrings__Langoose: Host=postgres;Port=5432;Database=langoose;Username=langoose;Password=langoose
     ports:
       - "5000:8080"
-    volumes:
-      - langoose_api_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   web:
     build:
@@ -45,5 +46,4 @@ services:
       - langoose_postgres_data:/var/lib/postgresql/data
 
 volumes:
-  langoose_api_data:
   langoose_postgres_data:

@@ -1,5 +1,6 @@
 # Shared local caches
 .local/
+.dotnet/
 
 # IDE and OS files
 .vs/
