@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Langoose.Api.Infrastructure;
-using Langoose.Api.Models;
+using Langoose.Domain.Abstractions;
+using Langoose.Domain.Models;
 
 namespace Langoose.Api.Tests.Infrastructure;
 

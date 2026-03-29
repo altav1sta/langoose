@@ -10,7 +10,7 @@
 
 - This repo already uses `apps/` rather than `src/`, so mirror the same idea with a root-level `tests/` folder.
 - Prefer this repository shape:
-  - `apps/api/Langoose.Api.csproj`
+  - `apps/api/Langoose.Api/Langoose.Api.csproj`
   - `tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj`
 - If the suite grows enough to justify separate runs or dependencies, split by test type:
   - `tests/Langoose.Api.UnitTests`
@@ -19,13 +19,13 @@
 
 ## How To Classify Existing Langoose Tests
 
-- The current `tests/Langoose.Api.Tests` suite uses the real file-backed store with temp directories and multiple services together.
+- The current `tests/Langoose.Api.Tests` suite exercises multiple services together against the current backend stack and in-memory test doubles.
 - That makes it closer to an integration or behavioral xUnit suite than a pure unit-test suite.
 - Keep that distinction in mind when naming or relocating the project.
 
 ## Practical Guidance For Future Refactors
 
-- When adding pure unit tests, target methods or classes that can run entirely in memory without touching the file store.
+- When adding pure unit tests, target methods or classes that can run entirely in memory without touching EF Core or external services.
 - When adding functional API tests, consider `WebApplicationFactory<Program>` and make `Program` public partial if the test project needs access to it.
 - When a single test project becomes too broad, split by test type first, then by application area inside each project.
 - Keep application references one-way: test projects reference the app project; app projects do not know about test projects.`n- Prefer discoverable xUnit test projects over executable harnesses so `dotnet test` and Visual Studio Test Explorer can both discover the suite.

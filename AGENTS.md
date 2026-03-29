@@ -2,17 +2,22 @@
 
 ## Project Shape
 
-- `apps/api`: ASP.NET Core Web API on .NET 10 with controller-based JSON endpoints.
+- `apps/api`: backend solution root for the ASP.NET Core Web API and related backend projects on .NET 10.
+- `apps/api/Langoose.Api`: ASP.NET Core Web API with controller-based JSON endpoints.
 - `tests/Langoose.Api.Tests`: xUnit-based .NET test project that exercises MVP behaviors and should be discoverable in Test Explorer.
 - `apps/web`: React 19 + TypeScript + Vite single-page app with plain CSS.
+- `apps/api/Langoose.Domain`: core persisted domain models and store abstractions.
+- `apps/api/Langoose.Data`: EF Core, PostgreSQL persistence, and migrations.
 - Persistence is PostgreSQL-backed through EF Core.
 
 ## Preferred Repo Layout
 
 - Keep application code under `apps/`.
-- Keep .NET test projects under a parallel root `tests/` folder rather than nesting them inside `apps/api`.
+- Keep .NET test projects under a parallel root `tests/` folder rather than nesting them inside the backend solution tree.
 - For this repo, prefer a future shape like:
-  - `apps/api`
+  - `apps/api/Langoose.Api`
+  - `apps/api/Langoose.Domain`
+  - `apps/api/Langoose.Data`
   - `tests/Langoose.Api.Tests`
   - optionally `tests/Langoose.Api.UnitTests` and `tests/Langoose.Api.FunctionalTests` if the suite grows and the test types need to run separately.
 - If tests stay together temporarily, still organize them internally by test type and by the API class/service they exercise.
@@ -102,16 +107,17 @@
 
 ## Data Store Notes
 
-- The API persists through PostgreSQL and EF Core in [AppDbContext.cs](D:\Projects\langoose\apps\api\Infrastructure\AppDbContext.cs) and [PostgresDataStore.cs](D:\Projects\langoose\apps\api\Infrastructure\PostgresDataStore.cs).
+- The API persists through PostgreSQL and EF Core in [AppDbContext.cs](D:\Projects\langoose\apps\api\Langoose.Data\AppDbContext.cs) and [PostgresDataStore.cs](D:\Projects\langoose\apps\api\Langoose.Data\PostgresDataStore.cs).
+- Base dictionary seed content lives in [base-store.json](D:\Projects\langoose\apps\api\Langoose.Data\Seeding\Json\base-store.json) and is applied through [DatabaseSeeder.cs](D:\Projects\langoose\apps\api\Langoose.Data\Seeding\DatabaseSeeder.cs).
 - Treat `bin`, `obj`, `.vs`, `.dotnet`, and `node_modules` as runtime/generated artifacts unless the task is explicitly about them.
 - Be careful not to depend on incidental contents of a local database volume when implementing features or tests.
 
 ## Preferred Validation
 
 - Backend checks:
-  - current API tests: `dotnet test tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config`
+  - current API tests: `dotnet test tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config`
 - Backend build:
-  - `dotnet build apps/api/Langoose.Api.csproj --configfile D:\Projects\langoose\apps\api\NuGet.Config`
+  - `dotnet build apps/api/Langoose.sln --configfile D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config`
 - Frontend build:
   - `npm run build` from `D:\Projects\langoose\apps\web`
 - Container verification for persistence/startup/auth changes:
@@ -123,10 +129,12 @@
 ## Change Heuristics
 
 - For API work, inspect `Controllers`, `Services`, and `Models` together before editing behavior.
-- For study-flow changes, review both [StudyService.cs](D:\Projects\langoose\apps\api\Services\StudyService.cs) and the discoverable xUnit tests under [tests/Langoose.Api.Tests](D:\Projects\langoose\tests\Langoose.Api.Tests).
-- For dictionary/import changes, review both [DictionaryService.cs](D:\Projects\langoose\apps\api\Services\DictionaryService.cs) and [DictionaryController.cs](D:\Projects\langoose\apps\api\Controllers\DictionaryController.cs).
+- For study-flow changes, review both [StudyService.cs](D:\Projects\langoose\apps\api\Langoose.Api\Services\StudyService.cs) and the discoverable xUnit tests under [tests/Langoose.Api.Tests](D:\Projects\langoose\tests\Langoose.Api.Tests).
+- For dictionary/import changes, review both [DictionaryService.cs](D:\Projects\langoose\apps\api\Langoose.Api\Services\DictionaryService.cs) and [DictionaryController.cs](D:\Projects\langoose\apps\api\Langoose.Api\Controllers\DictionaryController.cs).
 - For frontend work, keep the API contract in sync with [api.ts](D:\Projects\langoose\apps\web\src\api.ts).
 - For .NET test-organization work, use the `langoose-dotnet-testing` skill in `.codex/skills`.
+- For broader architecture and project-boundary decisions such as `API + Data` versus `API + Domain + Data`, use the `langoose-architecture` skill in `.codex/skills`.
+- For EF Core structure, separate data-project boundaries, DbContext placement, and migrations layout decisions, use the `langoose-efcore-structure` skill in `.codex/skills`.
 - For React and TypeScript frontend decisions, use the `langoose-react-typescript` skill in `.codex/skills`.
 - For request/response contract changes across backend and frontend, use the `langoose-api-contracts` skill in `.codex/skills`.
 - For grading, scheduling, and card-selection changes, use the `langoose-study-engine` skill in `.codex/skills`.

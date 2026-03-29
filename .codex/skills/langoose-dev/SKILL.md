@@ -15,15 +15,19 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Keep backend work inside `apps/api` with controller-based endpoints and service-layer business logic.
 - Prefer extending existing services over adding new abstractions.
 - Respect `.gitattributes` and keep line endings normalized when creating or editing files.
+- When files are created or rewritten through shell commands, explicitly normalize their line endings before finishing.
+- If files were moved or created in bulk, verify they do not contain mixed line endings at the byte level before declaring the task clean.
 - Preserve non-ASCII product text safely. Keep Russian and other non-ASCII literals as valid UTF-8, or switch to explicit C# `\u` escapes when Windows tooling or shell encoding could corrupt them.
 - Prefer the repository line-length standard of 120 characters where practical.
 - In C# code, prefer one top-level type per file unless a tiny local exception is clearly justified.
 - Prefer primary constructors for C# types when dependency injection or simple state capture makes them a cleaner fit than a separate constructor body.
-- Prefer `record` types for DTOs, API models, immutable configuration-shaped objects, and other POCO-like data containers where value semantics make sense.
+- Prefer `record` types for DTOs, API models, immutable configuration-shaped objects, and other POCO-like data carriers where value semantics make sense.
 - In React code, prefer pure render logic, derived state, and event-driven updates over effect-driven synchronization.
 - In TypeScript code, prefer exact domain types and strict narrowing over broad fallback object types.
 - Treat the current persistence mechanism in the repo as the source of truth. Do not assume the repo still uses the older
   JSON-file store if the code has already moved on.
+- When base database content must be initialized, keep the seeding implementation and seed assets in Langoose.Data; let
+  Program.cs only trigger that initialization at startup.
 
 ## Finish Cleanly
 
@@ -39,7 +43,12 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Before finalizing an issue, check whether the repo skills or their reference files still describe the pre-change state.
   If the work changed repo reality, commands, persistence, test locations, or finish flow expectations, update the
   affected skills in the same issue instead of leaving them stale.
-
+- Before finalizing an issue, run both `git diff --check` and an explicit line-ending check over newly created or moved
+  files so mixed newlines are caught before the user opens them in Visual Studio.
+- Before finalizing backend work, run an explicit unused-namespace-import check for C# files, preferably with `dotnet format analyzers ... --diagnostics IDE0005 --verify-no-changes`, and remove any stray imports before handing the change back.
+- If a verification step fails, is blocked by the environment, or does not complete, do not report it as passing from
+  memory or inference. State the verification gap plainly, rerun it if possible, and only claim a clean result after a
+  successful run.
 ## Validate In The Smallest Useful Way
 
 - Run the discoverable xUnit backend tests for backend behavior changes.

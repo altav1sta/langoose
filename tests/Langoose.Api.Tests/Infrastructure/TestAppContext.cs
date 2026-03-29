@@ -1,5 +1,6 @@
-using Langoose.Api.Infrastructure;
+using Langoose.Domain.Abstractions;
 using Langoose.Api.Services;
+using Langoose.Data.Seeding;
 
 namespace Langoose.Api.Tests.Infrastructure;
 
@@ -25,7 +26,7 @@ internal sealed class TestAppContext : IAsyncDisposable
     public static async Task<TestAppContext> CreateAsync()
     {
         var dataStore = new InMemoryDataStore();
-        var seeder = new DataSeeder(dataStore);
+        var seeder = new DatabaseSeeder(dataStore);
         await seeder.SeedAsync();
 
         var enrichmentService = new EnrichmentService();

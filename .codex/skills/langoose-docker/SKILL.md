@@ -36,6 +36,9 @@ Use this skill when the task involves Docker, Compose, or containerized local de
   schema creation actually run, and the key user flow succeeds through HTTP.
 - If live verification fails, debug the running container logs first and fix the real startup issue before declaring the
   Docker work complete.
+- If a Docker verification step fails, is blocked by the environment, or does not complete, do not describe it as
+  passing from memory or inference. Call out the gap, rerun it if possible, and only report success after the real check
+  succeeds.
 
 ## Load Additional Detail Only When Needed
 

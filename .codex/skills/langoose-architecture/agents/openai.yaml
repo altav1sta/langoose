@@ -1,0 +1,4 @@
+version: 1
+display_name: Langoose Architecture
+short_description: Choose and apply lightweight onion-style project boundaries for Langoose.
+default_prompt: Use this skill when deciding or refactoring Langoose architecture, including API, Domain, and Data project boundaries, dependency direction, and lightweight onion-style structure.

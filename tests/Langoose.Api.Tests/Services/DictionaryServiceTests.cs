@@ -1,4 +1,5 @@
 using Langoose.Api.Models;
+using Langoose.Domain.Models;
 using Langoose.Api.Services;
 using Langoose.Api.Tests.Infrastructure;
 using Xunit;

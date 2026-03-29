@@ -3,11 +3,11 @@
 ## Main Commands
 
 - Backend build:
-  - `dotnet build apps/api/Langoose.Api.csproj --configfile D:\Projects\langoose\apps\api\NuGet.Config`
+  - `dotnet build apps/api/Langoose.sln --configfile D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config`
 - Backend tests:
-  - `dotnet test tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config`
+  - `dotnet test tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config`
 - Run API:
-  - `dotnet run --project apps/api/Langoose.Api.csproj --configfile D:\Projects\langoose\apps\api\NuGet.Config`
+  - `dotnet run --project apps/api/Langoose.Api/Langoose.Api.csproj --configfile D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config`
 - Frontend build:
   - `npm run build`
 - Frontend dev:
@@ -17,12 +17,13 @@ Run frontend commands from `D:\Projects\langoose\apps\web`.
 
 ## API Reality Check
 
-- Startup and registration live in `apps/api/Program.cs`.
-- Persistence goes through PostgreSQL and EF Core in `apps/api/Infrastructure/AppDbContext.cs` and
-  `apps/api/Infrastructure/PostgresDataStore.cs`.
-- Dictionary rules live in `Services/DictionaryService.cs`.
-- Study scheduling and answer evaluation live in `Services/StudyService.cs`.
-- Controller contracts live under `Controllers/`.
+- Startup and registration live in `apps/api/Langoose.Api/Program.cs`.
+- Shared persisted models and store abstractions live in `apps/api/Langoose.Domain`.
+- Persistence goes through PostgreSQL and EF Core in `apps/api/Langoose.Data/AppDbContext.cs` and `apps/api/Langoose.Data/PostgresDataStore.cs`.
+- Database initialization and base-content seeding live in `apps/api/Langoose.Data/Seeding/*` and `apps/api/Langoose.Data/Seeding/Json/base-store.json`.
+- Dictionary rules live in `apps/api/Langoose.Api/Services/DictionaryService.cs`.
+- Study scheduling and answer evaluation live in `apps/api/Langoose.Api/Services/StudyService.cs`.
+- Controller contracts live under `apps/api/Langoose.Api/Controllers/`.
 
 ## Frontend Reality Check
 

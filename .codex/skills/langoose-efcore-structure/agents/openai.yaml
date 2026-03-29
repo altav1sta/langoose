@@ -1,0 +1,4 @@
+version: 1
+display_name: Langoose EF Core Structure
+short_description: Design the Langoose API and data-project boundary for EF Core and PostgreSQL work.
+default_prompt: Use this skill when deciding or refactoring Langoose EF Core structure, including separate data projects, DbContext placement, entity configuration files, migrations layout, and persistence adapter boundaries.

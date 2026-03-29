@@ -2,8 +2,8 @@
 
 ## Main Files
 
-- `apps/api/Services/DictionaryService.cs`
-- `apps/api/Controllers/DictionaryController.cs`
+- `apps/api/Langoose.Api/Services/DictionaryService.cs`
+- `apps/api/Langoose.Api/Controllers/DictionaryController.cs`
 - `tests/Langoose.Api.Tests`
 - `apps/web/src/api.ts`
 - `apps/web/src/App.tsx`
