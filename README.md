@@ -10,23 +10,25 @@ Langoose is a web-first MVP for Russian speakers learning English. It combines s
 - Backend: ASP.NET Core Web API on .NET 10 / C#
 - API style: controller-based JSON API
 - Persistence: PostgreSQL-backed API storage
-- Auth: lightweight token-based MVP auth
+- Auth: deployable MVP target is first-party email/password on an OAuth/OIDC-capable backend; current code still uses a placeholder token flow
 - Tests: xUnit-based .NET test project under `tests/`
 
 ## Repo layout
 
-- `apps/api`: backend API, .NET solution, and config
-- `tests/Langoose.Api.Tests`: discoverable xUnit backend behavior tests
-- `apps/web`: frontend SPA
-- `docs`: roadmap and project documentation
+- [`apps/api`](apps/api): backend API, .NET solution, and config
+- [`tests/Langoose.Api.Tests`](tests/Langoose.Api.Tests): discoverable xUnit backend behavior tests
+- [`apps/web`](apps/web): frontend SPA
+- [`docs`](docs): roadmap and project documentation
 - `.local`: local-only cache used in restricted environments
 - root: shared repo files only
 
 ## Project planning
 
-- Roadmap overview: `docs/roadmap.md`
+- Roadmap overview: [`docs/roadmap.md`](docs/roadmap.md)
+- Auth decision note: [`docs/auth-mvp-decision.md`](docs/auth-mvp-decision.md)
+- Auth implementation blueprint: [`docs/auth-m1-implementation-blueprint.md`](docs/auth-m1-implementation-blueprint.md)
 - Live execution tracking: GitHub `Langoose MVP` project
-- Contribution workflow: `CONTRIBUTING.md`
+- Contribution workflow: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 
 ## What the MVP currently does
 
@@ -42,7 +44,8 @@ Langoose is a web-first MVP for Russian speakers learning English. It combines s
 ## Current implementation notes
 
 - The current MVP uses PostgreSQL-backed persistence and the local Docker stack runs the API, web app, and PostgreSQL together.
-- The current auth flow is MVP-only and not production auth.
+- The current auth flow in code is still a placeholder email/name flow and is not production auth.
+- The planned auth direction is first-party email/password on top of a web-first, future-native-compatible backend.
 - CSV import is file-only.
 - CSV files must start with these columns in this order:
   - `English term`
@@ -57,7 +60,7 @@ Langoose is a web-first MVP for Russian speakers learning English. It combines s
 
 The normal local workflow is Visual Studio:
 
-1. Open `apps/api/Langoose.sln`
+1. Open [`apps/api/Langoose.sln`](apps/api/Langoose.sln)
 2. Run the API from Visual Studio
 
 By default the API is configured to run on:
@@ -79,7 +82,7 @@ dotnet run --project apps/api/Langoose.Api/Langoose.Api.csproj --configfile D:\P
 Run backend checks:
 
 ```powershell
-dotnet test tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config
+dotnet test tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config
 ```
 
 ## CI checks
@@ -109,7 +112,7 @@ The container publishes the API on:
 
 Useful notes:
 
-- The image is built from `apps/api/Langoose.Api/Dockerfile`
+- The image is built from [`apps/api/Langoose.Api/Dockerfile`](apps/api/Langoose.Api/Dockerfile)
 - Persistent API data is stored in the named Docker volume `langoose_api_data`
 - Inside the containerized stack, application data is stored in PostgreSQL
 
@@ -140,7 +143,7 @@ The stack publishes:
 
 Useful notes:
 
-- The web container is built from `apps/web/Dockerfile`
+- The web container is built from [`apps/web/Dockerfile`](apps/web/Dockerfile)
 - The web container injects `LANGOOSE_API_BASE_URL` at startup so the same image can target different API hosts
 - PostgreSQL is the runtime data store for the current API
 - PostgreSQL data is persisted in the named volume `langoose_postgres_data`
@@ -173,7 +176,7 @@ Open the local URL shown by Vite, usually:
 
 1. Start the backend
 2. Start the frontend
-3. Sign in with any email and name
+3. Sign in with the current placeholder email/name flow
 4. Add a custom word or phrase
 5. Import a valid CSV file
 6. Study a few cards

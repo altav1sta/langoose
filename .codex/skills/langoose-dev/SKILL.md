@@ -14,7 +14,10 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Keep frontend work inside `apps/web` with React, TypeScript, and plain CSS.
 - Keep backend work inside `apps/api` with controller-based endpoints and service-layer business logic.
 - Prefer extending existing services over adding new abstractions.
+- Do not create branches with the `codex/` prefix in this repository; use the repo's `docs/...`, `infra/...`,
+  `feat/...`, `fix/...`, or `chore/...` naming instead.
 - Respect `.gitattributes` and keep line endings normalized when creating or editing files.
+- When editing Markdown docs, verify relative links from the file's actual directory. Do not assume repo-root-style `docs/...` links work from files that already live under `docs/`.
 - When files are created or rewritten through shell commands, explicitly normalize their line endings before finishing.
 - If files were moved or created in bulk, verify they do not contain mixed line endings at the byte level before declaring the task clean.
 - Preserve non-ASCII product text safely. Keep Russian and other non-ASCII literals as valid UTF-8, or switch to explicit C# `\u` escapes when Windows tooling or shell encoding could corrupt them.
@@ -26,6 +29,8 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - In React code, prefer pure render logic, derived state, and event-driven updates over effect-driven synchronization.
 - In TypeScript code, prefer exact domain types and strict narrowing over broad fallback object types.
 - Treat the current persistence mechanism in the repo as the source of truth. Do not assume the repo still uses the older JSON-file store if the code has already moved on.
+- Treat auth persistence as a separate concern from app-domain persistence. For this repo's planned auth direction, prefer a separate auth database on the same PostgreSQL server, with its own migration stream, instead of mixing auth and app data in one database.
+- For auth work, keep [D:\Projects\langoose\docs\auth-mvp-decision.md](D:\Projects\langoose\docs\auth-mvp-decision.md) and [D:\Projects\langoose\docs\auth-m1-implementation-blueprint.md](D:\Projects\langoose\docs\auth-m1-implementation-blueprint.md) aligned with repo guidance and implementation reality.
 - When base database content must be initialized, keep the seeding implementation and seed assets in Langoose.Data; let Program.cs only trigger that initialization at startup.
 
 ## Finish Cleanly
@@ -40,9 +45,11 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Before finalizing backend work, run an explicit unused-namespace-import check for C# files, preferably with `dotnet format analyzers ... --diagnostics IDE0005 --verify-no-changes`, and remove any stray imports before handing the change back.
 - If startup seeding or repair logic can overwrite existing persisted base content, verify the seed source itself is not corrupted before shipping. A broken seed file is a data rewrite bug, not just a fixture bug.
 - If a verification step fails, is blocked by the environment, or does not complete, do not report it as passing from memory or inference. State the verification gap plainly, rerun it if possible, and only claim a clean result after a successful run.
-- Start each issue branch from the latest `main` branch, especially for large refactors or project-structure changes. Do not begin long-running structural work from a stale base if you can avoid it.
+- Start each issue branch from the latest local `main` branch after fast-forwarding it from `origin/main`, especially for large refactors or project-structure changes.
+- Before creating a branch in this repo, fetch `origin/main`, check out `main`, fast-forward `main`, and only then create the new branch from `main`.
 - Before opening or handing off a PR for a large refactor or project-structure change, sync the branch with the current `main` branch again if needed and resolve conflicts locally. Do not leave mergeability as an assumption for GitHub to discover later.
 - Before declaring the review handoff complete, verify that the PR is actually mergeable. If merge conflicts remain, resolve them before reporting the task as ready for review.
+- Before declaring the PR flow complete, make sure the related issue metadata is aligned too: labels, milestone, assignee, project placement, and review-state/status should match the real state of the work.
 - If a refactor or project move changes solution paths, project paths, Dockerfile paths, or config locations, inspect CI/workflow files and update them in the same issue. Do not assume existing build and test workflows still point at the right files after the restructure.
 
 ## Validate In The Smallest Useful Way
@@ -57,7 +64,7 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Preserve duplicate-collapsing behavior between base and custom dictionary items.
 - Preserve strict CSV header/order validation and no-partial-import behavior.
 - Preserve tolerant study grading unless the task explicitly changes the grading rules.
-- Preserve the current MVP auth model unless the task explicitly asks to redesign it.
+- Preserve the current auth direction and published auth contracts unless the task explicitly asks to redesign them.
 
 ## Load Additional Detail Only When Needed
 
