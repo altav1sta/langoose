@@ -57,9 +57,8 @@
 - Prefer plain CSS in [styles.css](D:\Projects\langoose\apps\web\src\styles.css) over CSS-in-JS or a component library.
 - Before declaring a task done, verify the real acceptance path the user will exercise. For Docker, persistence, startup,
   auth, frontend/backend integration, or full-app questions, prefer a live end-to-end check over code-only confidence.
-- When the user asks whether the whole app still works, treat the containerized stack in `compose.yml` as the default
-  validation path. Prefer verifying the app through Docker rather than relying only on host-local `npm` or partial
-  backend-only checks.
+- For whole-app verification, treat the containerized stack in `compose.yml` as the default validation path instead of
+  relying only on host-local `npm` or partial backend-only checks.
 - Clean up machine-local and generated artifacts created during the task, including `.dotnet`, `bin`, `obj`, `.vs`, and
   any local config that does not belong in the repo.
 - If startup seeding or repair logic can rewrite base content, verify that the seed source is correct before finishing. Do not ship a corrupted seed file that would overwrite existing base data on startup.
@@ -70,11 +69,17 @@
   plan or memory.
 - Treat the GitHub Project `Langoose MVP` as the source of truth for roadmap status.
 - Keep issue, epic, and PR status aligned with the real state of the work.
+- Follow the established repo workflow automatically. Apply the written rules instead of inventing extra workflow steps,
+  duplicate requirements, or additional project tracking that the guide does not call for.
+- Before any GitHub-side workflow mutation, verify the workflow checklist yourself: correct issue, correct branch from
+  latest `main`, correct issue status, complete issue metadata, complete PR metadata when a PR exists, PR mergeable
+  when relevant, and project tracking only where the repo flow actually requires it.
+- Only stop to ask the user when the next workflow step is genuinely ambiguous, conflicts with the written repo flow,
+  would change or bypass the normal issue/PR process, or would take a destructive Git action not already requested.
 - Never start issue work on an unrelated existing branch. If the current branch is not the correct issue branch, stop, switch back to a clean latest `main`, and create the proper branch before making changes.
 - Use one branch per issue or one tightly related chunk of work whenever practical.
-- Start issue branches from the latest local `main` branch after updating it from `origin/main`.
-- Before creating a branch, run the equivalent of: fetch `origin/main`, check out `main`, fast-forward `main`, then
-  create the new branch from `main`.
+- Start issue branches from the latest local `main` branch after updating it from `origin/main`. Before creating a
+  branch, fetch `origin/main`, check out `main`, fast-forward `main`, and only then create the new branch from `main`.
 - If work was accidentally started on the wrong branch, do not continue by improvising with merges, stash juggling, or cross-branch cleanup. Preserve the work if needed, then restart from a clean correct branch and reapply only the intended issue changes.
 - Prefer one PR per issue whenever practical. If a task clearly belongs in one focused PR, do not split it
   unnecessarily.
@@ -112,7 +117,8 @@
 - Preserve the existing labels unless the user explicitly asks to change the labeling system.
 - Use area labels such as `backend`, `frontend`, `infra`, and `db` to reflect the affected system areas.
 - Use planning labels such as `mvp`, `post-mvp`, `bug`, `tech-debt`, and `blocked` to reflect roadmap context.
-- Keep milestones and project membership aligned with the issue's role in the roadmap.
+- Keep milestones aligned with the issue's role in the roadmap. Track issues in the project unless the repo flow
+  explicitly calls for something else.
 
 ### Pull Request Conventions
 
@@ -122,7 +128,7 @@
 - Before reporting a PR as ready, make sure its metadata is complete enough for normal repo flow:
   - the linked issue is correct
   - the issue itself has the right labels, milestone, assignee, and project placement
-  - the PR is in the expected project/review state when the workflow calls for it
+  - the PR itself has the expected assignee, labels, milestone, and review state for the repo flow
 - Before reporting a PR as ready, verify that GitHub shows it as mergeable. If it is conflicted, resolve that before
   treating the issue as handed off to review.
 - Do not mix unrelated changes in one PR.

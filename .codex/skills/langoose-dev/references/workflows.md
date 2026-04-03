@@ -3,11 +3,11 @@
 ## Main Commands
 
 - Backend build:
-  - `dotnet build apps/api/Langoose.sln --configfile D:\Projects\langoose\apps\api\NuGet.Config`
+  - `dotnet build apps/api/Langoose.sln /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config`
 - Backend tests:
   - `dotnet test apps/api/tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config`
 - Run API:
-  - `dotnet run --project apps/api/src/Langoose.Api/Langoose.Api.csproj --configfile D:\Projects\langoose\apps\api\NuGet.Config`
+  - `dotnet run --project apps/api/src/Langoose.Api/Langoose.Api.csproj`
 - Frontend build:
   - `npm run build`
 - Frontend dev:
