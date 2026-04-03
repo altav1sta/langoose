@@ -10,7 +10,7 @@ Use this file for:
 - security defaults
 - delivery and validation order
 
-Use [`docs/auth-mvp-decision.md`](docs/auth-mvp-decision.md) for the higher-level option comparison and roadmap
+Use [`auth-mvp-decision.md`](auth-mvp-decision.md) for the higher-level option comparison and roadmap
 reasoning.
 
 ## Table Of Contents

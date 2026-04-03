@@ -30,6 +30,7 @@
 - For auth planning and implementation in this repo, keep [auth-mvp-decision.md](D:\Projects\langoose\docs\auth-mvp-decision.md) and [auth-m1-implementation-blueprint.md](D:\Projects\langoose\docs\auth-m1-implementation-blueprint.md) aligned with real repo guidance and implementation direction.
 - Normalize line endings. Respect `.gitattributes`, avoid accidental whole-file line-ending churn, and prefer repository-consistent endings when editing files.
 - Before finishing a change, normalize edited files to the line endings required by .gitattributes and run git diff --check to catch EOF and whitespace issues.
+- When editing Markdown docs, verify relative links from the edited file's real directory rather than assuming repo-root paths. After doc changes, do a quick scan for broken sibling or nested `docs/...` links before finishing.
 - Protect non-ASCII product text. When a file contains Russian or other non-ASCII user-facing text, preserve it as valid UTF-8 or use explicit C# `\u` escapes if tooling might corrupt the literal; do not replace such text with `?`, rely on shell-default encodings, or finish a change while mojibake or placeholder characters remain in source files.
 - Treat seed files and other baseline content assets as especially sensitive to non-ASCII corruption. Inspect the actual file contents before finishing when they contain Russian or other non-ASCII text; do not trust terminal display alone.
 - Prefer a standard maximum line length of 120 characters unless an existing file or construct clearly justifies an exception.
@@ -103,6 +104,10 @@
 - PR titles should describe the actual change, not process commentary.
 - PR bodies should include a short summary, the linked issue via `Closes #...` or `Refs #...`, and the validation that
   was run.
+- Before reporting a PR as ready, make sure its metadata is complete enough for normal repo flow:
+  - the linked issue is correct
+  - the issue itself has the right labels, milestone, assignee, and project placement
+  - the PR is in the expected project/review state when the workflow calls for it
 - Before reporting a PR as ready, verify that GitHub shows it as mergeable. If it is conflicted, resolve that before
   treating the issue as handed off to review.
 - Do not mix unrelated changes in one PR.

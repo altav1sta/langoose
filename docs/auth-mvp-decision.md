@@ -9,7 +9,7 @@ Use this file for:
 - roadmap sequencing
 - backend technology choice
 
-Use [`docs/auth-m1-implementation-blueprint.md`](docs/auth-m1-implementation-blueprint.md) for the concrete M1
+Use [`auth-m1-implementation-blueprint.md`](auth-m1-implementation-blueprint.md) for the concrete M1
 implementation plan.
 
 ## Table Of Contents

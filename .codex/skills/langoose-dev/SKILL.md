@@ -17,6 +17,7 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Do not create branches with the `codex/` prefix in this repository; use the repo's `docs/...`, `infra/...`,
   `feat/...`, `fix/...`, or `chore/...` naming instead.
 - Respect `.gitattributes` and keep line endings normalized when creating or editing files.
+- When editing Markdown docs, verify relative links from the file's actual directory. Do not assume repo-root-style `docs/...` links work from files that already live under `docs/`.
 - When files are created or rewritten through shell commands, explicitly normalize their line endings before finishing.
 - If files were moved or created in bulk, verify they do not contain mixed line endings at the byte level before declaring the task clean.
 - Preserve non-ASCII product text safely. Keep Russian and other non-ASCII literals as valid UTF-8, or switch to explicit C# `\u` escapes when Windows tooling or shell encoding could corrupt them.
@@ -48,6 +49,7 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Before creating a branch in this repo, fetch `origin/main`, check out `main`, fast-forward `main`, and only then create the new branch from `main`.
 - Before opening or handing off a PR for a large refactor or project-structure change, sync the branch with the current `main` branch again if needed and resolve conflicts locally. Do not leave mergeability as an assumption for GitHub to discover later.
 - Before declaring the review handoff complete, verify that the PR is actually mergeable. If merge conflicts remain, resolve them before reporting the task as ready for review.
+- Before declaring the PR flow complete, make sure the related issue metadata is aligned too: labels, milestone, assignee, project placement, and review-state/status should match the real state of the work.
 - If a refactor or project move changes solution paths, project paths, Dockerfile paths, or config locations, inspect CI/workflow files and update them in the same issue. Do not assume existing build and test workflows still point at the right files after the restructure.
 
 ## Validate In The Smallest Useful Way
