@@ -2,9 +2,9 @@
 
 ## Main Files
 
-- `apps/api/Langoose.Api/Services/StudyService.cs`
-- `apps/api/Langoose.Api/Services/TextNormalizer.cs`
-- `tests/Langoose.Api.Tests`
+- `apps/api/src/Langoose.Api/Services/StudyService.cs`
+- `apps/api/src/Langoose.Api/Services/TextNormalizer.cs`
+- `apps/api/tests/Langoose.Api.Tests`
 
 ## Current Behavior
 

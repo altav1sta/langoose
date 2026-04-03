@@ -28,19 +28,25 @@ Preferred dependency direction:
 
 ## What Each Project Owns
 
-- `apps/api/Langoose.Api`
+- `apps/api`
+  - solution files such as `Langoose.sln`
+  - shared backend build and package configuration such as `NuGet.Config`, `Directory.Build.props`, and `Directory.Packages.props`
+  - `src/` and `tests/` boundaries for the backend area
+- `apps/api/src/Langoose.Api`
   - `Program.cs`
   - controllers
   - service-layer orchestration and application behavior
-- `apps/api/Langoose.Domain`
+- `apps/api/src/Langoose.Domain`
   - core domain models
   - enums/value objects that represent business concepts
   - business-facing abstractions that should not depend on EF Core or ASP.NET Core
-- `apps/api/Langoose.Data`
+- `apps/api/src/Langoose.Data`
   - `DbContext`
   - EF configurations
   - migrations
   - persistence adapters and database wiring
+- `apps/api/tests/*`
+  - API-owned unit, integration, and functional test projects
 
 ## Rules
 
@@ -67,7 +73,7 @@ Preferred dependency direction:
 
 - Build the affected solution or projects explicitly after changing project boundaries.
 - Run the current backend tests:
-  - `dotnet test tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config`
+  - `dotnet test apps/api/tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config`
 - If Docker or startup wiring changed, verify the live startup path before declaring the architecture work complete.
 - If the refactor created new projects or moved many files, check for mixed line endings before finalizing.
 - If a validation step fails, is blocked by the environment, or does not complete, do not report it as passing from

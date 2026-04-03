@@ -3,11 +3,11 @@
 ## Main Commands
 
 - Backend build:
-  - `dotnet build apps/api/Langoose.sln --configfile D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config`
+  - `dotnet build apps/api/Langoose.sln /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config`
 - Backend tests:
-  - `dotnet test tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config`
+  - `dotnet test apps/api/tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config`
 - Run API:
-  - `dotnet run --project apps/api/Langoose.Api/Langoose.Api.csproj --configfile D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config`
+  - `dotnet run --project apps/api/src/Langoose.Api/Langoose.Api.csproj`
 - Frontend build:
   - `npm run build`
 - Frontend dev:
@@ -17,13 +17,13 @@ Run frontend commands from `D:\Projects\langoose\apps\web`.
 
 ## API Reality Check
 
-- Startup and registration live in `apps/api/Langoose.Api/Program.cs`.
-- Shared persisted models and store abstractions live in `apps/api/Langoose.Domain`.
-- Persistence goes through PostgreSQL and EF Core in `apps/api/Langoose.Data/AppDbContext.cs` and `apps/api/Langoose.Data/PostgresDataStore.cs`.
-- Database initialization and base-content seeding live in `apps/api/Langoose.Data/Seeding/*` and `apps/api/Langoose.Data/Seeding/Json/base-store.json`.
-- Dictionary rules live in `apps/api/Langoose.Api/Services/DictionaryService.cs`.
-- Study scheduling and answer evaluation live in `apps/api/Langoose.Api/Services/StudyService.cs`.
-- Controller contracts live under `apps/api/Langoose.Api/Controllers/`.
+- Startup and registration live in `apps/api/src/Langoose.Api/Program.cs`.
+- Shared persisted models and store abstractions live in `apps/api/src/Langoose.Domain`.
+- Persistence goes through PostgreSQL and EF Core in `apps/api/src/Langoose.Data/AppDbContext.cs` and `apps/api/src/Langoose.Data/PostgresDataStore.cs`.
+- Database initialization and base-content seeding live in `apps/api/src/Langoose.Data/Seeding/*` and `apps/api/src/Langoose.Data/Seeding/Json/base-store.json`.
+- Dictionary rules live in `apps/api/src/Langoose.Api/Services/DictionaryService.cs`.
+- Study scheduling and answer evaluation live in `apps/api/src/Langoose.Api/Services/StudyService.cs`.
+- Controller contracts live under `apps/api/src/Langoose.Api/Controllers/`.
 
 ## Frontend Reality Check
 
@@ -50,5 +50,5 @@ Run frontend commands from `D:\Projects\langoose\apps\web`.
 ## Practical Cautions
 
 - Avoid relying on files under `bin`, `obj`, `.vs`, `.dotnet`, and `node_modules` as if they were source files.
-- If a change touches API behavior, inspect the executable tests first because they encode several product decisions more clearly than comments do.
+- If a change touches API behavior, inspect the discoverable xUnit tests first because they encode several product decisions more clearly than comments do.
 - If frontend and backend contracts move together, update `apps/web/src/api.ts` in the same change.

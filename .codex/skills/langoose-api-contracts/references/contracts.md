@@ -2,9 +2,9 @@
 
 ## Main Boundary Files
 
-- Backend models: `apps/api/Langoose.Api/Models/*.cs`
-- Backend entities and persisted domain types: `apps/api/Langoose.Domain/Models/*.cs`
-- Controllers: `apps/api/Langoose.Api/Controllers/*.cs`
+- Backend models: `apps/api/src/Langoose.Api/Models/*.cs`
+- Backend entities and persisted domain types: `apps/api/src/Langoose.Domain/Models/*.cs`
+- Controllers: `apps/api/src/Langoose.Api/Controllers/*.cs`
 - Frontend client types and calls: `apps/web/src/api.ts`
 
 ## Current Contract Characteristics
@@ -24,6 +24,6 @@
 
 ## Recommendations
 
-- Keep one API model type per file under `apps/api/Langoose.Api/Models`.
+- Keep one API model type per file under `apps/api/src/Langoose.Api/Models`.
 - Prefer frontend request payload types instead of `Record<string, unknown>` when the payload shape is known.
 - Keep transport models separate from persistence entities when behavior starts diverging.

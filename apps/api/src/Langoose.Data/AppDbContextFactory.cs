@@ -32,8 +32,12 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
         {
             currentDirectory,
             Path.GetFullPath(Path.Combine(currentDirectory, "..", "Langoose.Api")),
+            Path.GetFullPath(Path.Combine(currentDirectory, "..", "src", "Langoose.Api")),
             Path.GetFullPath(Path.Combine(currentDirectory, "..", "..", "Langoose.Api")),
-            Path.GetFullPath(Path.Combine(currentDirectory, "apps", "api", "Langoose.Api"))
+            Path.GetFullPath(Path.Combine(currentDirectory, "..", "..", "src", "Langoose.Api")),
+            Path.GetFullPath(Path.Combine(currentDirectory, "src", "Langoose.Api")),
+            Path.GetFullPath(Path.Combine(currentDirectory, "apps", "api", "Langoose.Api")),
+            Path.GetFullPath(Path.Combine(currentDirectory, "apps", "api", "src", "Langoose.Api"))
         };
 
         foreach (var candidate in candidates.Distinct())

@@ -8,17 +8,17 @@ Use this when Langoose persistence is growing beyond a small in-project EF setup
   - controllers
   - services
   - startup and configuration
-- `apps/api/Langoose.Domain`
+- `apps/api/src/Langoose.Domain`
   - shared persisted models
   - store abstractions such as `IDataStore`
   - enums and value-like types used by both the API and persistence
-- `apps/api/Langoose.Data`
+- `apps/api/src/Langoose.Data`
   - `AppDbContext.cs`
   - `Configurations/*`
   - `Migrations/*`
   - persistence adapter types such as `PostgresDataStore`
   - database seeders and seed data loaders
-- `tests/Langoose.Api.Tests`
+- `apps/api/tests/Langoose.Api.Tests`
 
 ## Why `API + Domain + Data`
 

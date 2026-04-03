@@ -12,12 +12,14 @@ Use this skill when the task is mainly about .NET test structure, test boundarie
 ## Preferred Layout For This Repo
 
 - Keep production app code in `apps/`.
-- Keep .NET test projects in a parallel root `tests/` folder.
-- Prefer `tests/Langoose.Api.Tests` over `apps/api/tests`.
+- Treat `apps/api` as the backend solution and backend-wide configuration boundary.
+- Keep production backend projects under `apps/api/src`.
+- Keep API-owned .NET test projects under `apps/api/tests`.
+- Reserve a repo-root `tests/` folder for repo-level e2e, system, or cross-app suites only.
 - If the suite grows, split by test type when that improves clarity or selective execution:
-  - `tests/Langoose.Api.UnitTests`
-  - `tests/Langoose.Api.IntegrationTests`
-  - `tests/Langoose.Api.FunctionalTests`
+  - `apps/api/tests/Langoose.Api.UnitTests`
+  - `apps/api/tests/Langoose.Api.IntegrationTests`
+  - `apps/api/tests/Langoose.Api.FunctionalTests`
 
 ## Organize By Test Type First
 
@@ -34,8 +36,8 @@ Use this skill when the task is mainly about .NET test structure, test boundarie
 
 ## Langoose-Specific Recommendation
 
-- The current `tests/Langoose.Api.Tests` suite behaves more like an integration/behavior suite than pure unit tests because it exercises the file-backed store and service interactions together.
-- Keep it as the first root-level API test project under `tests/`, and prefer discoverable xUnit tests over executable harnesses so Test Explorer and `dotnet test` work by default.
+- The current `apps/api/tests/Langoose.Api.Tests` suite should behave more like an integration/behavior suite than pure unit tests because it exercises the backend stack and service interactions together.
+- Keep it as the first API-local test project under `apps/api/tests`, and prefer discoverable xUnit tests over executable harnesses so Test Explorer and `dotnet test` work by default.
 - If future pure unit tests are added for isolated logic like text normalization or answer evaluation helpers, keep those in a separate unit-test project.
 
 ## Load Additional Detail Only When Needed

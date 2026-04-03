@@ -10,8 +10,8 @@
 
 - This repo already uses `apps/` rather than `src/`, so mirror the same idea with a root-level `tests/` folder.
 - Prefer this repository shape:
-  - `apps/api/Langoose.Api/Langoose.Api.csproj`
-  - `tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj`
+  - `apps/api/src/Langoose.Api/Langoose.Api.csproj`
+  - `apps/api/tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj`
 - If the suite grows enough to justify separate runs or dependencies, split by test type:
   - `tests/Langoose.Api.UnitTests`
   - `tests/Langoose.Api.IntegrationTests`
@@ -19,7 +19,7 @@
 
 ## How To Classify Existing Langoose Tests
 
-- The current `tests/Langoose.Api.Tests` suite exercises multiple services together against the current backend stack and in-memory test doubles.
+- The current `apps/api/tests/Langoose.Api.Tests` suite exercises multiple services together against the current backend stack and in-memory test doubles.
 - That makes it closer to an integration or behavioral xUnit suite than a pure unit-test suite.
 - Keep that distinction in mind when naming or relocating the project.
 

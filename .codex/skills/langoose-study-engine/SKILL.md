@@ -15,9 +15,9 @@ Use this skill for study-loop behavior and grading logic.
 
 ## Workflow
 
-- Inspect `apps/api/Langoose.Api/Services/StudyService.cs`.
-- Inspect `apps/api/Langoose.Api/Services/TextNormalizer.cs` when matching or tolerance behavior is involved.
-- Inspect the discoverable study-related tests in `tests/Langoose.Api.Tests`.
+- Inspect `apps/api/src/Langoose.Api/Services/StudyService.cs`.
+- Inspect `apps/api/src/Langoose.Api/Services/TextNormalizer.cs` when matching or tolerance behavior is involved.
+- Inspect the discoverable study-related tests in `apps/api/tests/Langoose.Api.Tests`.
 - Update tests whenever the grading or scheduling contract changes intentionally.
 
 ## Langoose-Specific Guidance
