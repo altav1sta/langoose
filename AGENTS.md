@@ -87,6 +87,9 @@
   conflicts locally before calling the PR handoff complete.
 - If a change moves projects, solution files, Dockerfiles, or config paths, update CI/workflow files in the same change
   and verify they still reference the correct locations.
+- If a change moves projects, solution files, Dockerfiles, config paths, or backend directory layout, also verify
+  design-time tooling paths and path-sensitive docs against the new structure. Do not treat green build/test/CI alone
+  as proof that EF design-time commands, Docker notes, README paths, or other location-dependent guidance still work.
 - Use squash merge into `main`.
 - When describing remote branch state, do not rely only on local `origin/*` refs. Verify against the live remote or prune stale refs first if branch existence matters to the answer or workflow.
 

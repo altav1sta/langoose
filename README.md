@@ -114,8 +114,8 @@ The container publishes the API on:
 Useful notes:
 
 - The image is built from [`apps/api/src/Langoose.Api/Dockerfile`](apps/api/src/Langoose.Api/Dockerfile)
-- Persistent API data is stored in the named Docker volume `langoose_api_data`
-- Inside the containerized stack, application data is stored in PostgreSQL
+- In the containerized setup, application data is stored in PostgreSQL
+- PostgreSQL data is persisted in the named Docker volume `langoose_postgres_data`
 
 To stop the container:
 
