@@ -9,8 +9,8 @@ public sealed class ReviewStateConfiguration : IEntityTypeConfiguration<ReviewSt
     public void Configure(EntityTypeBuilder<ReviewState> builder)
     {
         builder.ToTable("review_states");
-        builder.HasKey(state => state.Id);
-        builder.HasIndex(state => state.UserId);
-        builder.HasIndex(state => state.ItemId);
+        builder.HasKey(x => x.Id);
+        builder.HasIndex(x => x.UserId);
+        builder.HasIndex(x => x.ItemId);
     }
 }

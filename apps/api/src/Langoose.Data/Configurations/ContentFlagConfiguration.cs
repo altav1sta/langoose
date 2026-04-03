@@ -9,8 +9,8 @@ public sealed class ContentFlagConfiguration : IEntityTypeConfiguration<ContentF
     public void Configure(EntityTypeBuilder<ContentFlag> builder)
     {
         builder.ToTable("content_flags");
-        builder.HasKey(flag => flag.Id);
-        builder.HasIndex(flag => flag.UserId);
-        builder.HasIndex(flag => flag.ItemId);
+        builder.HasKey(x => x.Id);
+        builder.HasIndex(x => x.UserId);
+        builder.HasIndex(x => x.ItemId);
     }
 }

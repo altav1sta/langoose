@@ -13,6 +13,7 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 
 - Keep frontend work inside `apps/web` with React, TypeScript, and plain CSS.
 - Keep backend work inside `apps/api`, with backend-wide config at `apps/api/`, production projects under `apps/api/src`, and API-owned tests under `apps/api/tests`.
+- Treat `Langoose.Data` as app-domain persistence and `Langoose.Auth.Data` as auth persistence in the current repo layout.
 - Prefer extending existing services over adding new abstractions.
 - For branch, issue, PR, and project workflow behavior, follow `AGENTS.md` directly instead of restating or inventing
   alternate workflow rules in the skill layer.
@@ -24,8 +25,25 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Treat seed assets and other baseline content files as high-risk for non-ASCII corruption. If they contain Russian or other non-ASCII text, inspect the actual file contents before finishing; do not assume terminal rendering tells the truth.
 - Prefer the repository line-length standard of 120 characters where practical.
 - In C# code, prefer one top-level type per file unless a tiny local exception is clearly justified.
+- In C# code, keep structural patterns consistent within the same subsystem. If one entity or concern uses a dedicated configuration class, constants type, or similar structure, make equivalent nearby cases follow the same pattern unless there is a clear reason not to.
+- In C# code, always check namespace alignment after moving or adding files so the namespace still matches the current project and folder structure.
+- In C# code, remove unused `using` directives as part of the normal edit, not only as a final cleanup step.
+- For backend C# cleanup passes, use an explicit file-by-file workflow: list the currently changed `.cs` files, include both modified tracked files and untracked new `.cs` files in that list, narrow to the ones that still contain `using` directives, inspect each of those files directly, and only then treat the manual pass as complete.
+- If the user explicitly calls out a specific file, re-inspect that file directly in the current pass even if it was checked earlier. Do not rely on memory or an earlier partial pass for user-emphasized files.
+- Do not let a broad repo-wide pass override special attention the user asked for on a specific file. User-emphasized files must appear explicitly in the checked-file report.
+- Do not treat an earlier partial cleanup pass as evidence for a later full pass. A new full pass must rebuild the file list from the current working tree and re-check every file on that list.
+- For unused `using` cleanup, do not infer correctness from how familiar, busy, or framework-heavy a file looks. Verify each import against symbols or extension methods actually used in that file.
+- Do not claim a manual cleanup pass is complete without a proof artifact in the response: the exact checked-file list, the files changed by the pass, and the post-fix validation results.
+- In dependency injection setup, keep registrations minimal and non-redundant. If the code only resolves a DbContext factory or only resolves the scoped DbContext directly, remove the unused duplicate registration.
+- In C# code, check property spacing after refactors so consecutive properties stay flat and do not accumulate stray one-off blank lines or subjective semantic grouping.
+- In C# code, prefer `""` over `string.Empty` for normal empty-string literals and default values unless a specific API usage genuinely reads better with `string.Empty`.
+- In C# code, prefer `required` over empty-string fallback defaults for mandatory entity and model properties. For entity and model strings and enums, set values explicitly at creation sites instead of hiding them behind property defaults.
+- In C# entity models, prefer explicit ID and timestamp assignment at creation sites or in persistence configuration instead of hiding those values behind automatic property defaults. Keep automatic defaults only when they represent a deliberate domain rule.
+- In C# code, replace non-obvious numeric literals with named constants or configuration so domain and algorithm tuning values are understandable where they are used.
 - Prefer primary constructors for C# types when dependency injection or simple state capture makes them a cleaner fit than a separate constructor body.
 - Prefer `record` types for DTOs, API models, immutable configuration-shaped objects, and other POCO-like data carriers where value semantics make sense.
+- In C# methods, use blank lines to separate real logic phases such as setup, loading, transformation, branching, and persistence. Prefer that over treating spacing as a rule tied only to `if`, `return`, or loop keywords.
+- In C# lambdas, use short parameter names when the expression is simple and locally obvious. Switch to descriptive names when nested logic, multiple parameters, or non-obvious roles would make terse names harder to follow.
 - In React code, prefer pure render logic, derived state, and event-driven updates over effect-driven synchronization.
 - In TypeScript code, prefer exact domain types and strict narrowing over broad fallback object types.
 - Treat the current persistence mechanism in the repo as the source of truth. Do not assume the repo still uses the older JSON-file store if the code has already moved on.
@@ -37,12 +55,16 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 
 - Before claiming a task is done, verify the acceptance path that the user will actually exercise. If the change is meant to work through Docker, local UI, or a live service boundary, prefer that real path over code-only confidence.
 - Do not report containerized or end-to-end success unless the live stack was actually started and the relevant request path was exercised successfully.
+- When the repo already provides a Docker or Compose path for frontend validation, use that containerized frontend path
+  first for acceptance checks. Do not default to host-local `npm` build or runtime validation unless Docker is blocked,
+  unavailable, or the user explicitly asks for host-local verification.
 - After implementation, do a cleanup sweep for generated or machine-local artifacts created during the task, including `.dotnet`, `bin`, `obj`, `.vs`, runtime data, and any local config that should not stay in the repo.
 - If generated artifacts appear in Solution Explorer or Git status unexpectedly, find the build or package source that is producing them before adding exclusion workarounds. Prefer removing the root cause over hiding the symptom.
+- Keep `Microsoft.EntityFrameworkCore.Design` references on the lean asset set used by the repo unless a verified design-time need requires otherwise. Widening the package to runtime/content assets can surface `BuildHost-*` folders in normal project output.
 - If the user has already asked for cleanup discipline, treat that as part of the task rather than an optional follow-up.
 - Before finalizing an issue, check whether the repo skills or their reference files still describe the pre-change state. If the work changed repo reality, commands, persistence, test locations, or finish flow expectations, update the affected skills in the same issue instead of leaving them stale.
 - Before finalizing an issue, run both `git diff --check` and an explicit line-ending check over newly created or moved files so mixed newlines are caught before the user opens them in Visual Studio.
-- Before finalizing backend work, run an explicit unused-namespace-import check for C# files, preferably with `dotnet format analyzers ... --diagnostics IDE0005 --verify-no-changes`, and remove any stray imports before handing the change back.
+- Before finalizing backend work, run an explicit unused-namespace-import check for C# files, preferably with `dotnet format analyzers ... --diagnostics IDE0005 --verify-no-changes`, and also do a manual pass over the changed backend source and test files. If the analyzer is blocked, the manual pass is still required.
 - If startup seeding or repair logic can overwrite existing persisted base content, verify the seed source itself is not corrupted before shipping. A broken seed file is a data rewrite bug, not just a fixture bug.
 - If a verification step fails, is blocked by the environment, or does not complete, do not report it as passing from memory or inference. State the verification gap plainly, rerun it if possible, and only claim a clean result after a successful run.
 - For issue-branch creation, PR handoff, mergeability, and issue/PR metadata alignment, follow the GitHub workflow

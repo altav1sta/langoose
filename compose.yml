@@ -7,7 +7,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__Langoose: Host=postgres;Port=5432;Database=langoose;Username=langoose;Password=langoose
+      ConnectionStrings__AppDatabase: Host=postgres;Port=5432;Database=langoose_app;Username=langoose;Password=langoose
+      ConnectionStrings__AuthDatabase: Host=postgres;Port=5432;Database=langoose_auth;Username=langoose;Password=langoose
     ports:
       - "5000:8080"
     depends_on:
@@ -31,7 +32,6 @@ services:
     image: postgres:17-alpine
     container_name: langoose-postgres
     environment:
-      POSTGRES_DB: langoose
       POSTGRES_USER: langoose
       POSTGRES_PASSWORD: langoose
     healthcheck:

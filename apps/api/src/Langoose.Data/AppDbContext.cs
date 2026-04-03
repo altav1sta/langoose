@@ -5,8 +5,6 @@ namespace Langoose.Data;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public DbSet<User> Users => Set<User>();
-    public DbSet<SessionToken> SessionTokens => Set<SessionToken>();
     public DbSet<DictionaryItem> DictionaryItems => Set<DictionaryItem>();
     public DbSet<ExampleSentence> ExampleSentences => Set<ExampleSentence>();
     public DbSet<ReviewState> ReviewStates => Set<ReviewState>();

@@ -19,7 +19,7 @@ Run frontend commands from `D:\Projects\langoose\apps\web`.
 
 - Startup and registration live in `apps/api/src/Langoose.Api/Program.cs`.
 - Shared persisted models and store abstractions live in `apps/api/src/Langoose.Domain`.
-- Persistence goes through PostgreSQL and EF Core in `apps/api/src/Langoose.Data/AppDbContext.cs` and `apps/api/src/Langoose.Data/PostgresDataStore.cs`.
+- Persistence goes through PostgreSQL and EF Core in `apps/api/src/Langoose.Data/AppDbContext.cs` for app data and `apps/api/src/Langoose.Auth.Data/AuthDbContext.cs` for auth data.
 - Database initialization and base-content seeding live in `apps/api/src/Langoose.Data/Seeding/*` and `apps/api/src/Langoose.Data/Seeding/Json/base-store.json`.
 - Dictionary rules live in `apps/api/src/Langoose.Api/Services/DictionaryService.cs`.
 - Study scheduling and answer evaluation live in `apps/api/src/Langoose.Api/Services/StudyService.cs`.

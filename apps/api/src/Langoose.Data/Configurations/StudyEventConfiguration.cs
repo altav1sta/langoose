@@ -9,10 +9,10 @@ public sealed class StudyEventConfiguration : IEntityTypeConfiguration<StudyEven
     public void Configure(EntityTypeBuilder<StudyEvent> builder)
     {
         builder.ToTable("study_events");
-        builder.HasKey(studyEvent => studyEvent.Id);
-        builder.Property(studyEvent => studyEvent.Verdict).HasConversion<string>();
-        builder.Property(studyEvent => studyEvent.FeedbackCode).HasConversion<string>();
-        builder.HasIndex(studyEvent => studyEvent.UserId);
-        builder.HasIndex(studyEvent => studyEvent.ItemId);
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Verdict).HasConversion<string>();
+        builder.Property(x => x.FeedbackCode).HasConversion<string>();
+        builder.HasIndex(x => x.UserId);
+        builder.HasIndex(x => x.ItemId);
     }
 }

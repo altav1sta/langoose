@@ -56,15 +56,15 @@ function verdictClassName(verdict: StudyAnswerResult['verdict'] | undefined) {
     return '';
   }
 
-  return verdict.toLowerCase();
+  return verdict;
 }
 
 function verdictLabel(verdict: StudyAnswerResult['verdict'] | undefined) {
-  if (verdict === 'Correct') {
+  if (verdict === 'correct') {
     return 'Correct';
   }
 
-  if (verdict === 'AlmostCorrect') {
+  if (verdict === 'almost_correct') {
     return 'Almost correct';
   }
 
@@ -73,15 +73,15 @@ function verdictLabel(verdict: StudyAnswerResult['verdict'] | undefined) {
 
 function feedbackLabel(result: StudyAnswerResult) {
   switch (result.feedbackCode) {
-    case 'ExactMatch':
+    case 'exact_match':
       return 'Perfect. That answer matches the expected wording.';
-    case 'AcceptedVariant':
+    case 'accepted_variant':
       return 'Close enough. We accepted a valid variant of the target answer.';
-    case 'MissingArticle':
+    case 'missing_article':
       return 'Almost there. The meaning is right, but the article is missing or different.';
-    case 'InflectionMismatch':
+    case 'inflection_mismatch':
       return 'Almost there. The base meaning is correct, but the word form is slightly off.';
-    case 'MinorTypo':
+    case 'minor_typo':
       return 'Almost there. That looks like a minor typo.';
     default:
       return 'Not quite. Try the target phrase that best fits this sentence.';

@@ -3,6 +3,7 @@ WORKDIR /src
 
 COPY ["apps/api/NuGet.Config", "apps/api/"]
 COPY ["apps/api/src/Langoose.Api/Langoose.Api.csproj", "apps/api/src/Langoose.Api/"]
+COPY ["apps/api/src/Langoose.Auth.Data/Langoose.Auth.Data.csproj", "apps/api/src/Langoose.Auth.Data/"]
 COPY ["apps/api/src/Langoose.Data/Langoose.Data.csproj", "apps/api/src/Langoose.Data/"]
 COPY ["apps/api/src/Langoose.Domain/Langoose.Domain.csproj", "apps/api/src/Langoose.Domain/"]
 RUN dotnet restore "apps/api/src/Langoose.Api/Langoose.Api.csproj" --configfile apps/api/NuGet.Config

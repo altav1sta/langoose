@@ -32,6 +32,6 @@ public sealed class AuthController(AuthService authService) : ControllerBase
             return Unauthorized();
         }
 
-        return Ok(new MeResponse(user.Id, user.Email, user.Name));
+        return Ok(new MeResponse(user.Id, user.Email ?? "", user.DisplayName));
     }
 }

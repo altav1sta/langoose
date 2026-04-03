@@ -1,4 +1,4 @@
-namespace Langoose.Domain.Models;
+namespace Langoose.Domain.Enums;
 
 public enum DictionaryItemStatus
 {

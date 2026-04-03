@@ -1,4 +1,5 @@
 using Langoose.Api.Models;
+using Langoose.Domain.Constants;
 
 namespace Langoose.Api.Services;
 
@@ -44,8 +45,8 @@ public sealed class EnrichmentService
         var englishText = request.EnglishText.Trim();
         var warnings = new List<string>();
         var inputGlosses = request.RussianGlosses?
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value.Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList() ?? [];
 
@@ -87,7 +88,7 @@ public sealed class EnrichmentService
                 sentence,
                 sentence.Replace(englishText, "____", StringComparison.OrdinalIgnoreCase),
                 BuildTranslationHint(glosses),
-                0.74,
+                ExampleQualityScores.EnrichmentFallback,
                 "ai-fallback"))
             .ToList();
 
@@ -116,7 +117,7 @@ public sealed class EnrichmentService
             warnings.Add("English text is required.");
         }
 
-        if (glosses.Any(gloss => gloss.Any(ch => ch is >= 'a' and <= 'z')))
+        if (glosses.Any(x => x.Any(ch => ch is >= 'a' and <= 'z')))
         {
             warnings.Add("Russian glosses should not contain English words.");
         }

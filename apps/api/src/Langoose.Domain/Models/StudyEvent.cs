@@ -1,19 +1,15 @@
-using System.Text.Json.Serialization;
+using Langoose.Domain.Enums;
 
 namespace Langoose.Domain.Models;
 
 public sealed class StudyEvent
 {
-    public Guid Id { get; init; } = Guid.NewGuid();
-    public Guid UserId { get; set; }
-    public Guid ItemId { get; set; }
-    public DateTimeOffset AnsweredAtUtc { get; set; } = DateTimeOffset.UtcNow;
-    public string SubmittedAnswer { get; set; } = string.Empty;
-    public string NormalizedAnswer { get; set; } = string.Empty;
-
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public StudyVerdict Verdict { get; set; }
-
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public FeedbackCode FeedbackCode { get; set; }
+    public required Guid Id { get; init; }
+    public required Guid UserId { get; set; }
+    public required Guid ItemId { get; set; }
+    public required DateTimeOffset AnsweredAtUtc { get; set; }
+    public required string SubmittedAnswer { get; set; }
+    public required string NormalizedAnswer { get; set; }
+    public required StudyVerdict Verdict { get; set; }
+    public required FeedbackCode FeedbackCode { get; set; }
 }

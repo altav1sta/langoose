@@ -1,76 +1,121 @@
-using Langoose.Domain.Abstractions;
 using Langoose.Api.Models;
-using Langoose.Domain.Models;
+using Langoose.Auth.Data;
+using Langoose.Auth.Data.Models;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace Langoose.Api.Services;
 
-public sealed class AuthService(IDataStore dataStore)
+public sealed class AuthService(AuthDbContext authDbContext, UserManager<AuthUser> userManager)
 {
+    private static string? NormalizeDisplayName(string? rawName)
+    {
+        var trimmedName = rawName?.Trim();
+
+        return string.IsNullOrWhiteSpace(trimmedName) ? null : trimmedName;
+    }
+
     public async Task<AuthResponse> EmailSignInAsync(
         EmailSignInRequest request,
         CancellationToken cancellationToken)
     {
-        var store = await dataStore.LoadAsync(cancellationToken);
         var email = request.Email.Trim().ToLowerInvariant();
-        var user = store.Users.FirstOrDefault(candidate => candidate.Email == email);
+        var user = await userManager.Users.FirstOrDefaultAsync(x => x.Email == email, cancellationToken);
 
         if (user is null)
         {
-            user = new User
+            user = new AuthUser
             {
                 Email = email,
-                Name = string.IsNullOrWhiteSpace(request.Name)
-                    ? email.Split('@')[0]
-                    : request.Name.Trim()
+                UserName = email,
+                NormalizedEmail = email.ToUpperInvariant(),
+                NormalizedUserName = email.ToUpperInvariant(),
+                DisplayName = NormalizeDisplayName(request.Name),
+                CreatedAtUtc = DateTimeOffset.UtcNow
             };
-            store.Users.Add(user);
+
+            var createResult = await userManager.CreateAsync(user);
+
+            if (!createResult.Succeeded)
+            {
+                throw new InvalidOperationException("Failed to create auth user for placeholder sign-in flow.");
+            }
         }
 
-        var session = new SessionToken { UserId = user.Id };
-        store.SessionTokens.Add(session);
-        await dataStore.SaveAsync(store, cancellationToken);
+        var session = new AuthSession
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Token = Guid.NewGuid().ToString("N"),
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+        authDbContext.AuthSessions.Add(session);
+        await authDbContext.SaveChangesAsync(cancellationToken);
 
-        return new AuthResponse(user.Id, user.Email, user.Name, session.Token);
+        return new AuthResponse(user.Id, user.Email ?? email, user.DisplayName, session.Token);
     }
 
     public async Task<AuthResponse> SocialSignInAsync(
         SocialSignInRequest request,
         CancellationToken cancellationToken)
     {
-        var store = await dataStore.LoadAsync(cancellationToken);
         var email = request.Email.Trim().ToLowerInvariant();
-        var user = store.Users.FirstOrDefault(candidate =>
-            candidate.Email == email ||
-            (candidate.Provider == request.Provider &&
-             candidate.ProviderUserId == request.ProviderUserId));
+        var provider = request.Provider.Trim();
+        var providerUserId = request.ProviderUserId.Trim();
+        var user = await userManager.Users.FirstOrDefaultAsync(x =>
+            x.Email == email ||
+            (x.Provider == provider &&
+             x.ProviderUserId == providerUserId), cancellationToken);
 
         if (user is null)
         {
-            user = new User
+            user = new AuthUser
             {
                 Email = email,
-                Name = string.IsNullOrWhiteSpace(request.Name)
-                    ? request.ProviderUserId
-                    : request.Name.Trim(),
-                Provider = request.Provider.Trim(),
-                ProviderUserId = request.ProviderUserId.Trim()
+                UserName = email,
+                NormalizedEmail = email.ToUpperInvariant(),
+                NormalizedUserName = email.ToUpperInvariant(),
+                DisplayName = NormalizeDisplayName(request.Name),
+                Provider = provider,
+                ProviderUserId = providerUserId,
+                CreatedAtUtc = DateTimeOffset.UtcNow
             };
-            store.Users.Add(user);
+
+            var createResult = await userManager.CreateAsync(user);
+
+            if (!createResult.Succeeded)
+            {
+                throw new InvalidOperationException("Failed to create auth user for placeholder social sign-in flow.");
+            }
         }
         else
         {
-            user.Provider = request.Provider.Trim();
-            user.ProviderUserId = request.ProviderUserId.Trim();
+            user.Provider = provider;
+            user.ProviderUserId = providerUserId;
+            user.DisplayName = NormalizeDisplayName(request.Name);
+
+            var updateResult = await userManager.UpdateAsync(user);
+
+            if (!updateResult.Succeeded)
+            {
+                throw new InvalidOperationException("Failed to update auth user for placeholder social sign-in flow.");
+            }
         }
 
-        var session = new SessionToken { UserId = user.Id };
-        store.SessionTokens.Add(session);
-        await dataStore.SaveAsync(store, cancellationToken);
+        var session = new AuthSession
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            Token = Guid.NewGuid().ToString("N"),
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+        authDbContext.AuthSessions.Add(session);
+        await authDbContext.SaveChangesAsync(cancellationToken);
 
-        return new AuthResponse(user.Id, user.Email, user.Name, session.Token);
+        return new AuthResponse(user.Id, user.Email ?? email, user.DisplayName, session.Token);
     }
 
-    public async Task<User?> GetUserFromTokenAsync(
+    public async Task<AuthUser?> GetUserFromTokenAsync(
         string? authHeader,
         CancellationToken cancellationToken)
     {
@@ -81,11 +126,12 @@ public sealed class AuthService(IDataStore dataStore)
         }
 
         var token = authHeader["Bearer ".Length..].Trim();
-        var store = await dataStore.LoadAsync(cancellationToken);
-        var session = store.SessionTokens.FirstOrDefault(candidate => candidate.Token == token);
+        var session = await authDbContext.AuthSessions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Token == token, cancellationToken);
 
         return session is null
             ? null
-            : store.Users.FirstOrDefault(candidate => candidate.Id == session.UserId);
+            : await userManager.Users.FirstOrDefaultAsync(x => x.Id == session.UserId, cancellationToken);
     }
 }
