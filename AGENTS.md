@@ -27,6 +27,7 @@
 - Preserve the MVP architecture. Prefer small changes inside the current React SPA and ASP.NET Core service/controller structure before introducing new layers, packages, or infrastructure.
 - Keep business rules on the backend when they affect grading, dictionary visibility, imports, or scheduling.
 - Do not introduce a different persistence stack, background worker, or production-grade auth unless the task explicitly asks for that shift.
+- For auth planning and implementation in this repo, keep [auth-mvp-decision.md](D:\Projects\langoose\docs\auth-mvp-decision.md) and [auth-m1-implementation-blueprint.md](D:\Projects\langoose\docs\auth-m1-implementation-blueprint.md) aligned with real repo guidance and implementation direction.
 - Normalize line endings. Respect `.gitattributes`, avoid accidental whole-file line-ending churn, and prefer repository-consistent endings when editing files.
 - Before finishing a change, normalize edited files to the line endings required by .gitattributes and run git diff --check to catch EOF and whitespace issues.
 - Protect non-ASCII product text. When a file contains Russian or other non-ASCII user-facing text, preserve it as valid UTF-8 or use explicit C# `\u` escapes if tooling might corrupt the literal; do not replace such text with `?`, rely on shell-default encodings, or finish a change while mojibake or placeholder characters remain in source files.
@@ -58,7 +59,9 @@
 - Treat the GitHub Project `Langoose MVP` as the source of truth for roadmap status.
 - Keep issue, epic, and PR status aligned with the real state of the work.
 - Use one branch per issue or one tightly related chunk of work whenever practical.
-- Start issue branches from the latest `main` branch, especially for large refactors or project-structure changes.
+- Start issue branches from the latest local `main` branch after updating it from `origin/main`.
+- Before creating a branch, run the equivalent of: fetch `origin/main`, check out `main`, fast-forward `main`, then
+  create the new branch from `main`.
 - Prefer one PR per issue whenever practical. If a task clearly belongs in one focused PR, do not split it
   unnecessarily.
 - For large refactors or project-structure changes, sync the branch with the current `main` branch and resolve merge
@@ -69,6 +72,7 @@
 
 ### Branch Naming
 
+- Do not create branches with the `codex/` prefix for this repo.
 - Use `docs/...` for documentation and repo guidance changes.
 - Use `infra/...` for CI, Docker, deployment, and workflow changes.
 - Use `feat/...` for product or implementation work.
@@ -117,6 +121,7 @@
 ## Data Store Notes
 
 - The API persists through PostgreSQL and EF Core in [AppDbContext.cs](D:\Projects\langoose\apps\api\Langoose.Data\AppDbContext.cs) and [PostgresDataStore.cs](D:\Projects\langoose\apps\api\Langoose.Data\PostgresDataStore.cs).
+- The planned auth direction uses a separate auth database on the same PostgreSQL server, with its own migration stream, rather than mixing auth and app data in one database.
 - Base dictionary seed content lives in [base-store.json](D:\Projects\langoose\apps\api\Langoose.Data\Seeding\Json\base-store.json) and is applied through [DatabaseSeeder.cs](D:\Projects\langoose\apps\api\Langoose.Data\Seeding\DatabaseSeeder.cs).
 - Treat `bin`, `obj`, `.vs`, `.dotnet`, and `node_modules` as runtime/generated artifacts unless the task is explicitly about them.
 - Be careful not to depend on incidental contents of a local database volume when implementing features or tests.
@@ -133,7 +138,7 @@
   - `docker compose up -d postgres`
   - `docker compose up -d api --build`
   - verify `GET http://localhost:5000/health`
-  - verify a real auth flow such as `POST /auth/email-sign-in`
+  - verify the real auth flow for the branch, such as the current placeholder `POST /auth/email-sign-in` or the planned `POST /auth/sign-in` once it lands
 
 ## Change Heuristics
 
@@ -141,6 +146,7 @@
 - For study-flow changes, review both [StudyService.cs](D:\Projects\langoose\apps\api\Langoose.Api\Services\StudyService.cs) and the discoverable xUnit tests under [tests/Langoose.Api.Tests](D:\Projects\langoose\tests\Langoose.Api.Tests).
 - For dictionary/import changes, review both [DictionaryService.cs](D:\Projects\langoose\apps\api\Langoose.Api\Services\DictionaryService.cs) and [DictionaryController.cs](D:\Projects\langoose\apps\api\Langoose.Api\Controllers\DictionaryController.cs).
 - For frontend work, keep the API contract in sync with [api.ts](D:\Projects\langoose\apps\web\src\api.ts).
+- For auth work, keep [auth-mvp-decision.md](D:\Projects\langoose\docs\auth-mvp-decision.md) and [auth-m1-implementation-blueprint.md](D:\Projects\langoose\docs\auth-m1-implementation-blueprint.md) aligned with the implementation.
 - For .NET test-organization work, use the `langoose-dotnet-testing` skill in `.codex/skills`.
 - For broader architecture and project-boundary decisions such as `API + Data` versus `API + Domain + Data`, use the `langoose-architecture` skill in `.codex/skills`.
 - For EF Core structure, separate data-project boundaries, DbContext placement, and migrations layout decisions, use the `langoose-efcore-structure` skill in `.codex/skills`.
