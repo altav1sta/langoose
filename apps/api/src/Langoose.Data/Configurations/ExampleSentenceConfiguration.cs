@@ -9,8 +9,8 @@ public sealed class ExampleSentenceConfiguration : IEntityTypeConfiguration<Exam
     public void Configure(EntityTypeBuilder<ExampleSentence> builder)
     {
         builder.ToTable("example_sentences");
-        builder.HasKey(sentence => sentence.Id);
-        builder.Property(sentence => sentence.Origin).HasConversion<string>();
-        builder.HasIndex(sentence => sentence.ItemId);
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Origin).HasConversion<string>();
+        builder.HasIndex(x => x.ItemId);
     }
 }

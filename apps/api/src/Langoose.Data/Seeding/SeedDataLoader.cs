@@ -1,11 +1,14 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using Langoose.Domain.Constants;
+using Langoose.Domain.Enums;
 using Langoose.Domain.Models;
 
 namespace Langoose.Data.Seeding;
 
 public static class SeedDataLoader
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
 
     public static IReadOnlyList<(DictionaryItem Item, ExampleSentence Sentence)> LoadBaseItems()
     {
@@ -14,6 +17,14 @@ public static class SeedDataLoader
             ?? throw new InvalidOperationException("Seed payload could not be deserialized.");
 
         return payload.Items.Select(CreatePair).ToArray();
+    }
+
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.Converters.Add(new JsonStringEnumConverter());
+
+        return options;
     }
 
     private static Stream OpenSeedStream()
@@ -34,6 +45,7 @@ public static class SeedDataLoader
     private static (DictionaryItem Item, ExampleSentence Sentence) CreatePair(SeedItem seedItem)
     {
         var itemId = Guid.NewGuid();
+        var createdAtUtc = DateTimeOffset.UtcNow;
         var item = new DictionaryItem
         {
             Id = itemId,
@@ -43,21 +55,25 @@ public static class SeedDataLoader
             ItemKind = Enum.Parse<ItemKind>(seedItem.Kind, ignoreCase: true),
             PartOfSpeech = seedItem.PartOfSpeech,
             Difficulty = seedItem.Difficulty,
+            Status = DictionaryItemStatus.Active,
             CreatedByFlow = "seed",
+            Notes = "",
             AcceptedVariants = seedItem.AcceptedVariants.Count == 0
                 ? [seedItem.English]
                 : [seedItem.English, .. seedItem.AcceptedVariants],
-            Distractors = ["make", "get", "use"]
+            Distractors = ["make", "get", "use"],
+            CreatedAtUtc = createdAtUtc
         };
 
         var sentence = new ExampleSentence
         {
+            Id = Guid.NewGuid(),
             ItemId = itemId,
             SentenceText = seedItem.Cloze.Replace("____", seedItem.English, StringComparison.Ordinal),
             ClozeText = seedItem.Cloze,
             TranslationHint = seedItem.TranslationHint,
             Origin = ContentOrigin.Dataset,
-            QualityScore = 0.95
+            QualityScore = ExampleQualityScores.SeedDataset
         };
 
         return (item, sentence);

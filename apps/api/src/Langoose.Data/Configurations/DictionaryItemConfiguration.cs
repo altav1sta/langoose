@@ -9,19 +9,19 @@ public sealed class DictionaryItemConfiguration : IEntityTypeConfiguration<Dicti
     public void Configure(EntityTypeBuilder<DictionaryItem> builder)
     {
         builder.ToTable("dictionary_items");
-        builder.HasKey(item => item.Id);
-        builder.Property(item => item.SourceType).HasConversion<string>();
-        builder.Property(item => item.ItemKind).HasConversion<string>();
-        builder.Property(item => item.Status).HasConversion<string>();
-        builder.Property(item => item.EnglishText).HasMaxLength(300);
-        builder.Property(item => item.PartOfSpeech).HasMaxLength(100);
-        builder.Property(item => item.Difficulty).HasMaxLength(20);
-        builder.Property(item => item.CreatedByFlow).HasMaxLength(100);
-        builder.Property(item => item.RussianGlosses).HasColumnType("text[]");
-        builder.Property(item => item.Tags).HasColumnType("text[]");
-        builder.Property(item => item.Distractors).HasColumnType("text[]");
-        builder.Property(item => item.AcceptedVariants).HasColumnType("text[]");
-        builder.HasIndex(item => item.OwnerId);
-        builder.HasIndex(item => item.EnglishText);
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.SourceType).HasConversion<string>();
+        builder.Property(x => x.ItemKind).HasConversion<string>();
+        builder.Property(x => x.Status).HasConversion<string>();
+        builder.Property(x => x.EnglishText).HasMaxLength(300);
+        builder.Property(x => x.PartOfSpeech).HasMaxLength(100);
+        builder.Property(x => x.Difficulty).HasMaxLength(20);
+        builder.Property(x => x.CreatedByFlow).HasMaxLength(100);
+        builder.Property(x => x.RussianGlosses).HasColumnType("text[]");
+        builder.Property(x => x.Tags).HasColumnType("text[]");
+        builder.Property(x => x.Distractors).HasColumnType("text[]");
+        builder.Property(x => x.AcceptedVariants).HasColumnType("text[]");
+        builder.HasIndex(x => x.OwnerId);
+        builder.HasIndex(x => x.EnglishText);
     }
 }

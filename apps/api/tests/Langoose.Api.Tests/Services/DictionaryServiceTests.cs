@@ -1,8 +1,10 @@
 using Langoose.Api.Models;
-using Langoose.Domain.Models;
+using Langoose.Domain.Enums;
 using Langoose.Api.Services;
 using Langoose.Api.Tests.Infrastructure;
+using Langoose.Data;
 using Langoose.Data.Seeding;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace Langoose.Api.Tests.Services;
@@ -30,12 +32,16 @@ public sealed class DictionaryServiceTests
     [Fact]
     public async Task SeedData_WhenBaseItemDrifts_RepairRestoresVariantsAndDistractors()
     {
-        var dataStore = new InMemoryDataStore();
-        var seeder = new DatabaseSeeder(dataStore);
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"langoose-seed-tests-{Guid.NewGuid():N}")
+            .Options;
+        var dbContextFactory = new TestDbContextFactory(options);
+        await using var seededDbContext = await dbContextFactory.CreateDbContextAsync();
+        var seeder = new DatabaseSeeder(seededDbContext);
 
         await seeder.SeedAsync();
 
-        var store = await dataStore.LoadAsync();
+        var store = await TestDataSnapshot.LoadAsync(seededDbContext);
         var baseItem = Assert.Single(store.DictionaryItems, item =>
             item.SourceType == SourceType.Base &&
             item.EnglishText == "book");
@@ -43,10 +49,12 @@ public sealed class DictionaryServiceTests
         baseItem.AcceptedVariants = ["book", "volume"];
         baseItem.Distractors = ["alpha"];
 
-        await dataStore.SaveAsync(store);
+        await seededDbContext.SaveChangesAsync();
+
         await seeder.SeedAsync();
 
-        var repaired = await dataStore.LoadAsync();
+        await using var repairedDbContext = await dbContextFactory.CreateDbContextAsync();
+        var repaired = await TestDataSnapshot.LoadAsync(repairedDbContext);
         var repairedItem = Assert.Single(repaired.DictionaryItems, item =>
             item.SourceType == SourceType.Base &&
             item.EnglishText == "book");
@@ -58,10 +66,12 @@ public sealed class DictionaryServiceTests
     [Fact]
     public async Task AddItemAsync_WhenAddingPhrase_PersistsPhraseAndKnownVariants()
     {
-        await using var context = await TestAppContext.CreateAsync();
+        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
         var userId = Guid.NewGuid();
 
-        var item = await context.DictionaryService.AddItemAsync(
+        var item = await dictionaryService.AddItemAsync(
             userId,
             new DictionaryItemRequest(
                 "look for",
@@ -82,10 +92,12 @@ public sealed class DictionaryServiceTests
     [Fact]
     public async Task AddItemAsync_WhenAddingDuplicateQuickAdd_MergesIntoExistingCustomItem()
     {
-        await using var context = await TestAppContext.CreateAsync();
+        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
         var userId = Guid.NewGuid();
 
-        await context.DictionaryService.AddItemAsync(
+        await dictionaryService.AddItemAsync(
             userId,
             new DictionaryItemRequest(
                 "look for",
@@ -98,10 +110,10 @@ public sealed class DictionaryServiceTests
                 "quick-add"),
             CancellationToken.None);
 
-        var before = await context.DictionaryService.GetItemsAsync(userId, CancellationToken.None);
+        var before = await dictionaryService.GetItemsAsync(userId, CancellationToken.None);
         var beforeCustomCount = before.Count(item => item.OwnerId == userId);
 
-        await context.DictionaryService.AddItemAsync(
+        await dictionaryService.AddItemAsync(
             userId,
             new DictionaryItemRequest(
                 " look for ",
@@ -114,7 +126,7 @@ public sealed class DictionaryServiceTests
                 "quick-add"),
             CancellationToken.None);
 
-        var after = await context.DictionaryService.GetItemsAsync(userId, CancellationToken.None);
+        var after = await dictionaryService.GetItemsAsync(userId, CancellationToken.None);
         var afterCustomCount = after.Count(item => item.OwnerId == userId);
         var merged = Assert.Single(after, item =>
             item.OwnerId == userId &&
@@ -128,17 +140,19 @@ public sealed class DictionaryServiceTests
     [Fact]
     public async Task ImportAndExportCsv_WhenRowsAreValid_RoundTripsCustomEntries()
     {
-        await using var context = await TestAppContext.CreateAsync();
+        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
         var userId = Guid.NewGuid();
 
-        var import = await context.DictionaryService.ImportCsvAsync(
+        var import = await dictionaryService.ImportCsvAsync(
             userId,
             new ImportCsvRequest("words.csv", ValidCsv),
             CancellationToken.None);
 
         Assert.Equal(2, import.ImportedRows);
 
-        var exported = await context.DictionaryService.ExportCsvAsync(userId, CancellationToken.None);
+        var exported = await dictionaryService.ExportCsvAsync(userId, CancellationToken.None);
         Assert.Contains("improve", exported);
         Assert.Contains("take off", exported);
     }
@@ -146,15 +160,17 @@ public sealed class DictionaryServiceTests
     [Fact]
     public async Task ImportCsvAsync_WhenRowsAlreadyExist_SkipsDuplicates()
     {
-        await using var context = await TestAppContext.CreateAsync();
+        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
         var userId = Guid.NewGuid();
 
-        await context.DictionaryService.ImportCsvAsync(
+        await dictionaryService.ImportCsvAsync(
             userId,
             new ImportCsvRequest("seed.csv", ValidCsv),
             CancellationToken.None);
 
-        var duplicateImport = await context.DictionaryService.ImportCsvAsync(
+        var duplicateImport = await dictionaryService.ImportCsvAsync(
             userId,
             new ImportCsvRequest("duplicates.csv", ValidCsv),
             CancellationToken.None);
@@ -166,10 +182,12 @@ public sealed class DictionaryServiceTests
     [Fact]
     public async Task ImportCsvAsync_WhenFormattingOnlyVariantsAreUsed_MergesInsteadOfCreatingDuplicates()
     {
-        await using var context = await TestAppContext.CreateAsync();
+        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
         var userId = Guid.NewGuid();
 
-        await context.DictionaryService.AddItemAsync(
+        await dictionaryService.AddItemAsync(
             userId,
             new DictionaryItemRequest(
                 "improve",
@@ -187,14 +205,14 @@ public sealed class DictionaryServiceTests
             "\uFEFF\"Improve\",uluchshat,word,,verbs\n" +
             " improve ,stanovitsya luchshe,,,";
 
-        var duplicateImport = await context.DictionaryService.ImportCsvAsync(
+        var duplicateImport = await dictionaryService.ImportCsvAsync(
             userId,
             new ImportCsvRequest("variants.csv", variantsCsv),
             CancellationToken.None);
 
         Assert.Equal(0, duplicateImport.ImportedRows);
 
-        var items = await context.DictionaryService.GetItemsAsync(userId, CancellationToken.None);
+        var items = await dictionaryService.GetItemsAsync(userId, CancellationToken.None);
         Assert.Single(items, item =>
             item.OwnerId == userId &&
             TextNormalizer.NormalizeForComparison(item.EnglishText) == "improve");
@@ -203,21 +221,23 @@ public sealed class DictionaryServiceTests
     [Fact]
     public async Task ImportCsvAsync_WhenTermsExistInBaseVocabulary_DoesNotCreateVisibleDuplicates()
     {
-        await using var context = await TestAppContext.CreateAsync();
+        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
         var userId = Guid.NewGuid();
         var csv =
             "English term,Russian translation(s),Type,Notes,Tags\n" +
             "book,kniga,word,,reading\n" +
             "at least,po krayney mere,phrase,,common";
 
-        var import = await context.DictionaryService.ImportCsvAsync(
+        var import = await dictionaryService.ImportCsvAsync(
             userId,
             new ImportCsvRequest("base-overlap.csv", csv),
             CancellationToken.None);
 
         Assert.Equal(0, import.ImportedRows);
 
-        var items = await context.DictionaryService.GetItemsAsync(userId, CancellationToken.None);
+        var items = await dictionaryService.GetItemsAsync(userId, CancellationToken.None);
         Assert.Single(
             items,
             item => TextNormalizer.NormalizeForComparison(item.EnglishText) == "book");
@@ -229,11 +249,13 @@ public sealed class DictionaryServiceTests
     [Fact]
     public async Task ImportCsvAsync_WhenHeaderIsInvalid_ThrowsArgumentException()
     {
-        await using var context = await TestAppContext.CreateAsync();
+        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
         var userId = Guid.NewGuid();
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            context.DictionaryService.ImportCsvAsync(
+            dictionaryService.ImportCsvAsync(
                 userId,
                 new ImportCsvRequest("bad-header.csv", "Word,Translation,Kind\nhello,privet,word"),
                 CancellationToken.None));
@@ -242,15 +264,17 @@ public sealed class DictionaryServiceTests
     [Fact]
     public async Task ImportCsvAsync_WhenRowIsMalformed_DoesNotPartiallyImport()
     {
-        await using var context = await TestAppContext.CreateAsync();
+        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
         var userId = Guid.NewGuid();
-        var before = await context.DictionaryService.GetItemsAsync(userId, CancellationToken.None);
+        var before = await dictionaryService.GetItemsAsync(userId, CancellationToken.None);
         var malformedCsv =
             "English term,Russian translation(s),Type,Notes,Tags\n" +
             "new word,novoe slovo,word,,tag\n" +
             "bad row only two columns,missing";
 
-        var result = await context.DictionaryService.ImportCsvAsync(
+        var result = await dictionaryService.ImportCsvAsync(
             userId,
             new ImportCsvRequest("malformed.csv", malformedCsv),
             CancellationToken.None);
@@ -258,17 +282,20 @@ public sealed class DictionaryServiceTests
         Assert.Equal(0, result.ImportedRows);
         Assert.Single(result.Errors);
 
-        var after = await context.DictionaryService.GetItemsAsync(userId, CancellationToken.None);
+        var after = await dictionaryService.GetItemsAsync(userId, CancellationToken.None);
         Assert.Equal(before.Count, after.Count);
     }
 
     [Fact]
-    public async Task ClearCustomDataAsync_RemovesUserOwnedDataButKeepsSessions()
+    public async Task ClearCustomDataAsync_RemovesUserOwnedData()
     {
-        await using var context = await TestAppContext.CreateAsync();
+        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
+        var studyService = TestAppSetup.CreateStudyService(dbContext);
         var userId = Guid.NewGuid();
 
-        var item = await context.DictionaryService.AddItemAsync(
+        var item = await dictionaryService.AddItemAsync(
             userId,
             new DictionaryItemRequest(
                 "look for",
@@ -281,27 +308,17 @@ public sealed class DictionaryServiceTests
                 "quick-add"),
             CancellationToken.None);
 
-        await context.StudyService.SubmitAnswerAsync(
+        await studyService.SubmitAnswerAsync(
             userId,
             new StudyAnswerRequest(item.Id, "look for"),
             CancellationToken.None);
 
-        var storeBefore = await context.DataStore.LoadAsync();
-        storeBefore.SessionTokens.Add(new SessionToken
-        {
-            UserId = userId,
-            Token = "keep-me-signed-in"
-        });
-        await context.DataStore.SaveAsync(storeBefore);
-
-        await context.DictionaryService.ClearCustomDataAsync(userId, CancellationToken.None);
-        var store = await context.DataStore.LoadAsync();
+        await dictionaryService.ClearCustomDataAsync(userId, CancellationToken.None);
+        await using var verifyDbContext = await dbContextFactory.CreateDbContextAsync();
+        var store = await TestDataSnapshot.LoadAsync(verifyDbContext);
 
         Assert.DoesNotContain(store.DictionaryItems, candidate => candidate.OwnerId == userId);
         Assert.DoesNotContain(store.ReviewStates, candidate => candidate.UserId == userId);
         Assert.DoesNotContain(store.Imports, candidate => candidate.UserId == userId);
-        Assert.Contains(store.SessionTokens, candidate =>
-            candidate.UserId == userId &&
-            candidate.Token == "keep-me-signed-in");
     }
 }

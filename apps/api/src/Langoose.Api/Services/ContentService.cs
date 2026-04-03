@@ -1,31 +1,38 @@
-using Langoose.Domain.Abstractions;
 using Langoose.Api.Models;
+using Langoose.Data;
+using Langoose.Domain.Enums;
 using Langoose.Domain.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace Langoose.Api.Services;
 
-public sealed class ContentService(IDataStore dataStore, EnrichmentService enrichmentService)
+public sealed class ContentService(
+    AppDbContext dbContext,
+    EnrichmentService enrichmentService)
 {
     public EnrichmentResponse Enrich(EnrichmentRequest request) => enrichmentService.Enrich(request);
 
     public async Task ReportIssueAsync(Guid userId, ReportIssueRequest request, CancellationToken cancellationToken)
     {
-        var store = await dataStore.LoadAsync(cancellationToken);
-        store.ContentFlags.Add(new ContentFlag
+        dbContext.ContentFlags.Add(new ContentFlag
         {
+            Id = Guid.NewGuid(),
             UserId = userId,
             ItemId = request.ItemId,
             Reason = request.Reason.Trim(),
-            Details = request.Details?.Trim() ?? string.Empty
+            Details = string.IsNullOrWhiteSpace(request.Details) ? null : request.Details.Trim(),
+            CreatedAtUtc = DateTimeOffset.UtcNow
         });
 
-        var item = store.DictionaryItems.FirstOrDefault(candidate => candidate.Id == request.ItemId);
+        var item = await dbContext.DictionaryItems.FirstOrDefaultAsync(
+            x => x.Id == request.ItemId,
+            cancellationToken);
 
         if (item is not null)
         {
             item.Status = DictionaryItemStatus.Flagged;
         }
 
-        await dataStore.SaveAsync(store, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

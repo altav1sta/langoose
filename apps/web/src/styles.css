@@ -218,7 +218,7 @@ form {
   border-left: 5px solid var(--good);
 }
 
-.result-chip.almostcorrect {
+.result-chip.almost_correct {
   border-left: 5px solid var(--warn);
 }
 

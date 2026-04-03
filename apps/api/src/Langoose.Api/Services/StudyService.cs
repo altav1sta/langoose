@@ -1,63 +1,83 @@
-using Langoose.Domain.Abstractions;
 using Langoose.Api.Models;
+using Langoose.Data;
+using Langoose.Domain.Constants;
+using Langoose.Domain.Enums;
 using Langoose.Domain.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace Langoose.Api.Services;
 
-public sealed class StudyService(IDataStore dataStore)
+public sealed class StudyService(AppDbContext dbContext)
 {
+    private const double PhraseSimilarityThreshold = 0.60;
+    private const double CorrectStabilityCap = 0.95;
+    private const double CorrectStabilityIncrement = 0.15;
+    private const int CorrectDueIntervalHours = 12;
+    private const double AlmostCorrectStabilityCap = 0.85;
+    private const double AlmostCorrectStabilityIncrement = 0.08;
+    private const int AlmostCorrectDueIntervalHours = 8;
+    private const double IncorrectStabilityFloor = 0.20;
+    private const double IncorrectStabilityPenalty = 0.12;
+    private const int IncorrectDueDelayMinutes = 10;
+
     public async Task<StudyCardResponse?> GetNextCardAsync(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var store = await dataStore.LoadAsync(cancellationToken);
-        var visibleItems = GetVisibleItems(store, userId)
-            .Where(item => item.Status == DictionaryItemStatus.Active)
+        var dictionaryItems = await dbContext.DictionaryItems.ToListAsync(cancellationToken);
+        var reviewStates = await dbContext.ReviewStates
+            .Where(x => x.UserId == userId)
+            .ToListAsync(cancellationToken);
+        var exampleSentences = await dbContext.ExampleSentences.ToListAsync(cancellationToken);
+
+        var visibleItems = GetVisibleItems(dictionaryItems, userId)
+            .Where(x => x.Status == DictionaryItemStatus.Active)
             .ToList();
+        var reviewStatesByItemId = reviewStates.ToDictionary(x => x.ItemId);
 
-        var reviewStates = store.ReviewStates
-            .Where(state => state.UserId == userId)
-            .ToDictionary(state => state.ItemId);
-
-        foreach (var item in visibleItems.Where(item => !reviewStates.ContainsKey(item.Id)))
+        foreach (var item in visibleItems.Where(x => !reviewStatesByItemId.ContainsKey(x.Id)))
         {
             var reviewState = new ReviewState
             {
+                Id = Guid.NewGuid(),
                 UserId = userId,
                 ItemId = item.Id,
+                Stability = ReviewDefaults.InitialStability,
                 DueAtUtc = DateTimeOffset.UtcNow
             };
 
-            reviewStates[item.Id] = reviewState;
-            store.ReviewStates.Add(reviewState);
+            reviewStatesByItemId[item.Id] = reviewState;
+            dbContext.ReviewStates.Add(reviewState);
         }
 
-        var dueStates = reviewStates.Values
-            .Where(state => visibleItems.Any(item => item.Id == state.ItemId))
-            .OrderBy(state => state.DueAtUtc)
-            .ThenBy(state => state.SuccessCount)
+        var dueStates = reviewStatesByItemId.Values
+            .Where(x => visibleItems.Any(item => item.Id == x.ItemId))
+            .OrderBy(x => x.DueAtUtc)
+            .ThenBy(x => x.SuccessCount)
             .ToList();
 
         if (dueStates.Count == 0)
         {
-            await dataStore.SaveAsync(store, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
             return null;
         }
 
         var nextState = PickBalancedItem(dueStates, visibleItems);
-        var itemForStudy = visibleItems.First(item => item.Id == nextState.ItemId);
-        var sentence = store.ExampleSentences.FirstOrDefault(candidate => candidate.ItemId == itemForStudy.Id)
+        var itemForStudy = visibleItems.First(x => x.Id == nextState.ItemId);
+        var sentence = exampleSentences.FirstOrDefault(x => x.ItemId == itemForStudy.Id)
             ?? new ExampleSentence
             {
+                Id = Guid.NewGuid(),
                 ItemId = itemForStudy.Id,
                 SentenceText = itemForStudy.EnglishText,
                 ClozeText = "Use ____ in a sentence.",
                 TranslationHint = string.Join(", ", itemForStudy.RussianGlosses),
+                QualityScore = ExampleQualityScores.PlaceholderFallback,
                 Origin = ContentOrigin.Manual
             };
 
-        await dataStore.SaveAsync(store, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return new StudyCardResponse(
             itemForStudy.Id,
@@ -74,45 +94,53 @@ public sealed class StudyService(IDataStore dataStore)
         StudyAnswerRequest request,
         CancellationToken cancellationToken)
     {
-        var store = await dataStore.LoadAsync(cancellationToken);
-        var item = store.DictionaryItems.FirstOrDefault(candidate =>
-            candidate.Id == request.ItemId &&
-            (candidate.OwnerId is null || candidate.OwnerId == userId));
+        var item = await dbContext.DictionaryItems.FirstOrDefaultAsync(x =>
+            x.Id == request.ItemId &&
+            (x.OwnerId == null || x.OwnerId == userId),
+            cancellationToken);
 
         if (item is null)
         {
             return null;
         }
 
-        var reviewState = store.ReviewStates.FirstOrDefault(state =>
-                              state.UserId == userId &&
-                              state.ItemId == item.Id)
-                          ?? new ReviewState
-                          {
-                              UserId = userId,
-                              ItemId = item.Id,
-                              DueAtUtc = DateTimeOffset.UtcNow
-                          };
+        var reviewState = await dbContext.ReviewStates.FirstOrDefaultAsync(x =>
+                              x.UserId == userId &&
+                              x.ItemId == item.Id,
+                              cancellationToken)
+                          ;
+        var isNewReviewState = reviewState is null;
 
-        if (!store.ReviewStates.Any(state => state.Id == reviewState.Id))
+        reviewState ??= new ReviewState
         {
-            store.ReviewStates.Add(reviewState);
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            ItemId = item.Id,
+            Stability = ReviewDefaults.InitialStability,
+            DueAtUtc = DateTimeOffset.UtcNow
+        };
+
+        if (isNewReviewState)
+        {
+            dbContext.ReviewStates.Add(reviewState);
         }
 
         var evaluation = EvaluateAnswer(item, request.SubmittedAnswer);
         ApplyScheduler(reviewState, evaluation.Verdict);
 
-        store.StudyEvents.Add(new StudyEvent
+        dbContext.StudyEvents.Add(new StudyEvent
         {
+            Id = Guid.NewGuid(),
             UserId = userId,
             ItemId = item.Id,
+            AnsweredAtUtc = DateTimeOffset.UtcNow,
             SubmittedAnswer = request.SubmittedAnswer,
             NormalizedAnswer = evaluation.NormalizedAnswer,
             Verdict = evaluation.Verdict,
             FeedbackCode = evaluation.FeedbackCode
         });
 
-        await dataStore.SaveAsync(store, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return evaluation with { NextDueAtUtc = reviewState.DueAtUtc };
     }
@@ -169,7 +197,7 @@ public sealed class StudyService(IDataStore dataStore)
         }
 
         if (item.ItemKind == ItemKind.Phrase &&
-            PhraseSimilarity(normalizedSubmitted, normalizedExpected) >= 0.6)
+            PhraseSimilarity(normalizedSubmitted, normalizedExpected) >= PhraseSimilarityThreshold)
         {
             return CreateAlmostCorrectResult(
                 normalizedSubmitted,
@@ -191,35 +219,37 @@ public sealed class StudyService(IDataStore dataStore)
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var store = await dataStore.LoadAsync(cancellationToken);
-        var items = GetVisibleItems(store, userId);
-        var visibleItemIds = items.Select(item => item.Id).ToHashSet();
-        var states = store.ReviewStates
-            .Where(state => state.UserId == userId && visibleItemIds.Contains(state.ItemId))
-            .ToList();
-        var today = DateTimeOffset.UtcNow.Date;
-        var studiedToday = store.StudyEvents.Count(ev =>
-            ev.UserId == userId &&
-            ev.AnsweredAtUtc.UtcDateTime.Date == today &&
-            visibleItemIds.Contains(ev.ItemId));
+        var dictionaryItems = await dbContext.DictionaryItems.ToListAsync(cancellationToken);
+        var items = GetVisibleItems(dictionaryItems, userId);
+        var visibleItemIds = items.Select(x => x.Id).ToHashSet();
+        var states = await dbContext.ReviewStates
+            .Where(x => x.UserId == userId && visibleItemIds.Contains(x.ItemId))
+            .ToListAsync(cancellationToken);
+        var startOfTodayUtc = DateTimeOffset.UtcNow.UtcDateTime.Date;
+        var endOfTodayUtc = startOfTodayUtc.AddDays(1);
+        var studiedToday = await dbContext.StudyEvents.CountAsync(x =>
+            x.UserId == userId &&
+            x.AnsweredAtUtc >= startOfTodayUtc &&
+            x.AnsweredAtUtc < endOfTodayUtc &&
+            visibleItemIds.Contains(x.ItemId), cancellationToken);
 
         return new ProgressDashboardResponse(
             items.Count,
-            states.Count(state => state.DueAtUtc <= DateTimeOffset.UtcNow),
-            states.Count(state => state.SuccessCount == 0),
-            items.Count(item => item.SourceType == SourceType.Base),
-            items.Count(item => item.SourceType == SourceType.Custom),
+            states.Count(x => x.DueAtUtc <= DateTimeOffset.UtcNow),
+            states.Count(x => x.SuccessCount == 0),
+            items.Count(x => x.SourceType == SourceType.Base),
+            items.Count(x => x.SourceType == SourceType.Custom),
             studiedToday);
     }
 
-    private static List<DictionaryItem> GetVisibleItems(DataStore store, Guid userId)
+    private static List<DictionaryItem> GetVisibleItems(List<DictionaryItem> dictionaryItems, Guid userId)
     {
-        return store.DictionaryItems
-            .Where(item => item.OwnerId is null || item.OwnerId == userId)
-            .GroupBy(item => TextNormalizer.NormalizeForComparison(item.EnglishText))
+        return dictionaryItems
+            .Where(x => x.OwnerId is null || x.OwnerId == userId)
+            .GroupBy(x => TextNormalizer.NormalizeForComparison(x.EnglishText))
             .Select(group => group
-                .OrderByDescending(item => item.OwnerId == userId)
-                .ThenBy(item => item.CreatedAtUtc)
+                .OrderByDescending(x => x.OwnerId == userId)
+                .ThenBy(x => x.CreatedAtUtc)
                 .First())
             .ToList();
     }
@@ -266,20 +296,22 @@ public sealed class StudyService(IDataStore dataStore)
         {
             case StudyVerdict.Correct:
                 reviewState.SuccessCount += 1;
-                reviewState.Stability = Math.Min(0.95, reviewState.Stability + 0.15);
+                reviewState.Stability = Math.Min(CorrectStabilityCap, reviewState.Stability + CorrectStabilityIncrement);
                 reviewState.DueAtUtc = DateTimeOffset.UtcNow.AddHours(
-                    12 * Math.Max(1, reviewState.SuccessCount));
+                    CorrectDueIntervalHours * Math.Max(1, reviewState.SuccessCount));
                 break;
             case StudyVerdict.AlmostCorrect:
                 reviewState.SuccessCount += 1;
-                reviewState.Stability = Math.Min(0.85, reviewState.Stability + 0.08);
+                reviewState.Stability = Math.Min(
+                    AlmostCorrectStabilityCap,
+                    reviewState.Stability + AlmostCorrectStabilityIncrement);
                 reviewState.DueAtUtc = DateTimeOffset.UtcNow.AddHours(
-                    8 * Math.Max(1, reviewState.SuccessCount));
+                    AlmostCorrectDueIntervalHours * Math.Max(1, reviewState.SuccessCount));
                 break;
             default:
                 reviewState.LapseCount += 1;
-                reviewState.Stability = Math.Max(0.2, reviewState.Stability - 0.12);
-                reviewState.DueAtUtc = DateTimeOffset.UtcNow.AddMinutes(10);
+                reviewState.Stability = Math.Max(IncorrectStabilityFloor, reviewState.Stability - IncorrectStabilityPenalty);
+                reviewState.DueAtUtc = DateTimeOffset.UtcNow.AddMinutes(IncorrectDueDelayMinutes);
                 break;
         }
     }

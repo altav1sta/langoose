@@ -14,7 +14,8 @@ Use this skill when the task is about EF Core structure rather than day-to-day f
 - Prefer a separate data project when the PostgreSQL and EF Core layer is expected to grow.
 - If persisted models need a shared home outside ASP.NET Core and EF Core, use `API + Domain + Data`.
 - Keep `apps/api` responsible for startup, controllers, and service-layer behavior.
-- Keep `apps/api/src/Langoose.Data` responsible for `DbContext`, EF configuration, migrations, persistence adapters, and database seeding components.
+- Keep `apps/api/src/Langoose.Data` responsible for app `DbContext`, EF configuration, migrations, and database seeding components.
+- Keep `apps/api/src/Langoose.Auth.Data` responsible for auth `DbContext`, auth EF configuration, and auth migrations when the auth split is in use.
 - Preserve existing business rules and public API behavior while moving persistence structure around.
 
 ## Target Shape
@@ -29,14 +30,13 @@ Inside the data project, prefer:
 - `AppDbContext.cs`
 - `Configurations/*`
 - `Migrations/*`
-- `PostgresDataStore.cs` or similarly named persistence adapters
 - `Seeding/*` for database bootstrap components and seed data loaders
 
 ## Structure Rules
 
 - Keep EF-specific concerns out of controllers.
 - Keep service-layer business rules in `apps/api/src/Langoose.Api/Services`, even if persistence types move out.
-- Keep shared persisted models and store abstractions in `apps/api/src/Langoose.Domain` when both API behavior and EF Core depend on them.
+- Keep shared persisted models in `apps/api/src/Langoose.Domain` when both API behavior and EF Core depend on them, but avoid carrying broad persistence-container abstractions there once services can use focused EF access directly.
 - Prefer one `IEntityTypeConfiguration<T>` file per entity once mappings are no longer tiny.
 - Prefer `ApplyConfigurationsFromAssembly` in `DbContext` over a large inline mapping file.
 - Keep the startup project explicit for EF tooling and runtime configuration.
@@ -47,7 +47,7 @@ Inside the data project, prefer:
 
 - Inspect the current persistence files before moving them.
 - Decide whether the change is only folder and namespace cleanup or a real project split.
-- If introducing a data project, move EF runtime files together: `DbContext`, design-time factory, configurations, migrations, and persistence adapter types.
+- If introducing or splitting data projects, move EF runtime files together: `DbContext`, design-time factory, configurations, migrations, and seeding types.
 - If the persistence types are shared beyond EF, move them into `apps/api/src/Langoose.Domain` instead of keeping them under the API project.
 - Start the refactor branch from the latest `main` branch so structural moves do not begin from an outdated base.
 - Update startup wiring, project references, namespaces, design-time tooling, and CI or workflow paths together.

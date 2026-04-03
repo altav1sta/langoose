@@ -12,7 +12,7 @@ public static class TextNormalizer
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            return string.Empty;
+            return "";
         }
 
         var lowered = CleanInput(value).ToLowerInvariant();
@@ -37,11 +37,11 @@ public static class TextNormalizer
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            return string.Empty;
+            return "";
         }
 
         var cleaned = value
-            .Replace("\uFEFF", string.Empty)
+            .Replace("\uFEFF", "")
             .Replace('\u2018', '\'')
             .Replace('\u2019', '\'')
             .Replace('\u201C', '"')

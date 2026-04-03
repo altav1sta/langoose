@@ -303,9 +303,9 @@ Use:
 | Area | Recommendation |
 | --- | --- |
 | App-domain database | keep existing app persistence in `Langoose.Data` |
-| Auth database | add a separate `AuthDbContext` in `Langoose.Data` |
-| App migrations | keep existing app migrations where they are |
-| Auth migrations | create `AuthMigrations` in `Langoose.Data` |
+| Auth database | add a separate `AuthDbContext` in `Langoose.Auth.Data` |
+| App migrations | keep app migrations in `Migrations` inside `Langoose.Data` |
+| Auth migrations | keep auth migrations in `Migrations` inside `Langoose.Auth.Data` |
 | Design-time factory | add a separate auth design-time factory |
 
 This keeps one data project, two databases, two `DbContext` types, and two migration streams.
@@ -319,7 +319,7 @@ This keeps one data project, two databases, two `DbContext` types, and two migra
 | App connection string key | `ConnectionStrings:AppDatabase` |
 | Auth connection string key | `ConnectionStrings:AuthDatabase` |
 | Auth `DbContext` type | `AuthDbContext` |
-| Auth migrations folder | `AuthMigrations` |
+| Auth migrations folder | `Migrations` in `Langoose.Auth.Data` |
 
 ## Configuration And Startup
 
@@ -361,7 +361,7 @@ Migration order:
 
 1. Add ASP.NET Core Identity and auth persistence wiring.
 2. Add the separate auth database and auth migration stream.
-3. Add `AuthDbContext`, design-time factory, and `AuthMigrations`.
+3. Add `AuthDbContext`, design-time factory, and auth `Migrations`.
 4. Add the narrow OpenIddict foundation.
 5. Implement `sign-up`, `sign-in`, `sign-out`, and `me`.
 6. Move protected API endpoints to the real auth substrate.

@@ -31,17 +31,17 @@ export type StudyCard = {
 };
 
 export type StudyAnswerResult = {
-  verdict: 'Correct' | 'AlmostCorrect' | 'Incorrect';
+  verdict: 'correct' | 'almost_correct' | 'incorrect';
   normalizedAnswer: string;
   acceptedVariant?: string | null;
   expectedAnswer: string;
   feedbackCode:
-    | 'ExactMatch'
-    | 'AcceptedVariant'
-    | 'MissingArticle'
-    | 'InflectionMismatch'
-    | 'MinorTypo'
-    | 'Incorrect';
+    | 'exact_match'
+    | 'accepted_variant'
+    | 'missing_article'
+    | 'inflection_mismatch'
+    | 'minor_typo'
+    | 'meaning_mismatch';
   nextDueAtUtc: string;
 };
 

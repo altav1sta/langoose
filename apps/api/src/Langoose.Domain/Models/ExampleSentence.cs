@@ -1,16 +1,14 @@
-using System.Text.Json.Serialization;
+using Langoose.Domain.Enums;
 
 namespace Langoose.Domain.Models;
 
 public sealed class ExampleSentence
 {
-    public Guid Id { get; init; } = Guid.NewGuid();
-    public Guid ItemId { get; set; }
-    public string SentenceText { get; set; } = string.Empty;
-    public string ClozeText { get; set; } = string.Empty;
-    public string TranslationHint { get; set; } = string.Empty;
-    public double QualityScore { get; set; } = 0.7;
-
-    [JsonConverter(typeof(JsonStringEnumConverter))]
-    public ContentOrigin Origin { get; set; } = ContentOrigin.Dataset;
+    public required Guid Id { get; init; }
+    public required Guid ItemId { get; set; }
+    public required string SentenceText { get; set; }
+    public required string ClozeText { get; set; }
+    public required string TranslationHint { get; set; }
+    public required double QualityScore { get; set; }
+    public required ContentOrigin Origin { get; set; }
 }

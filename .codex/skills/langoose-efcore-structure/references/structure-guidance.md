@@ -10,13 +10,13 @@ Use this when Langoose persistence is growing beyond a small in-project EF setup
   - startup and configuration
 - `apps/api/src/Langoose.Domain`
   - shared persisted models
-  - store abstractions such as `IDataStore`
+  - shared persisted models that are genuinely domain-facing
   - enums and value-like types used by both the API and persistence
 - `apps/api/src/Langoose.Data`
   - `AppDbContext.cs`
   - `Configurations/*`
   - `Migrations/*`
-  - persistence adapter types such as `PostgresDataStore`
+  - EF Core data projects such as `Langoose.Data` and `Langoose.Auth.Data`
   - database seeders and seed data loaders
 - `apps/api/tests/Langoose.Api.Tests`
 
@@ -33,14 +33,14 @@ Use this when Langoose persistence is growing beyond a small in-project EF setup
 - `IDesignTimeDbContextFactory`
 - EF model configuration classes
 - migrations and model snapshot
-- EF-backed persistence adapters
+- EF-backed data projects and `DbContext` types
 - database seeders and seed data loaders
 
 ## What Belongs In The Domain Project
 
 - shared persisted models
 - enums and value-like types referenced by both API services and EF Core
-- store abstractions that should not depend on ASP.NET Core or EF Core
+- domain-facing abstractions that should not depend on ASP.NET Core or EF Core
 
 ## What Stays In The API Project
 
