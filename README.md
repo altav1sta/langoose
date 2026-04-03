@@ -11,12 +11,13 @@ Langoose is a web-first MVP for Russian speakers learning English. It combines s
 - API style: controller-based JSON API
 - Persistence: PostgreSQL-backed API storage
 - Auth: deployable MVP target is first-party email/password on an OAuth/OIDC-capable backend; current code still uses a placeholder token flow
-- Tests: xUnit-based .NET test project under `tests/`
+- Tests: xUnit-based API-local .NET test project under `apps/api/tests/`
 
 ## Repo layout
 
-- [`apps/api`](apps/api): backend API, .NET solution, and config
-- [`tests/Langoose.Api.Tests`](tests/Langoose.Api.Tests): discoverable xUnit backend behavior tests
+- [`apps/api`](apps/api): backend solution root, shared backend config, production projects under `src/`, and API-local tests under `tests/`
+- [`apps/api/src/Langoose.Api`](apps/api/src/Langoose.Api): ASP.NET Core startup project
+- [`apps/api/tests/Langoose.Api.Tests`](apps/api/tests/Langoose.Api.Tests): discoverable xUnit backend behavior tests
 - [`apps/web`](apps/web): frontend SPA
 - [`docs`](docs): roadmap and project documentation
 - `.local`: local-only cache used in restricted environments
@@ -75,14 +76,14 @@ Useful endpoints:
 If you need the command-line flow:
 
 ```powershell
-dotnet build apps/api/Langoose.sln --configfile D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config
-dotnet run --project apps/api/Langoose.Api/Langoose.Api.csproj --configfile D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config
+dotnet build apps/api/Langoose.sln /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config
+dotnet run --project apps/api/src/Langoose.Api/Langoose.Api.csproj
 ```
 
 Run backend checks:
 
 ```powershell
-dotnet test tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\Langoose.Api\NuGet.Config
+dotnet test apps/api/tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config
 ```
 
 ## CI checks
@@ -112,7 +113,7 @@ The container publishes the API on:
 
 Useful notes:
 
-- The image is built from [`apps/api/Langoose.Api/Dockerfile`](apps/api/Langoose.Api/Dockerfile)
+- The image is built from [`apps/api/src/Langoose.Api/Dockerfile`](apps/api/src/Langoose.Api/Dockerfile)
 - Persistent API data is stored in the named Docker volume `langoose_api_data`
 - Inside the containerized stack, application data is stored in PostgreSQL
 
@@ -147,6 +148,16 @@ Useful notes:
 - The web container injects `LANGOOSE_API_BASE_URL` at startup so the same image can target different API hosts
 - PostgreSQL is the runtime data store for the current API
 - PostgreSQL data is persisted in the named volume `langoose_postgres_data`
+
+This is the preferred whole-app validation path for the repo because it proves:
+
+- the frontend image builds
+- the backend image builds and starts
+- PostgreSQL wiring works
+- the deployed SPA and API can run together in the same local stack
+
+When validating that "the app still works", prefer checking the running Docker stack first, then exercising the
+relevant browser-facing flow if the change affects user behavior.
 
 To stop the full stack:
 

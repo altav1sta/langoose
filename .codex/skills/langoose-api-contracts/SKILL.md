@@ -15,7 +15,7 @@ Use this skill for any change that crosses the backend/frontend boundary.
 
 ## Contract Workflow
 
-- Inspect the C# models in `apps/api/Langoose.Api/Models`.
+- Inspect the C# models in `apps/api/src/Langoose.Api/Models`.
 - Inspect the controller actions that expose those models.
 - Inspect the frontend contract layer in `apps/web/src/api.ts`.
 - Update all three when the payload shape or behavior changes.

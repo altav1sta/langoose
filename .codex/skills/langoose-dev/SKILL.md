@@ -12,7 +12,7 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 ## Follow The Existing Shape
 
 - Keep frontend work inside `apps/web` with React, TypeScript, and plain CSS.
-- Keep backend work inside `apps/api` with controller-based endpoints and service-layer business logic.
+- Keep backend work inside `apps/api`, with backend-wide config at `apps/api/`, production projects under `apps/api/src`, and API-owned tests under `apps/api/tests`.
 - Prefer extending existing services over adding new abstractions.
 - Do not create branches with the `codex/` prefix in this repository; use the repo's `docs/...`, `infra/...`,
   `feat/...`, `fix/...`, or `chore/...` naming instead.

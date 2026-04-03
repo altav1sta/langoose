@@ -2,7 +2,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: apps/api/Langoose.Api/Dockerfile
+      dockerfile: apps/api/src/Langoose.Api/Dockerfile
     container_name: langoose-api
     environment:
       ASPNETCORE_ENVIRONMENT: Production
