@@ -143,6 +143,8 @@
   meaningfully underway.
 - When opening a PR, move the issue to `In Review`.
 - After merge, move the issue to `Done`.
+- Do not report an issue as finalized, handed off, or complete until every required repo workflow state transition has been verified live, including issue and project status changes where the repo flow requires them.
+- Treat issue and project status updates as part of completion, not as optional cleanup after the code and PR work are done.
 - Close child issues automatically from PRs when appropriate by using `Closes #...` in the PR body.
 - Close epics manually only after confirming the grouped outcome is actually complete.
 - When a new task truly belongs under an existing epic, add it as a real GitHub child issue rather than only mentioning
