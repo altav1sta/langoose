@@ -2,12 +2,14 @@ using Langoose.Api.Models;
 using Langoose.Api.Services;
 using Langoose.Auth.Data.Models;
 using Langoose.Domain.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Langoose.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("dictionary")]
 public sealed class DictionaryController(
     DictionaryService dictionaryService,
