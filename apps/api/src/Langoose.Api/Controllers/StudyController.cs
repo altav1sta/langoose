@@ -1,5 +1,7 @@
 using Langoose.Api.Models;
 using Langoose.Api.Services;
+using Langoose.Auth.Data.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Langoose.Api.Controllers;
@@ -7,15 +9,13 @@ namespace Langoose.Api.Controllers;
 [ApiController]
 [Route("study")]
 public sealed class StudyController(
-    AuthService authService,
-    StudyService studyService) : ControllerBase
+    StudyService studyService,
+    UserManager<AuthUser> userManager) : ControllerBase
 {
     [HttpGet("next")]
     public async Task<ActionResult<StudyCardResponse>> Next(CancellationToken cancellationToken)
     {
-        var user = await authService.GetUserFromTokenAsync(
-            Request.Headers.Authorization,
-            cancellationToken);
+        var user = await userManager.GetUserAsync(User);
 
         if (user is null)
         {
@@ -32,9 +32,7 @@ public sealed class StudyController(
         [FromBody] StudyAnswerRequest request,
         CancellationToken cancellationToken)
     {
-        var user = await authService.GetUserFromTokenAsync(
-            Request.Headers.Authorization,
-            cancellationToken);
+        var user = await userManager.GetUserAsync(User);
 
         if (user is null)
         {
@@ -49,9 +47,7 @@ public sealed class StudyController(
     [HttpGet("dashboard")]
     public async Task<ActionResult<ProgressDashboardResponse>> Dashboard(CancellationToken cancellationToken)
     {
-        var user = await authService.GetUserFromTokenAsync(
-            Request.Headers.Authorization,
-            cancellationToken);
+        var user = await userManager.GetUserAsync(User);
 
         if (user is null)
         {

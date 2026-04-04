@@ -1,5 +1,7 @@
 using Langoose.Api.Models;
 using Langoose.Api.Services;
+using Langoose.Auth.Data.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Langoose.Api.Controllers;
@@ -7,17 +9,14 @@ namespace Langoose.Api.Controllers;
 [ApiController]
 [Route("content")]
 public sealed class ContentController(
-    AuthService authService,
-    ContentService contentService) : ControllerBase
+    ContentService contentService,
+    UserManager<AuthUser> userManager) : ControllerBase
 {
     [HttpPost("enrich")]
     public async Task<ActionResult<EnrichmentResponse>> Enrich(
-        [FromBody] EnrichmentRequest request,
-        CancellationToken cancellationToken)
+        [FromBody] EnrichmentRequest request)
     {
-        var user = await authService.GetUserFromTokenAsync(
-            Request.Headers.Authorization,
-            cancellationToken);
+        var user = await userManager.GetUserAsync(User);
 
         if (user is null)
         {
@@ -32,9 +31,7 @@ public sealed class ContentController(
         [FromBody] ReportIssueRequest request,
         CancellationToken cancellationToken)
     {
-        var user = await authService.GetUserFromTokenAsync(
-            Request.Headers.Authorization,
-            cancellationToken);
+        var user = await userManager.GetUserAsync(User);
 
         if (user is null)
         {

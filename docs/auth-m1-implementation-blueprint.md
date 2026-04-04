@@ -173,7 +173,7 @@ No roles in M1.
 
 | Endpoint | Request | Success response | Notes |
 | --- | --- | --- | --- |
-| `GET /auth/antiforgery` | no body | `204 No Content` or lightweight success | emits the antiforgery token cookie for the SPA |
+| `GET /auth/antiforgery` | no body | lightweight success with request token | emits the antiforgery cookie and returns the request token the SPA must echo back |
 | `POST /auth/sign-up` | `email`, `password` | current user summary | M1 auto-signs-in after successful sign-up |
 | `POST /auth/sign-in` | `email`, `password` | current user summary | establishes authenticated web session |
 | `POST /auth/sign-out` | no body | `204 No Content` | clears auth state |
@@ -204,26 +204,18 @@ Do not require or expose `displayName` as core auth data in M1.
 
 ### Error contract
 
-Use one small JSON error shape:
+Use plain HTTP status codes for auth outcomes:
 
-| Field | Purpose |
+| Status | Use when |
 | --- | --- |
-| `code` | stable machine-readable error code |
-| `message` | UI-safe summary |
-| `fieldErrors` | optional validation details |
-
-| Code | Suggested status | Use when |
-| --- | --- | --- |
-| `validation_error` | `400` | request payload is invalid |
-| `email_already_registered` | `409` | sign-up email already exists |
-| `invalid_credentials` | `401` | sign-in email/password is wrong |
-| `account_locked` | `423` | lockout is active |
-| `unauthorized` | `401` | protected endpoint called without auth |
+| `400` | request payload is invalid; rely on the standard ASP.NET Core validation response |
+| `401` | sign-in credentials are wrong or a protected endpoint is called without auth |
+| `409` | sign-up email already exists |
+| `423` | lockout is active |
 
 Rules:
 
-- invalid credentials must use the same response whether the email exists or not
-- validation errors are the only case that should return `fieldErrors`
+- invalid credentials must use the same `401` response whether the email exists or not
 - the frontend should treat `401` from `GET /auth/me` as a normal signed-out state
 
 ## Security Defaults
@@ -275,16 +267,16 @@ Cookie auth means M1 must use real antiforgery protection for browser write requ
 | --- | --- |
 | Browser reads such as `GET /auth/me` | no antiforgery token required |
 | Browser writes such as sign-up, sign-in, sign-out, and later authenticated writes | require antiforgery validation |
-| Antiforgery transport | token emitted to the SPA and echoed back in a request header |
+| Antiforgery transport | backend emits a cookie token plus a request token, and the SPA echoes the request token back in a request header |
 | Auth cookie | stays `HttpOnly` |
-| Antiforgery token cookie | readable by browser JavaScript |
+| Antiforgery token cookie | managed by the browser; the SPA uses the returned request token for the header |
 | CORS/origin policy | strict and same-site by default |
 
 Recommended bootstrap sequence:
 
 1. SPA calls `GET /auth/antiforgery`
-2. backend emits the `langoose.csrf` token cookie
-3. SPA reads that token and sends it in a request header on unsafe requests
+2. backend emits the `langoose.csrf` cookie token and returns a request token payload
+3. SPA stores that request token and sends it in a request header on unsafe requests
 4. backend validates the antiforgery token before accepting browser write requests
 
 ## Persistence And Naming

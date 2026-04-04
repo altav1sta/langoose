@@ -1,10 +1,13 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Langoose.Data;
+using Langoose.Api.Middleware;
+using Langoose.Api.Services;
 using Langoose.Auth.Data;
 using Langoose.Auth.Data.Models;
+using Langoose.Data;
 using Langoose.Data.Seeding;
-using Langoose.Api.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +18,20 @@ var authConnectionString = builder.Configuration.GetConnectionString("AuthDataba
 
 builder.Services.AddProblemDetails();
 builder.Services.AddHealthChecks();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddAuthorization();
+builder.Services.AddAntiforgery(options =>
+{
+    options.Cookie.Name = "langoose.csrf";
+    options.Cookie.HttpOnly = false;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+    options.Cookie.Path = "/";
+    options.Cookie.IsEssential = true;
+    options.HeaderName = "X-CSRF-TOKEN";
+});
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
@@ -29,8 +46,47 @@ builder.Services.AddDbContext<AuthDbContext>(options =>
 builder.Services.AddIdentityCore<AuthUser>(options =>
     {
         options.User.RequireUniqueEmail = true;
+        options.Password.RequiredLength = 8;
+        options.Password.RequireDigit = false;
+        options.Password.RequireLowercase = false;
+        options.Password.RequireUppercase = false;
+        options.Password.RequireNonAlphanumeric = false;
+        options.Lockout.AllowedForNewUsers = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
     })
+    .AddSignInManager()
     .AddEntityFrameworkStores<AuthDbContext>();
+
+builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
+    .AddIdentityCookies();
+
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Cookie.Name = "langoose.auth";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+    options.Cookie.Path = "/";
+    options.Cookie.IsEssential = true;
+    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    options.SlidingExpiration = true;
+    options.Events = new CookieAuthenticationEvents
+    {
+        OnRedirectToLogin = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        },
+        OnRedirectToAccessDenied = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        }
+    };
+});
 
 builder.Services.AddOpenIddict()
     .AddCore(options =>
@@ -49,7 +105,6 @@ builder.Services.AddOpenIddict()
         options.UseAspNetCore();
     });
 
-builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<EnrichmentService>();
 builder.Services.AddScoped<DictionaryService>();
 builder.Services.AddScoped<StudyService>();
@@ -63,7 +118,11 @@ builder.Services.AddControllers()
     });
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policy => policy.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin());
+    options.AddDefaultPolicy(policy => policy
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials()
+        .SetIsOriginAllowed(_ => true));
 });
 
 var app = builder.Build();
@@ -83,6 +142,9 @@ await using (var scope = app.Services.CreateAsyncScope())
 }
 
 app.UseCors();
+app.UseAuthentication();
+app.UseMiddleware<AntiforgeryValidationMiddleware>();
+app.UseAuthorization();
 app.MapHealthChecks("/health");
 app.MapControllers();
 
@@ -93,10 +155,11 @@ app.MapGet("/", () => Results.Ok(new
     endpoints = new[]
     {
         "GET /health",
-        "POST /auth/email-sign-in",
-        "POST /auth/social-sign-in",
-        "GET /connect/authorize",
-        "POST /connect/token",
+        "GET /auth/antiforgery",
+        "POST /auth/sign-up",
+        "POST /auth/sign-in",
+        "POST /auth/sign-out",
+        "GET /auth/me",
         "GET /study/next",
         "POST /study/answer",
         "GET /study/dashboard",

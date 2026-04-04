@@ -5,7 +5,7 @@ services:
       dockerfile: apps/api/src/Langoose.Api/Dockerfile
     container_name: langoose-api
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__AppDatabase: Host=postgres;Port=5432;Database=langoose_app;Username=langoose;Password=langoose
       ConnectionStrings__AuthDatabase: Host=postgres;Port=5432;Database=langoose_auth;Username=langoose;Password=langoose
