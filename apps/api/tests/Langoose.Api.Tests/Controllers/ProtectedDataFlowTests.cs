@@ -25,6 +25,35 @@ public sealed class ProtectedDataFlowTests
     }
 
     [Fact]
+    public async Task Protected_unsafe_requests_return_unauthorized_before_antiforgery_for_anonymous_callers()
+    {
+        await using var host = await ApiTestHost.CreateAsync();
+
+        var addItemResponse = await host.Client.PostAsJsonAsync("/dictionary/items", new
+        {
+            englishText = "improve",
+            russianGlosses = new[] { "улучшать" },
+            itemKind = "word",
+            createdByFlow = "quick-add"
+        });
+        var patchItemResponse = await host.Client.PatchAsJsonAsync($"/dictionary/items/{Guid.NewGuid()}", new
+        {
+            notes = "updated"
+        });
+        var deleteResponse = await host.Client.DeleteAsync("/dictionary/custom-data");
+        var answerResponse = await host.Client.PostAsJsonAsync("/study/answer", new
+        {
+            itemId = Guid.NewGuid(),
+            submittedAnswer = "improve"
+        });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, addItemResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, patchItemResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, deleteResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, answerResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task Fresh_authenticated_user_can_read_dictionary_and_dashboard_without_precreated_app_rows()
     {
         await using var host = await ApiTestHost.CreateAsync(authenticated: true);

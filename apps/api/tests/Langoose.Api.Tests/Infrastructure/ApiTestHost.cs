@@ -1,4 +1,5 @@
 using Langoose.Api.Controllers;
+using Langoose.Api.Middleware;
 using Langoose.Api.Services;
 using Langoose.Auth.Data;
 using Langoose.Auth.Data.Models;
@@ -7,6 +8,7 @@ using Langoose.Data.Seeding;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
@@ -38,6 +40,16 @@ internal sealed class ApiTestHost(IHost host) : IAsyncDisposable
                 services.AddProblemDetails();
                 services.AddHttpContextAccessor();
                 services.AddAuthorization();
+                services.AddAntiforgery(options =>
+                {
+                    options.Cookie.Name = "langoose.csrf";
+                    options.Cookie.HttpOnly = false;
+                    options.Cookie.SameSite = SameSiteMode.Lax;
+                    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                    options.Cookie.Path = "/";
+                    options.Cookie.IsEssential = true;
+                    options.HeaderName = "X-CSRF-TOKEN";
+                });
                 services.AddAuthentication(TestAuthHandler.SchemeName)
                     .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
                 services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(appDbName));
@@ -67,6 +79,7 @@ internal sealed class ApiTestHost(IHost host) : IAsyncDisposable
             {
                 app.UseRouting();
                 app.UseAuthentication();
+                app.UseMiddleware<AntiforgeryValidationMiddleware>();
                 app.UseAuthorization();
                 app.UseEndpoints(endpoints => endpoints.MapControllers());
             });
