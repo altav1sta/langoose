@@ -1,9 +1,9 @@
 using Langoose.Api.Models;
-using Langoose.Domain.Enums;
 using Langoose.Api.Services;
 using Langoose.Api.Tests.Infrastructure;
 using Langoose.Data;
 using Langoose.Data.Seeding;
+using Langoose.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 

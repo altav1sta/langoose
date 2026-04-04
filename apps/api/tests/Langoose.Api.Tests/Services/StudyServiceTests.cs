@@ -1,8 +1,8 @@
 using Langoose.Api.Models;
+using Langoose.Api.Tests.Infrastructure;
 using Langoose.Domain.Constants;
 using Langoose.Domain.Enums;
 using Langoose.Domain.Models;
-using Langoose.Api.Tests.Infrastructure;
 using Xunit;
 
 namespace Langoose.Api.Tests.Services;

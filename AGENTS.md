@@ -49,11 +49,15 @@
 - In C# code, prefer one top-level type per file. Split files when a class, record, enum, or interface would otherwise share a file with another top-level type.
 - In C# code, keep patterns consistent within the same subsystem. If one entity or concern in a slice uses a dedicated configuration class, constant holder, or similar structural pattern, do not leave adjacent equivalent cases half-inline without a clear reason.
 - In C# code, keep namespaces aligned with the current project and folder structure whenever files are added or moved. Do not leave mismatched namespaces behind after refactors.
+- In C# types, keep public and protected members before private helpers. Place private helper methods at the bottom unless a nearby private member clearly improves readability.
+- In C# code, prefer the shortest clear name available in scope. Do not use fully qualified type or member names when a normal `using`, alias, or local scope can express the same thing clearly without ambiguity.
 - In C# code, do not leave unused `using` directives behind. Clean them up during the change instead of treating them only as a final polish step.
+- After each C# file modification, re-check the `using` block for alignment. Keep `using` directives consistently ordered and grouped, with `System` namespaces first, instead of leaving the imports in an arbitrary edit order.
 - For backend C# work, always do a manual pass over the changed source and test files for obvious unused `using` directives, even when you also run analyzer-based checks.
 - For backend C# manual cleanup passes, use an explicit file-by-file flow: list the currently changed `.cs` files, include both modified tracked files and untracked new `.cs` files in that list, narrow to the files that still contain `using` directives, inspect each of those files directly, and only then report the sweep complete.
 - If the user explicitly calls out a specific file, re-inspect that file directly in the current pass even if it was checked earlier. Do not rely on memory or an earlier partial pass for user-emphasized files.
 - Do not let a broad repo-wide pass override special attention the user asked for on a specific file. User-emphasized files must appear explicitly in the checked-file report.
+- Do not claim a specific file was verified unless that exact file was directly checked in the current pass. Do not infer verification status from adjacent files, naming patterns, or prior assumptions.
 - Do not treat an earlier partial cleanup pass as evidence for a later full pass. A new full pass must rebuild the file list from the current working tree and re-check every file on that list.
 - For unused `using` cleanup, do not infer correctness from how familiar, busy, or framework-heavy a file looks. Verify each import against symbols or extension methods actually used in that file.
 - Do not claim a manual cleanup pass is complete without a proof artifact in the response: the exact checked-file list, the files changed by the pass, and the post-fix validation results.
@@ -106,6 +110,9 @@
 - Use one branch per issue or one tightly related chunk of work whenever practical.
 - Start issue branches from the latest local `main` branch after updating it from `origin/main`. Before creating a
   branch, fetch `origin/main`, check out `main`, fast-forward `main`, and only then create the new branch from `main`.
+- Do not start issue discovery or implementation while setup residue still exists. Before treating an issue as in work,
+  clear unintended setup leftovers such as temporary stashes, accidental worktree changes, partial checkouts, or other
+  workflow artifacts that are not part of the intended issue diff.
 - If work was accidentally started on the wrong branch, do not continue by improvising with merges, stash juggling, or cross-branch cleanup. Preserve the work if needed, then restart from a clean correct branch and reapply only the intended issue changes.
 - Prefer one PR per issue whenever practical. If a task clearly belongs in one focused PR, do not split it
   unnecessarily.
@@ -136,6 +143,8 @@
   meaningfully underway.
 - When opening a PR, move the issue to `In Review`.
 - After merge, move the issue to `Done`.
+- Do not report an issue as finalized, handed off, or complete until every required repo workflow state transition has been verified live, including issue and project status changes where the repo flow requires them.
+- Treat issue and project status updates as part of completion, not as optional cleanup after the code and PR work are done.
 - Close child issues automatically from PRs when appropriate by using `Closes #...` in the PR body.
 - Close epics manually only after confirming the grouped outcome is actually complete.
 - When a new task truly belongs under an existing epic, add it as a real GitHub child issue rather than only mentioning

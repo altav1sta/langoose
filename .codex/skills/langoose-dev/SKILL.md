@@ -17,6 +17,7 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Prefer extending existing services over adding new abstractions.
 - For branch, issue, PR, and project workflow behavior, follow `AGENTS.md` directly instead of restating or inventing
   alternate workflow rules in the skill layer.
+- Keep issue startup and implementation residue-free.
 - Respect `.gitattributes` and keep line endings normalized when creating or editing files.
 - When editing Markdown docs, verify relative links from the file's actual directory. Do not assume repo-root-style `docs/...` links work from files that already live under `docs/`.
 - When files are created or rewritten through shell commands, explicitly normalize their line endings before finishing.
@@ -27,10 +28,14 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - In C# code, prefer one top-level type per file unless a tiny local exception is clearly justified.
 - In C# code, keep structural patterns consistent within the same subsystem. If one entity or concern uses a dedicated configuration class, constants type, or similar structure, make equivalent nearby cases follow the same pattern unless there is a clear reason not to.
 - In C# code, always check namespace alignment after moving or adding files so the namespace still matches the current project and folder structure.
+- In C# types, keep the main public and protected flow first and move private helper methods to the bottom unless a nearby private member genuinely improves readability.
+- In C# code, prefer the shortest clear name available in scope. Avoid fully qualified type or member names when a normal `using`, alias, or local scope can express the same thing clearly without ambiguity.
 - In C# code, remove unused `using` directives as part of the normal edit, not only as a final cleanup step.
+- After each C# file modification, re-check the `using` block for alignment. Keep `using` directives consistently ordered and grouped, with `System` namespaces first, instead of leaving imports in arbitrary edit order.
 - For backend C# cleanup passes, use an explicit file-by-file workflow: list the currently changed `.cs` files, include both modified tracked files and untracked new `.cs` files in that list, narrow to the ones that still contain `using` directives, inspect each of those files directly, and only then treat the manual pass as complete.
 - If the user explicitly calls out a specific file, re-inspect that file directly in the current pass even if it was checked earlier. Do not rely on memory or an earlier partial pass for user-emphasized files.
 - Do not let a broad repo-wide pass override special attention the user asked for on a specific file. User-emphasized files must appear explicitly in the checked-file report.
+- Do not claim a specific file was verified unless that exact file was directly checked in the current pass. Do not infer verification status from adjacent files, naming patterns, or prior assumptions.
 - Do not treat an earlier partial cleanup pass as evidence for a later full pass. A new full pass must rebuild the file list from the current working tree and re-check every file on that list.
 - For unused `using` cleanup, do not infer correctness from how familiar, busy, or framework-heavy a file looks. Verify each import against symbols or extension methods actually used in that file.
 - Do not claim a manual cleanup pass is complete without a proof artifact in the response: the exact checked-file list, the files changed by the pass, and the post-fix validation results.
@@ -65,10 +70,14 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Before finalizing an issue, check whether the repo skills or their reference files still describe the pre-change state. If the work changed repo reality, commands, persistence, test locations, or finish flow expectations, update the affected skills in the same issue instead of leaving them stale.
 - Before finalizing an issue, run both `git diff --check` and an explicit line-ending check over newly created or moved files so mixed newlines are caught before the user opens them in Visual Studio.
 - Before finalizing backend work, run an explicit unused-namespace-import check for C# files, preferably with `dotnet format analyzers ... --diagnostics IDE0005 --verify-no-changes`, and also do a manual pass over the changed backend source and test files. If the analyzer is blocked, the manual pass is still required.
+- Do not call an issue finalized, handed off, or complete until the required repo workflow state transitions are verified live, including issue and project status changes when the repo flow requires them.
+- Treat issue and project status updates as part of completion, not as optional cleanup after the code and PR work are done.
 - If startup seeding or repair logic can overwrite existing persisted base content, verify the seed source itself is not corrupted before shipping. A broken seed file is a data rewrite bug, not just a fixture bug.
 - If a verification step fails, is blocked by the environment, or does not complete, do not report it as passing from memory or inference. State the verification gap plainly, rerun it if possible, and only claim a clean result after a successful run.
 - For issue-branch creation, PR handoff, mergeability, and issue/PR metadata alignment, follow the GitHub workflow
   rules in `AGENTS.md` directly instead of repeating or improvising them here.
+- Do not start issue discovery or implementation while workflow setup residue still exists. Clear unintended stashes,
+  accidental worktree edits, partial checkouts, or other setup artifacts before treating the issue as in work.
 - If a refactor or project move changes solution paths, project paths, Dockerfile paths, or config locations, inspect CI/workflow files and update them in the same issue. Do not assume existing build and test workflows still point at the right files after the restructure.
 
 ## Validate In The Smallest Useful Way

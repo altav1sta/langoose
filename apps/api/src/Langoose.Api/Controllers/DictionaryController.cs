@@ -1,6 +1,8 @@
 using Langoose.Api.Models;
-using Langoose.Domain.Models;
 using Langoose.Api.Services;
+using Langoose.Auth.Data.Models;
+using Langoose.Domain.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Langoose.Api.Controllers;
@@ -8,15 +10,13 @@ namespace Langoose.Api.Controllers;
 [ApiController]
 [Route("dictionary")]
 public sealed class DictionaryController(
-    AuthService authService,
-    DictionaryService dictionaryService) : ControllerBase
+    DictionaryService dictionaryService,
+    UserManager<AuthUser> userManager) : ControllerBase
 {
     [HttpGet("items")]
     public async Task<ActionResult<IReadOnlyList<DictionaryItem>>> GetItems(CancellationToken cancellationToken)
     {
-        var user = await authService.GetUserFromTokenAsync(
-            Request.Headers.Authorization,
-            cancellationToken);
+        var user = await userManager.GetUserAsync(User);
 
         if (user is null)
         {
@@ -31,9 +31,7 @@ public sealed class DictionaryController(
         [FromBody] DictionaryItemRequest request,
         CancellationToken cancellationToken)
     {
-        var user = await authService.GetUserFromTokenAsync(
-            Request.Headers.Authorization,
-            cancellationToken);
+        var user = await userManager.GetUserAsync(User);
 
         if (user is null)
         {
@@ -49,9 +47,7 @@ public sealed class DictionaryController(
         [FromBody] DictionaryItemPatchRequest request,
         CancellationToken cancellationToken)
     {
-        var user = await authService.GetUserFromTokenAsync(
-            Request.Headers.Authorization,
-            cancellationToken);
+        var user = await userManager.GetUserAsync(User);
 
         if (user is null)
         {
@@ -68,9 +64,7 @@ public sealed class DictionaryController(
         [FromBody] ImportCsvRequest request,
         CancellationToken cancellationToken)
     {
-        var user = await authService.GetUserFromTokenAsync(
-            Request.Headers.Authorization,
-            cancellationToken);
+        var user = await userManager.GetUserAsync(User);
 
         if (user is null)
         {
@@ -95,9 +89,7 @@ public sealed class DictionaryController(
     [HttpGet("export")]
     public async Task<ActionResult<string>> Export(CancellationToken cancellationToken)
     {
-        var user = await authService.GetUserFromTokenAsync(
-            Request.Headers.Authorization,
-            cancellationToken);
+        var user = await userManager.GetUserAsync(User);
 
         if (user is null)
         {
@@ -112,9 +104,7 @@ public sealed class DictionaryController(
     [HttpDelete("custom-data")]
     public async Task<IActionResult> ClearCustomData(CancellationToken cancellationToken)
     {
-        var user = await authService.GetUserFromTokenAsync(
-            Request.Headers.Authorization,
-            cancellationToken);
+        var user = await userManager.GetUserAsync(User);
 
         if (user is null)
         {
