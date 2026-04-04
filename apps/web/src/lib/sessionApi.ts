@@ -34,10 +34,10 @@ export async function refreshAuthenticatedSession() {
   return { auth, snapshot };
 }
 
-export async function establishAuthenticatedSession(request: Promise<AuthResponse>) {
+export async function establishAuthenticatedSession(request: () => Promise<AuthResponse>) {
   await api.getAntiforgery();
 
-  const auth = await request;
+  const auth = await request();
 
   await api.getAntiforgery();
 

@@ -49,8 +49,8 @@ jobs:
       - name: Run backend tests
         run: dotnet test apps/api/tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj --configuration Release --no-restore /p:RestoreConfigFile=${{ github.workspace }}/apps/api/NuGet.Config
 
-  frontend-build:
-    name: Frontend Build
+  frontend-tests:
+    name: Frontend Tests
     runs-on: ubuntu-latest
 
     defaults:
@@ -73,6 +73,28 @@ jobs:
 
       - name: Run frontend tests
         run: npm run test
+
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
 
       - name: Build frontend
         run: npm run build

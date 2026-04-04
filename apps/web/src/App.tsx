@@ -123,7 +123,7 @@ export default function App() {
 
   async function signIn() {
     try {
-      const auth = await establishAuthenticatedSession(api.signIn(authForm.email, authForm.password));
+      const auth = await establishAuthenticatedSession(() => api.signIn(authForm.email, authForm.password));
       await hydrate(auth, 'You are signed in and ready to study.');
     } catch (error) {
       const authError = getAuthErrorMessage(error, 'Sign-in failed');
@@ -145,7 +145,7 @@ export default function App() {
 
   async function signUp() {
     try {
-      const auth = await establishAuthenticatedSession(api.signUp(authForm.email, authForm.password));
+      const auth = await establishAuthenticatedSession(() => api.signUp(authForm.email, authForm.password));
       await hydrate(auth, 'Your account is ready and you are signed in.');
     } catch (error) {
       const authError = getAuthErrorMessage(error, 'Sign-up failed');
