@@ -1,8 +1,16 @@
 export type AuthResponse = {
   userId: string;
   email: string;
-  name: string;
-  token: string;
+};
+
+type AntiforgeryTokenResponse = {
+  requestToken: string;
+};
+
+type ProblemDetailsShape = {
+  title?: string;
+  detail?: string;
+  errors?: Record<string, string[]>;
 };
 
 export type DictionaryItem = {
@@ -56,7 +64,12 @@ export type Dashboard = {
 
 export type SignInRequest = {
   email: string;
-  name?: string;
+  password: string;
+};
+
+export type SignUpRequest = {
+  email: string;
+  password: string;
 };
 
 export type AddDictionaryItemRequest = {
@@ -89,22 +102,85 @@ export type ReportIssueRequest = {
   details: string;
 };
 
-const API_BASE = window.LANGOOSE_CONFIG?.apiBaseUrl
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail?: string;
+  readonly fieldErrors?: Record<string, string[]>;
+
+  constructor(status: number, message: string, detail?: string, fieldErrors?: Record<string, string[]>) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+    this.fieldErrors = fieldErrors;
+  }
+}
+
+const runtimeConfig = typeof window === 'undefined' ? undefined : window.LANGOOSE_CONFIG;
+
+const API_BASE = runtimeConfig?.apiBaseUrl
   ?? import.meta.env.VITE_API_BASE_URL
   ?? 'http://localhost:5000';
 
-async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
+let csrfRequestToken: string | undefined;
+
+function isUnsafeMethod(method: string | undefined) {
+  const normalized = (method ?? 'GET').toUpperCase();
+
+  return normalized !== 'GET' && normalized !== 'HEAD' && normalized !== 'OPTIONS' && normalized !== 'TRACE';
+}
+
+function getFirstValidationMessage(errors: Record<string, string[]> | undefined) {
+  if (!errors) {
+    return undefined;
+  }
+
+  for (const messages of Object.values(errors)) {
+    const message = messages.find(Boolean);
+
+    if (message) {
+      return message;
+    }
+  }
+
+  return undefined;
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers = new Headers(options.headers ?? {});
+  const method = options.method ?? 'GET';
+
+  if (!headers.has('Content-Type') && options.body) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  if (isUnsafeMethod(method) && csrfRequestToken && !headers.has('X-CSRF-TOKEN')) {
+    headers.set('X-CSRF-TOKEN', csrfRequestToken);
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers ?? {})
-    }
+    method,
+    credentials: 'include',
+    headers
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    let problemDetails: ProblemDetailsShape | undefined;
+
+    try {
+      problemDetails = await response.json() as ProblemDetailsShape;
+    } catch {
+      problemDetails = undefined;
+    }
+
+    const fieldErrors = problemDetails?.errors;
+    const message = getFirstValidationMessage(fieldErrors)
+      ?? problemDetails?.detail
+      ?? problemDetails?.title
+      ?? `Request failed: ${response.status}`;
+
+    throw new ApiError(response.status, message, problemDetails?.detail, fieldErrors);
   }
 
   if (response.status === 202 || response.status === 204) {
@@ -125,55 +201,74 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
 }
 
 export const api = {
-  signIn(email: string, name?: string) {
-    const payload: SignInRequest = { email, name };
-    return request<AuthResponse>('/auth/email-sign-in', {
+  async getAntiforgery() {
+    const response = await request<AntiforgeryTokenResponse>('/auth/antiforgery');
+    csrfRequestToken = response.requestToken;
+  },
+  signUp(email: string, password: string) {
+    const payload: SignUpRequest = { email, password };
+    return request<AuthResponse>('/auth/sign-up', {
       method: 'POST',
       body: JSON.stringify(payload)
     });
   },
-  getDictionary(token: string) {
-    return request<DictionaryItem[]>('/dictionary/items', {}, token);
+  signIn(email: string, password: string) {
+    const payload: SignInRequest = { email, password };
+    return request<AuthResponse>('/auth/sign-in', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   },
-  addDictionaryItem(token: string, payload: AddDictionaryItemRequest) {
+  signOut() {
+    return request<void>('/auth/sign-out', {
+      method: 'POST'
+    });
+  },
+  getMe() {
+    return request<AuthResponse>('/auth/me');
+  },
+  getDictionary() {
+    return request<DictionaryItem[]>('/dictionary/items');
+  },
+  addDictionaryItem(payload: AddDictionaryItemRequest) {
     return request<DictionaryItem>('/dictionary/items', {
       method: 'POST',
       body: JSON.stringify(payload)
-    }, token);
+    });
   },
-  importCsv(token: string, fileName: string, csvContent: string) {
+  importCsv(fileName: string, csvContent: string) {
     const payload: ImportCsvRequest = { fileName, csvContent };
     return request<ImportCsvResult>('/dictionary/import', {
       method: 'POST',
       body: JSON.stringify(payload)
-    }, token);
+    });
   },
-  exportCsv(token: string) {
-    return request<string>('/dictionary/export', {}, token);
+  exportCsv() {
+    return request<string>('/dictionary/export');
   },
-  clearCustomData(token: string) {
+  clearCustomData() {
     return request<void>('/dictionary/custom-data', {
       method: 'DELETE'
-    }, token);
+    });
   },
-  getNextCard(token: string) {
-    return request<StudyCard>('/study/next', {}, token);
+  getNextCard() {
+    return request<StudyCard>('/study/next');
   },
-  submitAnswer(token: string, itemId: string, submittedAnswer: string) {
+  submitAnswer(itemId: string, submittedAnswer: string) {
     const payload: SubmitAnswerRequest = { itemId, submittedAnswer };
     return request<StudyAnswerResult>('/study/answer', {
       method: 'POST',
       body: JSON.stringify(payload)
-    }, token);
+    });
   },
-  getDashboard(token: string) {
-    return request<Dashboard>('/study/dashboard', {}, token);
+  getDashboard() {
+    return request<Dashboard>('/study/dashboard');
   },
-  reportIssue(token: string, itemId: string, reason: string, details: string) {
+  reportIssue(itemId: string, reason: string, details: string) {
     const payload: ReportIssueRequest = { itemId, reason, details };
     return request<void>('/content/report-issue', {
       method: 'POST',
       body: JSON.stringify(payload)
-    }, token);
+    });
   }
 };
