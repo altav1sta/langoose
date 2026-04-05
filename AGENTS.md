@@ -8,7 +8,8 @@
 - `apps/api/src/Langoose.Domain`: core persisted domain models and store abstractions.
 - `apps/api/src/Langoose.Data`: EF Core, PostgreSQL persistence, and migrations.
 - `apps/api/src/Langoose.Auth.Data`: auth persistence, Identity/OpenIddict EF Core wiring, and auth migrations.
-- `apps/api/tests/Langoose.Api.Tests`: xUnit-based .NET test project that exercises MVP behaviors and should be discoverable in Test Explorer.
+- `apps/api/tests/Langoose.Api.UnitTests`: xUnit-based .NET unit-test project for isolated backend logic.
+- `apps/api/tests/Langoose.Api.IntegrationTests`: xUnit-based .NET integration/behavior project for host, persistence, and auth flows.
 - `apps/web`: React 19 + TypeScript + Vite single-page app with plain CSS.
 - Persistence is PostgreSQL-backed through EF Core.
 
@@ -27,8 +28,9 @@
   - `apps/api/src/Langoose.Domain`
   - `apps/api/src/Langoose.Data`
   - `apps/api/src/Langoose.Auth.Data`
-  - `apps/api/tests/Langoose.Api.Tests`
-  - optionally `apps/api/tests/Langoose.Api.UnitTests` and `apps/api/tests/Langoose.Api.FunctionalTests` if the suite grows and the test types need to run separately
+  - `apps/api/tests/Langoose.Api.UnitTests`
+  - `apps/api/tests/Langoose.Api.IntegrationTests`
+  - optionally `apps/api/tests/Langoose.Api.FunctionalTests` if a third API-local test layer is needed later
   - optionally `tests/Langoose.E2E.Tests` or similar for repo-level end-to-end coverage
 - If tests stay together temporarily, still organize them internally by test type and by the API class/service they exercise.
 
@@ -40,6 +42,10 @@
 - For auth planning and implementation in this repo, keep [auth-mvp-decision.md](D:\Projects\langoose\docs\auth-mvp-decision.md) and [auth-m1-implementation-blueprint.md](D:\Projects\langoose\docs\auth-m1-implementation-blueprint.md) aligned with real repo guidance and implementation direction.
 - Normalize line endings. Respect `.gitattributes`, avoid accidental whole-file line-ending churn, and prefer repository-consistent endings when editing files.
 - Before finishing a change, normalize edited files to the line endings required by .gitattributes and run git diff --check to catch EOF and whitespace issues.
+- Do not leave an edited file in a temporarily wrong line-ending state and treat the warning as acceptable. Before finishing, the working tree version of every edited file must already match the required line endings for that file.
+- Do not introduce or leave stray leading blank lines at the start of source, config, solution, or documentation files unless the file format explicitly requires them.
+- Do not leave an edited file in a temporarily wrong line-ending state and treat the warning as acceptable. Before finishing, the working tree version of every edited file must already match the required line endings for that file.
+- Do not introduce or leave stray leading blank lines at the start of source, config, solution, or documentation files unless the file format explicitly requires them.
 - When editing Markdown docs, verify relative links from the edited file's real directory rather than assuming repo-root paths. After doc changes, do a quick scan for broken sibling or nested `docs/...` links before finishing.
 - Protect non-ASCII product text. When a file contains Russian or other non-ASCII user-facing text, preserve it as valid UTF-8 or use explicit C# `\u` escapes if tooling might corrupt the literal; do not replace such text with `?`, rely on shell-default encodings, or finish a change while mojibake or placeholder characters remain in source files.
 - Treat seed files and other baseline content assets as especially sensitive to non-ASCII corruption. Inspect the actual file contents before finishing when they contain Russian or other non-ASCII text; do not trust terminal display alone.
@@ -195,11 +201,14 @@
 ## Preferred Validation
 
 - Backend checks:
-  - current API tests: `dotnet test apps/api/tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config`
+  - unit tests: `dotnet test apps/api/tests/Langoose.Api.UnitTests/Langoose.Api.UnitTests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config`
+  - integration tests: `dotnet test apps/api/tests/Langoose.Api.IntegrationTests/Langoose.Api.IntegrationTests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config`
 - Backend build:
   - `dotnet build apps/api/Langoose.sln /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config`
 - Frontend build:
   - `npm run build` from `D:\Projects\langoose\apps\web`
+- Frontend tests:
+  - `npm run test` from `D:\Projects\langoose\apps\web`
 - Container verification for persistence/startup/auth changes:
   - `docker compose up -d postgres`
   - `docker compose up -d api --build`
@@ -211,17 +220,22 @@
   - `docker compose up -d web --build`
   - verify `GET http://localhost:5000/health`
   - verify `GET http://localhost:5173`
+  - when auth flow changes are involved, also verify sign-up, sign-in, sign-out, `/auth/me`, and at least one
+    protected write through the running stack
+  - when auth/session/CSRF behavior needs full browser proof, run `docker compose --profile e2e up --build e2e`
   - if the change affects user-facing behavior, exercise the real browser-facing flow against the running stack rather
     than stopping at container startup alone
 
 ## Change Heuristics
 
 - For API work, inspect `Controllers`, `Services`, and `Models` together before editing behavior.
-- For study-flow changes, review both [StudyService.cs](D:\Projects\langoose\apps\api\src\Langoose.Api\Services\StudyService.cs) and the discoverable xUnit tests under [apps/api/tests/Langoose.Api.Tests](D:\Projects\langoose\apps\api\tests\Langoose.Api.Tests).
+- For study-flow changes, review both [StudyService.cs](D:\Projects\langoose\apps\api\src\Langoose.Api\Services\StudyService.cs) and the discoverable xUnit tests under [apps/api/tests](D:\Projects\langoose\apps\api\tests).
 - For dictionary/import changes, review both [DictionaryService.cs](D:\Projects\langoose\apps\api\src\Langoose.Api\Services\DictionaryService.cs) and [DictionaryController.cs](D:\Projects\langoose\apps\api\src\Langoose.Api\Controllers\DictionaryController.cs).
 - For frontend work, keep the API contract in sync with [api.ts](D:\Projects\langoose\apps\web\src\api.ts).
 - For auth work, keep [auth-mvp-decision.md](D:\Projects\langoose\docs\auth-mvp-decision.md) and [auth-m1-implementation-blueprint.md](D:\Projects\langoose\docs\auth-m1-implementation-blueprint.md) aligned with the implementation.
 - For .NET test-organization work, use the `langoose-dotnet-testing` skill in `.codex/skills`.
+- For backend test-boundary decisions and the rationale behind the current split, also consult [backend-test-strategy.md](D:\Projects\langoose\docs\backend-test-strategy.md).
+- If a backend change introduces PostgreSQL-specific query behavior, migrations risk, transaction semantics, provider-specific SQL, database constraints/indexes/defaults, or a bug that reproduces only against real PostgreSQL behavior, treat that as the trigger to add or extend Testcontainers-backed backend integration coverage rather than relying only on EF InMemory tests.
 - For broader architecture and project-boundary decisions such as `API + Data` versus `API + Domain + Data`, use the `langoose-architecture` skill in `.codex/skills`.
 - For EF Core structure, separate data-project boundaries, DbContext placement, and migrations layout decisions, use the `langoose-efcore-structure` skill in `.codex/skills`.
 - For React and TypeScript frontend decisions, use the `langoose-react-typescript` skill in `.codex/skills`.

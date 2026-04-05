@@ -3,7 +3,7 @@ using Langoose.Data;
 using Langoose.Data.Seeding;
 using Microsoft.EntityFrameworkCore;
 
-namespace Langoose.Api.Tests.Infrastructure;
+namespace Langoose.Api.IntegrationTests.Infrastructure;
 
 internal static class TestAppSetup
 {

@@ -1,15 +1,15 @@
 using Langoose.Api.Models;
 using Langoose.Api.Services;
-using Langoose.Api.Tests.Infrastructure;
+using Langoose.Api.IntegrationTests.Infrastructure;
 using Langoose.Data;
 using Langoose.Data.Seeding;
 using Langoose.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
-namespace Langoose.Api.Tests.Services;
+namespace Langoose.Api.IntegrationTests.Services;
 
-public sealed class DictionaryServiceTests
+public sealed class DictionaryServiceIntegrationTests
 {
     private const string ValidCsv =
         "English term,Russian translation(s),Type,Notes,Tags\n" +

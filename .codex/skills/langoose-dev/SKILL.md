@@ -19,9 +19,11 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
   alternate workflow rules in the skill layer.
 - Keep issue startup and implementation residue-free.
 - Respect `.gitattributes` and keep line endings normalized when creating or editing files.
+- Leave edited files in their final required line-ending state before finishing. Do not treat a temporary line-ending warning as acceptable cleanup debt.
 - When editing Markdown docs, verify relative links from the file's actual directory. Do not assume repo-root-style `docs/...` links work from files that already live under `docs/`.
 - When files are created or rewritten through shell commands, explicitly normalize their line endings before finishing.
 - If files were moved or created in bulk, verify they do not contain mixed line endings at the byte level before declaring the task clean.
+- Do not leave stray leading blank lines at the top of source, config, solution, or documentation files unless the file format explicitly requires them.
 - Preserve non-ASCII product text safely. Keep Russian and other non-ASCII literals as valid UTF-8, or switch to explicit C# `\u` escapes when Windows tooling or shell encoding could corrupt them.
 - Treat seed assets and other baseline content files as high-risk for non-ASCII corruption. If they contain Russian or other non-ASCII text, inspect the actual file contents before finishing; do not assume terminal rendering tells the truth.
 - Prefer the repository line-length standard of 120 characters where practical.
@@ -83,7 +85,10 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 ## Validate In The Smallest Useful Way
 
 - Run the discoverable xUnit backend tests for backend behavior changes.
+- Run `npm run test` for frontend behavior changes that now have Vitest coverage.
 - Run the frontend build for web changes.
+- Run `docker compose --profile e2e up --build e2e` when auth/session/CSRF changes need full browser proof through the
+  repo's Playwright flow under `tests/e2e`.
 - Prefer targeted validation over broad churn.
 - When persistence, startup, or auth changes are involved, add at least one realistic runtime check that covers app startup and the user-facing path most likely to break.
 
@@ -98,6 +103,8 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 
 - For commands, invariants, and task-specific review points, read [D:\Projects\langoose\.codex\skills\langoose-dev\references\workflows.md](D:\Projects\langoose\.codex\skills\langoose-dev\references\workflows.md).
 - For .NET test layout and ASP.NET Core test-boundary decisions, use [D:\Projects\langoose\.codex\skills\langoose-dotnet-testing\SKILL.md](D:\Projects\langoose\.codex\skills\langoose-dotnet-testing\SKILL.md).
+- For the repo-specific reasoning behind unit vs integration vs e2e boundaries, also read [D:\Projects\langoose\docs\backend-test-strategy.md](D:\Projects\langoose\docs\backend-test-strategy.md).
+- When backend work starts depending on PostgreSQL-specific behavior such as migrations, constraints, indexes, transactions, collation/case-sensitivity, query translation, provider-specific SQL, or a bug that only appears against real PostgreSQL, treat that as the point to introduce or expand Testcontainers-backed integration coverage.
 - For React and TypeScript frontend guidance, use [D:\Projects\langoose\.codex\skills\langoose-react-typescript\SKILL.md](D:\Projects\langoose\.codex\skills\langoose-react-typescript\SKILL.md).
 - For API contract synchronization, use [D:\Projects\langoose\.codex\skills\langoose-api-contracts\SKILL.md](D:\Projects\langoose\.codex\skills\langoose-api-contracts\SKILL.md).
 - For study-loop behavior, use [D:\Projects\langoose\.codex\skills\langoose-study-engine\SKILL.md](D:\Projects\langoose\.codex\skills\langoose-study-engine\SKILL.md).

@@ -11,6 +11,12 @@ services:
       ConnectionStrings__AuthDatabase: Host=postgres;Port=5432;Database=langoose_auth;Username=langoose;Password=langoose
     ports:
       - "5000:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy
@@ -22,11 +28,31 @@ services:
     container_name: langoose-web
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
     environment:
-      LANGOOSE_API_BASE_URL: http://localhost:5000
+      LANGOOSE_API_BASE_URL: /api
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     ports:
       - "5173:80"
+
+  e2e:
+    profiles: ["e2e"]
+    build:
+      context: ./tests/e2e
+      dockerfile: Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    environment:
+      PLAYWRIGHT_BASE_URL: http://web
+    command: npm test
 
   postgres:
     image: postgres:17-alpine

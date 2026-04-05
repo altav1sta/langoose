@@ -1,7 +1,7 @@
 using Langoose.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace Langoose.Api.Tests.Infrastructure;
+namespace Langoose.Api.IntegrationTests.Infrastructure;
 
 internal sealed class TestDbContextFactory(DbContextOptions<AppDbContext> options) : IDbContextFactory<AppDbContext>
 {

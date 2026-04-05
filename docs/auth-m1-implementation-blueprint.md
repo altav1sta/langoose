@@ -383,6 +383,13 @@ M1 is not done until these paths work:
 | Frontend flow checks | bootstrap, sign-in, sign-up, sign-out, `401` handling from `GET /auth/me` |
 | Docker end-to-end validation | both databases, migrations, cookies, CSRF-protected writes, full local auth flow |
 
+Current repo validation shape:
+
+- backend auth integration coverage lives in `apps/api/tests/Langoose.Api.IntegrationTests`
+- frontend auth flow checks live in Vitest under `apps/web/src/__tests__` and `apps/web/src/lib/__tests__`
+- local end-to-end proof uses the Docker Compose stack and `docker compose --profile e2e up --build e2e`
+- Compose-based web validation uses same-origin `/api` proxying through nginx so cookie auth matches the real browser flow
+
 ### Minimum M1 bar
 
 1. backend integration tests cover the auth contract and security-critical edge cases

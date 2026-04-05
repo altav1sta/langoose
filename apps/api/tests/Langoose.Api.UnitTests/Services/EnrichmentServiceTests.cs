@@ -2,7 +2,7 @@ using Langoose.Api.Models;
 using Langoose.Api.Services;
 using Xunit;
 
-namespace Langoose.Api.Tests.Services;
+namespace Langoose.Api.UnitTests.Services;
 
 public sealed class EnrichmentServiceTests
 {
