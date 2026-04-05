@@ -8,8 +8,13 @@ Use this file for:
 - staging-specific tradeoff analysis
 - the recommended first staging direction
 - follow-up implementation issue shaping
+- links to the concrete staging browser and database operation notes
 
 This note is intentionally about staging, not final production architecture.
+
+Related implementation notes:
+
+- [staging-db-operations.md](staging-db-operations.md)
 
 ## Table Of Contents
 
@@ -1103,6 +1108,13 @@ Likely issues:
 - making sure both databases are reachable from the API host
 - deciding how staging reset, wipe, and reseed operations should work
 - avoiding accidental coupling to local Docker assumptions
+
+Current concrete recommendation for issue `#37`:
+
+- one dedicated Neon project for staging
+- two databases inside that project: `langoose_app` and `langoose_auth`
+- staging should follow the same explicit migration/seed process as production instead of adding a staging-only runtime toggle
+- prefer full database recreation or Neon branch recreation over ad hoc partial wipes when staging becomes unreliable
 
 ### Step 3: deploy the API to Railway with staging-safe runtime configuration
 
