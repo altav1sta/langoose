@@ -11,12 +11,36 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 
 ## Follow The Existing Shape
 
+- Treat available plugins, connector tools, and MCP app capabilities as the mandatory first path whenever they can do
+  the job. This rule is paramount over convenience-based CLI or other manual fallbacks.
+- Do not ask for CLI or manual fallback approval when an available plugin or connector path can accomplish the same
+  work.
+- Never use CLI, shell, `gh`, direct web browsing, or other fallback paths for inspection when an available plugin or
+  connector can perform that inspection.
+- Keep reads and writes separated. Do not bundle inspection or metadata reads into a fallback workflow when the
+  available plugin or connector can perform those reads. Use the plugin path for reads first, then use fallback only
+  for the exact unsupported write or mutation step if one remains.
+- Generalize that separation across all plugin-capable work: if a plugin, connector, or MCP app can perform any
+  sub-operation in a workflow, keep that sub-operation on the plugin path. Do not bundle plugin-capable search, fetch,
+  inspection, metadata, or other supported steps into a broader fallback workflow just because a later step is
+  unsupported.
+- Use CLI or other manual fallbacks only after verifying that the available plugin path does not support the required
+  operation well enough.
+- Before any fallback path is used, explicitly state which plugin or connector path was checked, which exact required
+  operation it could not perform, and why the fallback is necessary. If that statement cannot be made clearly, do not
+  use the fallback.
 - Keep frontend work inside `apps/web` with React, TypeScript, and plain CSS.
 - Keep backend work inside `apps/api`, with backend-wide config at `apps/api/`, production projects under `apps/api/src`, and API-owned tests under `apps/api/tests`.
 - Treat `Langoose.Data` as app-domain persistence and `Langoose.Auth.Data` as auth persistence in the current repo layout.
 - Prefer extending existing services over adding new abstractions.
 - For branch, issue, PR, and project workflow behavior, follow `AGENTS.md` directly instead of restating or inventing
   alternate workflow rules in the skill layer.
+- For GitHub inspection and other ordinary GitHub-side reads, prefer the GitHub plugin or connector tools first; use
+  `gh` only for GitHub-side operations the plugin tools do not support well enough, and use local `git` for branch and
+  checkout work inside the repo.
+- For epic decomposition work, keep child issues as real GitHub child issues whenever the available GitHub tools support
+  that relationship, and verify milestone alignment explicitly instead of assuming it will be inherited or cleaned up
+  later.
 - Keep issue startup and implementation residue-free.
 - Respect `.gitattributes` and keep line endings normalized when creating or editing files.
 - Leave edited files in their final required line-ending state before finishing. Do not treat a temporary line-ending warning as acceptable cleanup debt.
