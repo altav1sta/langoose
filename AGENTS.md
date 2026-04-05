@@ -166,6 +166,18 @@
 - If a change moves projects, solution files, Dockerfiles, config paths, or backend directory layout, also verify
   design-time tooling paths and path-sensitive docs against the new structure. Do not treat green build/test/CI alone
   as proof that EF design-time commands, Docker notes, README paths, or other location-dependent guidance still work.
+- For required GitHub Actions checks, prefer an always-running lightweight change-detection job plus job-level `if:`
+  conditions over workflow-level path filtering. Do not use workflow-level `paths` or `paths-ignore` in a way that can
+  leave required checks pending on pull requests.
+- When scoping CI jobs by changed files, include repo-level workflow files, Docker/Compose files, and shared config such
+  as `.editorconfig` and `.gitattributes` in the force-run set so important infra changes do not get treated as
+  docs-only changes.
+- Treat CI change-detection rules as part of the repository architecture, not a one-off optimization. When changing CI
+  filtering or adding new paths, review the full set of files that can affect build, test, packaging, runtime,
+  workflow execution, or branch-protection-required checks, and update the detection logic in the same change.
+- Do not assume the current app folders are the only important inputs forever. If a new repo-level config, workflow,
+  test area, Docker path, or build/runtime dependency becomes relevant, extend the CI detection rules immediately
+  instead of leaving the new path outside the force-run or scoped-run model.
 - Use squash merge into `main`.
 - When describing remote branch state, do not rely only on local `origin/*` refs. Verify against the live remote or prune stale refs first if branch existence matters to the answer or workflow.
 

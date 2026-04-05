@@ -118,6 +118,16 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - If a verification step fails, is blocked by the environment, or does not complete, do not report it as passing from memory or inference. State the verification gap plainly, rerun it if possible, and only claim a clean result after a successful run.
 - For issue-branch creation, PR handoff, mergeability, and issue/PR metadata alignment, follow the GitHub workflow
   rules in `AGENTS.md` directly instead of repeating or improvising them here.
+- For required GitHub Actions checks, keep the workflow itself triggerable on pull requests and prefer an always-running
+  lightweight change-detection job plus job-level `if:` conditions over workflow-level path filtering that can leave
+  required checks pending.
+- When scoping CI jobs by changed files, treat repo-level workflow files, Docker/Compose files, and shared config such
+  as `.editorconfig` and `.gitattributes` as force-run inputs rather than docs-only changes.
+- Treat CI change-detection rules as repository architecture, not just optimization. When CI filtering changes or new
+  important paths are introduced, review the full set of files that can affect build, test, packaging, runtime,
+  workflow execution, or required checks, and update the detection logic in the same change.
+- Do not assume the current known folders are complete forever. Extend CI detection rules as soon as new repo-level
+  config, workflows, test areas, Docker paths, or other build/runtime dependencies appear.
 - Do not start issue discovery or implementation while workflow setup residue still exists. Clear unintended stashes,
   accidental worktree edits, partial checkouts, or other setup artifacts before treating the issue as in work.
 - If a refactor or project move changes solution paths, project paths, Dockerfile paths, or config locations, inspect CI/workflow files and update them in the same issue. Do not assume existing build and test workflows still point at the right files after the restructure.
