@@ -36,6 +36,24 @@
 
 ## Working Agreements
 
+- Treat available plugins, connector tools, and MCP app capabilities as the mandatory first path in any scenario where
+  they can do the job. This rule is paramount over convenience-based CLI or manual fallbacks.
+- Do not ask the user to approve a CLI or manual fallback when an available plugin or connector path can accomplish the
+  same work.
+- Never use CLI, shell, `gh`, direct web browsing, or other fallback paths for inspection when an available plugin or
+  connector can perform that inspection.
+- Keep reads and writes separated. Do not bundle inspection or metadata reads into a fallback workflow when the
+  available plugin or connector can perform those reads. Use the plugin path for reads first, then use fallback only
+  for the exact unsupported write or mutation step if one remains.
+- Generalize that separation across all plugin-capable work: if a plugin, connector, or MCP app can perform any
+  sub-operation in a workflow, keep that sub-operation on the plugin path. Do not bundle plugin-capable search, fetch,
+  inspection, metadata, or other supported steps into a broader fallback workflow just because a later step is
+  unsupported.
+- Use CLI, shell tools, direct web browsing, or other manual fallbacks only after verifying that the available plugin
+  path does not support the required operation well enough.
+- Before any fallback path is used, explicitly state which plugin or connector path was checked, which exact required
+  operation it could not perform, and why the fallback is necessary. If that statement cannot be made clearly, do not
+  use the fallback.
 - Preserve the MVP architecture. Prefer small changes inside the current React SPA and ASP.NET Core service/controller structure before introducing new layers, packages, or infrastructure.
 - Keep business rules on the backend when they affect grading, dictionary visibility, imports, or scheduling.
 - Do not introduce a different persistence stack, background worker, or production-grade auth unless the task explicitly asks for that shift.
@@ -103,6 +121,11 @@
 
 - Before answering "what's next" or starting work, check the live GitHub state first rather than relying on an older
   plan or memory.
+- For GitHub inspection and ordinary GitHub-side reads, prefer the GitHub plugin or connector tools first.
+- Use `gh` only for GitHub-side operations that the available plugin tools do not support well enough, such as issue
+  creation or specific project mutations.
+- Use local `git` for workspace branch creation, checkout, and other repository-state operations; do not treat the
+  GitHub plugin as a replacement for local branch management.
 - Treat the GitHub Project `Langoose MVP` as the source of truth for roadmap status.
 - Keep issue, epic, and PR status aligned with the real state of the work.
 - Follow the established repo workflow automatically. Apply the written rules instead of inventing extra workflow steps,
@@ -144,6 +167,9 @@
 ### Issue And Epic Flow
 
 - When creating or taking over an issue, make its metadata complete early: confirm project placement, status, labels, milestone, and assignee rather than leaving those for later cleanup.
+- When an issue belongs under an epic, create and maintain it as a real GitHub child issue or sub-issue whenever the
+  available GitHub tools support that relationship. Do not treat a plain-text `Supports #...` mention as a complete
+  substitute when the real child-issue relationship can be set.
 - When starting an issue, move that issue to `In Progress`.
 - If the issue belongs to an epic that is still not active, move the epic to `In Progress` when the parent work is
   meaningfully underway.
@@ -161,8 +187,9 @@
 - Preserve the existing labels unless the user explicitly asks to change the labeling system.
 - Use area labels such as `backend`, `frontend`, `infra`, and `db` to reflect the affected system areas.
 - Use planning labels such as `mvp`, `post-mvp`, `bug`, `tech-debt`, and `blocked` to reflect roadmap context.
-- Keep milestones aligned with the issue's role in the roadmap. Track issues in the project unless the repo flow
-  explicitly calls for something else.
+- Keep milestones aligned with the issue's role in the roadmap. Do not leave milestone inheritance or alignment as an
+  assumption; verify it explicitly for the epic and each child issue that should share roadmap timing.
+- Track issues in the project unless the repo flow explicitly calls for something else.
 
 ### Pull Request Conventions
 
