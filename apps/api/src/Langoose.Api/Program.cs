@@ -179,14 +179,15 @@ if (forwardedHeaders.Enabled)
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
-    var authDbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-    await authDbContext.Database.MigrateAsync();
-
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await dbContext.Database.MigrateAsync();
-
-    var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
-    await seeder.SeedAsync();
+    if (app.Environment.IsDevelopment())
+    {
+        var authDbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        await authDbContext.Database.MigrateAsync();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await dbContext.Database.MigrateAsync();
+        var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+        await seeder.SeedAsync();
+    }
 }
 
 app.UseCors(CorsSettings.SectionName);

@@ -340,7 +340,7 @@ This keeps one data project, two databases, two `DbContext` types, and two migra
 | --- | --- |
 | Local development | auto-apply both auth DB and app DB migrations at startup |
 | Local Docker | auto-apply both auth DB and app DB migrations at startup |
-| Staging | explicit migration step, not blind normal-startup migration |
+| Staging | explicit migration step, not blind normal-startup migration; treat staging the same as production for normal app startup |
 | Production later | same explicit policy as staging |
 
 Migration order:
