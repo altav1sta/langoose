@@ -214,6 +214,8 @@
   - the linked issue is correct
   - the issue itself has the right labels, milestone, assignee, and project placement
   - the PR itself has the expected assignee, labels, milestone, and review state for the repo flow
+- Before reporting any issue or PR workflow as complete, rerun the full completion checklist from the current repo rules. Do not stop after the most visible transitions such as branch push, PR creation, mergeability, or issue status movement if metadata verification steps still remain.
+- Treat workflow completion as an explicit checklist pass, not a narrative judgment. The final pass must verify both issue-side and PR-side metadata and state, even if the main user-visible transition already happened.
 - Before reporting a PR as ready, verify that GitHub shows it as mergeable. If it is conflicted, resolve that before
   treating the issue as handed off to review.
 - Do not mix unrelated changes in one PR.
