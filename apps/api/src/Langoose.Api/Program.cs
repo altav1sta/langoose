@@ -1,5 +1,7 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Langoose.Api.Configuration;
 using Langoose.Api.Middleware;
 using Langoose.Api.Services;
 using Langoose.Auth.Data;
@@ -8,13 +10,21 @@ using Langoose.Data;
 using Langoose.Data.Seeding;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using IPNetwork = System.Net.IPNetwork;
 
 var builder = WebApplication.CreateBuilder(args);
 var appConnectionString = builder.Configuration.GetConnectionString("AppDatabase")
     ?? throw new InvalidOperationException("Connection string 'AppDatabase' is not configured.");
 var authConnectionString = builder.Configuration.GetConnectionString("AuthDatabase")
     ?? throw new InvalidOperationException("Connection string 'AuthDatabase' is not configured.");
+var cors = builder.Configuration
+    .GetSection(CorsSettings.SectionName)
+    .Get<CorsSettings>() ?? new CorsSettings();
+var forwardedHeaders = builder.Configuration
+    .GetSection(ForwardedHeadersSettings.SectionName)
+    .Get<ForwardedHeadersSettings>() ?? new ForwardedHeadersSettings();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddHealthChecks();
@@ -118,16 +128,54 @@ builder.Services.AddControllers()
     });
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policy => policy
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .AllowCredentials()
-        .SetIsOriginAllowed(_ => true));
+    options.AddPolicy(CorsSettings.SectionName, policy =>
+    {
+        if (cors.AllowedOrigins.Length == 0)
+        {
+            return;
+        }
+
+        policy.WithOrigins(cors.AllowedOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
 });
+
+if (forwardedHeaders.Enabled)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor |
+                                   ForwardedHeaders.XForwardedHost |
+                                   ForwardedHeaders.XForwardedProto;
+
+        foreach (var proxy in forwardedHeaders.KnownProxies)
+        {
+            if (IPAddress.TryParse(proxy, out var ipAddress))
+            {
+                options.KnownProxies.Add(ipAddress);
+            }
+        }
+
+        foreach (var network in forwardedHeaders.KnownNetworks)
+        {
+            if (IPNetwork.TryParse(network, out var ipNetwork))
+            {
+                options.KnownIPNetworks.Add(ipNetwork);
+            }
+        }
+    });
+}
 
 var app = builder.Build();
 
 app.UseExceptionHandler();
+
+if (forwardedHeaders.Enabled)
+{
+    app.UseForwardedHeaders();
+}
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
@@ -141,7 +189,7 @@ await using (var scope = app.Services.CreateAsyncScope())
     await seeder.SeedAsync();
 }
 
-app.UseCors();
+app.UseCors(CorsSettings.SectionName);
 app.UseAuthentication();
 app.UseMiddleware<AntiforgeryValidationMiddleware>();
 app.UseAuthorization();

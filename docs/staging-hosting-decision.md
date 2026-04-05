@@ -26,6 +26,8 @@ This note is intentionally about staging, not final production architecture.
 - [Environment Drift And Switching Cost](#environment-drift-and-switching-cost)
 - [Uniformity Versus Managed Specialization](#uniformity-versus-managed-specialization)
 - [Recommended Staging Browser Integration Model](#recommended-staging-browser-integration-model)
+- [Concrete Outcome For Issue 36](#concrete-outcome-for-issue-36)
+- [Implementation Checklist For Issue 36](#implementation-checklist-for-issue-36)
 - [Operational Database Work](#operational-database-work)
 - [Production Evolution And Orchestration](#production-evolution-and-orchestration)
 - [Variants Not Chosen](#variants-not-chosen)
@@ -586,6 +588,194 @@ If clean one-origin forwarding or rewrites turn out to be awkward on the chosen 
 - with an explicit hardening task for cookie, CSRF, CORS, and browser credential behavior
 
 That fallback is acceptable, but it is not the preferred first choice.
+
+## Concrete Outcome For Issue 36
+
+The current recommended outcome for `#36` is:
+
+- browser-facing staging uses one web origin
+- the SPA continues to call relative `/api/...`
+- Vercel handles `/api/:path*` as an external rewrite to the Railway API host
+- the Railway API keeps its own direct host for health checks, debugging, and non-browser validation
+- the API's current permissive CORS behavior is treated as a development placeholder and should not remain the staging
+  policy
+
+### Why this outcome fits the current codebase
+
+The current repo already behaves this way locally:
+
+- the browser talks to one origin
+- the web container proxies `/api/` to the API container
+
+The auth flow also currently depends on:
+
+- cookie auth
+- antiforgery token fetches
+- credentialed browser requests
+
+That makes one-origin browser behavior the lowest-risk hosted staging model.
+
+### Practical staging request flow
+
+Expected browser-facing flow:
+
+```text
+Browser
+  -> https://staging-web.example.com/
+  -> https://staging-web.example.com/api/auth/me
+       Vercel external rewrite
+       -> https://staging-api-host/... on Railway
+```
+
+Expected non-browser direct API flow:
+
+```text
+Operator or health check
+  -> https://staging-api-host/health
+```
+
+This preserves both:
+
+- one-origin browser behavior for the app
+- a separate direct API host for diagnostics and operational checks
+
+### Cookie and CSRF expectations
+
+For this model:
+
+- the auth cookie should remain host-scoped and `Secure` in staging
+- the antiforgery cookie should remain host-scoped and `Secure` in staging
+- `SameSite=Lax` remains reasonable for the preferred one-origin browser model
+- the SPA should continue to fetch `/auth/antiforgery` through the proxied `/api` path before unsafe authenticated
+  requests
+
+The main goal is to keep the browser-facing semantics close to the local Docker path rather than introducing split-origin
+rules too early.
+
+### CORS expectations
+
+The current API code uses an effectively permissive development placeholder:
+
+- credentials allowed
+- origin accepted broadly
+
+That should not be treated as the staging design.
+
+For the preferred one-origin browser model:
+
+- normal browser traffic should not need cross-origin CORS for the app itself
+- the API should move toward an explicit staging-safe policy rather than a broad permissive one
+- any remaining direct-origin access requirements should be deliberate and narrowly configured
+
+### Forwarding and proxy expectations
+
+Because the browser-facing route depends on proxying or rewrites:
+
+- the API should be ready for trusted forwarded headers in hosted environments
+- runtime configuration should not assume local direct-host behavior
+- the browser contract should stay as relative `/api`
+
+This keeps the browser contract stable even if the underlying hosting implementation changes later.
+
+### What remains deferred after issue 36
+
+Issue `#36` should settle the design choice clearly enough that later issues can implement it, but it does not need to
+complete the whole staging rollout.
+
+These implementation steps remain intentionally deferred:
+
+- concrete Vercel rewrite configuration
+- API forwarded-header and CORS code changes
+- Railway deployment wiring
+- final hosted smoke validation
+
+## Implementation Checklist For Issue 36
+
+The purpose of this section is to make the decision implementable without re-discovering the same risks later.
+
+### API changes to prepare
+
+The API should move from a development-placeholder browser integration model to an explicit staging-safe one.
+
+Planned changes:
+
+- replace the current permissive CORS setup with an explicit policy model
+- make it possible to disable or narrowly scope cross-origin credentialed access in staging
+- add trusted forwarded-header handling for the hosted proxy path
+- keep cookie security explicit for hosted HTTPS environments
+- keep auth and antiforgery cookie behavior aligned with the chosen one-origin browser model
+
+Practical notes:
+
+- the current `AllowCredentials()` plus broadly accepted origins should not survive as the staging design
+- if browser traffic stays one-origin through `/api`, the app should not depend on broad browser CORS at all
+- direct API access for health checks and operator validation should not drive the browser policy design
+
+### Frontend and web-host changes to prepare
+
+The frontend should keep a stable browser-facing contract.
+
+Planned changes:
+
+- keep the browser-facing API base path as relative `/api`
+- avoid baking the Railway host into the normal browser runtime path
+- add Vercel rewrite configuration for `/api/:path*` to the hosted API
+- keep local Docker behavior aligned conceptually with staging by preserving the same relative `/api` browser contract
+
+Practical notes:
+
+- the current local Nginx config is the reference shape for the browser contract, not necessarily the deployed staging
+  proxy implementation
+- staging should preserve the contract even if the underlying proxy technology changes from Nginx to platform rewrites
+
+### Runtime configuration to define
+
+The staging model should define these values explicitly:
+
+- the browser-facing staging URL
+- the direct hosted API URL
+- the exact forwarded-host and forwarded-proto expectations
+- whether any non-browser direct-origin requests require separate allowance
+- the environment-variable names and ownership for web and API configuration
+
+For the API, the current repo direction is to keep cross-origin browser access and forwarded-header trust as ordinary
+host configuration:
+
+- `Cors` for allowed browser origins
+- `ForwardedHeaders` for trusted proxy/header processing
+
+Current configuration contract:
+
+- `Cors:AllowedOrigins`
+- `ForwardedHeaders:Enabled`
+- `ForwardedHeaders:KnownProxies`
+- `ForwardedHeaders:KnownNetworks`
+
+Practical intent:
+
+- local defaults can stay safe and minimal
+- staging can inject its real browser origin allowlist and forwarding trust settings through environment variables
+- later deployment issues can wire real values without changing the API policy shape again
+
+### Validation expectations after the decision
+
+When later issues implement this design, they should prove at least:
+
+- browser requests succeed through the staging site origin using `/api`
+- auth bootstrap works through the proxied path
+- sign-in and sign-out work in the browser-facing staged app
+- authenticated write requests succeed with the expected CSRF flow
+- direct API health checks still work through the API host
+
+### What issue 36 should deliver
+
+At the end of `#36`, the repo and issue should make these points unambiguous:
+
+- one-origin browser staging is the preferred path
+- the frontend should keep relative `/api`
+- Vercel rewrites are the intended browser-facing forwarding mechanism if feasible
+- the current API CORS setup is temporary and should be replaced by an explicit staging-safe policy
+- later implementation issues know exactly what they are expected to wire and validate
 
 ## Broader Roadmap Fit
 

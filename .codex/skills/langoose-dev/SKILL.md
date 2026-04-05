@@ -56,10 +56,21 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - In C# code, always check namespace alignment after moving or adding files so the namespace still matches the current project and folder structure.
 - In C# types, keep the main public and protected flow first and move private helper methods to the bottom unless a nearby private member genuinely improves readability.
 - In C# code, prefer the shortest clear name available in scope. Avoid fully qualified type or member names when a normal `using`, alias, or local scope can express the same thing clearly without ambiguity.
+- In C# code, do not add or keep collection materialization or conversion calls such as `ToArray()`, `ToList()`, or similar wrappers unless the target API actually requires that shape or the code depends on the materialized snapshot semantics. Verify the callee signature before treating such a conversion as necessary.
+- Treat code inspection findings as part of normal correctness work, not optional polish. For every changed C# file, do a manual inspection pass for obvious highlighted issues such as unused or redundant imports, redundant conversions, wrong overloads, unnecessary qualification, and similar editor- or analyzer-visible problems, then fix them unless there is a concrete reason to keep them.
+- For every changed C# file, always run the full inspection checklist by default. Do not wait for a user callout, a suspicious line, or a first discovered issue before checking imports, redundant conversions, overload usage, unnecessary qualification, redundant registrations, and similar inspection-level concerns across the whole file.
+- Once an inspection issue pattern is discovered in a task, keep it active across the rest of the changed-file pass. Do not fix one instance and then forget to check for the same class of issue in adjacent files or later revisions of the same file.
 - In C# code, remove unused `using` directives as part of the normal edit, not only as a final cleanup step.
 - After each C# file modification, re-check the `using` block for alignment. Keep `using` directives consistently ordered and grouped, with `System` namespaces first, instead of leaving imports in arbitrary edit order.
+- Treat unused `using` directives as a mandatory correctness check, not optional cleanup. Before asking for review or reporting progress on edited C# files, verify that newly added or modified files do not contain stray unused `using` directives.
+- Analyzer-based checks can support unused-`using` verification, but they never replace the manual pass. Always inspect the changed C# files directly for stray imports even after analyzer checks report clean results.
+- Do not verify a `using` directive from memory alone. When a C# import looks questionable, map it to the exact symbol(s) used in that file or treat it as suspect until proven necessary.
+- When checking a `using` directive, verify both that the file uses symbols from that namespace and that the explicit import is actually needed in that project context. In SDK-style projects with implicit or global usings, treat redundant explicit imports as unused.
+- Apply the full import check to every changed C# file by default. Do not wait for the user to emphasize a file before checking symbol ownership and implicit/global-using redundancy.
 - For backend C# cleanup passes, use an explicit file-by-file workflow: list the currently changed `.cs` files, include both modified tracked files and untracked new `.cs` files in that list, narrow to the ones that still contain `using` directives, inspect each of those files directly, and only then treat the manual pass as complete.
 - If the user explicitly calls out a specific file, re-inspect that file directly in the current pass even if it was checked earlier. Do not rely on memory or an earlier partial pass for user-emphasized files.
+- For user-emphasized files, do not justify an import by general framework familiarity or habit. Re-map each questioned `using` to a concrete symbol in that exact file before saying it is required.
+- For user-emphasized files, also re-check whether the questioned import is redundant because of implicit or global usings. A symbol being available in the file is not proof that the explicit `using` is needed.
 - Do not let a broad repo-wide pass override special attention the user asked for on a specific file. User-emphasized files must appear explicitly in the checked-file report.
 - Do not claim a specific file was verified unless that exact file was directly checked in the current pass. Do not infer verification status from adjacent files, naming patterns, or prior assumptions.
 - Do not treat an earlier partial cleanup pass as evidence for a later full pass. A new full pass must rebuild the file list from the current working tree and re-check every file on that list.
@@ -85,6 +96,9 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 ## Finish Cleanly
 
 - Before claiming a task is done, verify the acceptance path that the user will actually exercise. If the change is meant to work through Docker, local UI, or a live service boundary, prefer that real path over code-only confidence.
+- Treat build and test execution as part of the default sanity check, not optional extra validation. When a change affects compilable or testable code, attempt the relevant build and test commands in addition to manual inspection.
+- If build or test execution fails or is blocked, keep that as an active validation lane: diagnose the failure, retry when possible, and report the exact blocker plainly instead of silently downgrading the check to inspection only.
+- Treat inspection, import cleanup, build/test execution, and acceptance-path verification as cumulative validation lanes. Completing one of them never replaces the others that still apply to the change.
 - Do not report containerized or end-to-end success unless the live stack was actually started and the relevant request path was exercised successfully.
 - When the repo already provides a Docker or Compose path for frontend validation, use that containerized frontend path
   first for acceptance checks. Do not default to host-local `npm` build or runtime validation unless Docker is blocked,
@@ -98,10 +112,22 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - Before finalizing backend work, run an explicit unused-namespace-import check for C# files, preferably with `dotnet format analyzers ... --diagnostics IDE0005 --verify-no-changes`, and also do a manual pass over the changed backend source and test files. If the analyzer is blocked, the manual pass is still required.
 - Do not call an issue finalized, handed off, or complete until the required repo workflow state transitions are verified live, including issue and project status changes when the repo flow requires them.
 - Treat issue and project status updates as part of completion, not as optional cleanup after the code and PR work are done.
+- Before reporting any issue or PR workflow as complete, rerun the full completion checklist from the current repo rules. Do not stop after the most visible transitions such as branch push, PR creation, mergeability, or issue status movement if metadata verification steps still remain.
+- Treat workflow completion as an explicit checklist pass, not a narrative judgment. The final pass must verify both issue-side and PR-side metadata and state, even if the main user-visible transition already happened.
 - If startup seeding or repair logic can overwrite existing persisted base content, verify the seed source itself is not corrupted before shipping. A broken seed file is a data rewrite bug, not just a fixture bug.
 - If a verification step fails, is blocked by the environment, or does not complete, do not report it as passing from memory or inference. State the verification gap plainly, rerun it if possible, and only claim a clean result after a successful run.
 - For issue-branch creation, PR handoff, mergeability, and issue/PR metadata alignment, follow the GitHub workflow
   rules in `AGENTS.md` directly instead of repeating or improvising them here.
+- For required GitHub Actions checks, keep the workflow itself triggerable on pull requests and prefer an always-running
+  lightweight change-detection job plus job-level `if:` conditions over workflow-level path filtering that can leave
+  required checks pending.
+- When scoping CI jobs by changed files, treat repo-level workflow files, Docker/Compose files, and shared config such
+  as `.editorconfig` and `.gitattributes` as force-run inputs rather than docs-only changes.
+- Treat CI change-detection rules as repository architecture, not just optimization. When CI filtering changes or new
+  important paths are introduced, review the full set of files that can affect build, test, packaging, runtime,
+  workflow execution, or required checks, and update the detection logic in the same change.
+- Do not assume the current known folders are complete forever. Extend CI detection rules as soon as new repo-level
+  config, workflows, test areas, Docker paths, or other build/runtime dependencies appear.
 - Do not start issue discovery or implementation while workflow setup residue still exists. Clear unintended stashes,
   accidental worktree edits, partial checkouts, or other setup artifacts before treating the issue as in work.
 - If a refactor or project move changes solution paths, project paths, Dockerfile paths, or config locations, inspect CI/workflow files and update them in the same issue. Do not assume existing build and test workflows still point at the right files after the restructure.
