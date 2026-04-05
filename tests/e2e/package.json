@@ -1,0 +1,11 @@
+{
+  "name": "langoose-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test --reporter=line"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.53.0"
+  }
+}

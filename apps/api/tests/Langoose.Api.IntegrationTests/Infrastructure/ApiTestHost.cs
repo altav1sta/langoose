@@ -15,7 +15,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace Langoose.Api.Tests.Infrastructure;
+namespace Langoose.Api.IntegrationTests.Infrastructure;
 
 internal sealed class ApiTestHost(IHost host) : IAsyncDisposable
 {

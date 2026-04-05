@@ -34,3 +34,11 @@
 - In C# projects, prefer one top-level type per file for both production code and tests. If a test helper, stub, or fixture grows beyond a tiny private helper, move it into its own file.
 - Prefer primary constructors in test fixtures and services when they reduce boilerplate without hiding setup intent.
 - Prefer records for simple test data objects and immutable request/response-style models when value semantics are more useful than mutable identity.
+
+## Repo-Specific Boundary Rationale
+
+- In Langoose, integration tests can still be split internally by `Api` and `Services` without becoming different test types.
+- Keep `Api` integration tests for request-pipeline, auth, antiforgery, routing, and serialization behavior.
+- Keep `Services` integration tests for EF-backed backend behavior where HTTP is not the primary risk.
+- Do not add persistence-only tests unless they prove something uniquely about EF mapping or query behavior that the service/API integration tests do not already cover.
+- For the full repo-specific explanation, read [D:\Projects\langoose\docs\backend-test-strategy.md](D:\Projects\langoose\docs\backend-test-strategy.md).

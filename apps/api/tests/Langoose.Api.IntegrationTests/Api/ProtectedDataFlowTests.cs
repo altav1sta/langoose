@@ -1,12 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using Langoose.Api.Models;
-using Langoose.Api.Tests.Infrastructure;
+using Langoose.Api.IntegrationTests.Infrastructure;
 using Langoose.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace Langoose.Api.Tests.Controllers;
+namespace Langoose.Api.IntegrationTests.Api;
 
 public sealed class ProtectedDataFlowTests
 {

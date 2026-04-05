@@ -24,9 +24,29 @@ services:
       api:
         condition: service_started
     environment:
-      LANGOOSE_API_BASE_URL: http://localhost:5000
+      LANGOOSE_API_BASE_URL: /api
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     ports:
       - "5173:80"
+
+  e2e:
+    profiles: ["e2e"]
+    build:
+      context: ./tests/e2e
+      dockerfile: Dockerfile
+    depends_on:
+      api:
+        condition: service_started
+      web:
+        condition: service_healthy
+    environment:
+      PLAYWRIGHT_BASE_URL: http://web
+    command: npm test
 
   postgres:
     image: postgres:17-alpine
