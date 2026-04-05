@@ -11,6 +11,12 @@ services:
       ConnectionStrings__AuthDatabase: Host=postgres;Port=5432;Database=langoose_auth;Username=langoose;Password=langoose
     ports:
       - "5000:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy
@@ -22,7 +28,7 @@ services:
     container_name: langoose-web
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
     environment:
       LANGOOSE_API_BASE_URL: /api
     healthcheck:
@@ -41,7 +47,7 @@ services:
       dockerfile: Dockerfile
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
       web:
         condition: service_healthy
     environment:
