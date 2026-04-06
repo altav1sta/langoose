@@ -1,6 +1,8 @@
+using System.Net;
 using Microsoft.AspNetCore.Antiforgery;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,9 +14,9 @@ namespace Langoose.Api.IntegrationTests.Api;
 public sealed class ForwardedHeadersTests
 {
     [Fact]
-    public async Task Antiforgery_endpoint_accepts_a_forwarded_https_request_when_all_proxies_are_trusted()
+    public async Task Antiforgery_endpoint_accepts_a_forwarded_https_request_when_no_proxy_restrictions_are_configured()
     {
-        await using var host = await ForwardedHeadersTestHost.CreateAsync(trustAllProxies: true);
+        await using var host = await ForwardedHeadersTestHost.CreateAsync(restrictToKnownProxy: false);
         using var request = new HttpRequestMessage(HttpMethod.Get, "/auth/antiforgery");
         request.Headers.Add("X-Forwarded-Proto", "https");
 
@@ -26,7 +28,7 @@ public sealed class ForwardedHeadersTests
     [Fact]
     public async Task Antiforgery_endpoint_fails_for_a_forwarded_https_request_when_unknown_proxies_are_not_trusted()
     {
-        await using var host = await ForwardedHeadersTestHost.CreateAsync(trustAllProxies: false);
+        await using var host = await ForwardedHeadersTestHost.CreateAsync(restrictToKnownProxy: true);
         using var request = new HttpRequestMessage(HttpMethod.Get, "/auth/antiforgery");
         request.Headers.Add("X-Forwarded-Proto", "https");
 
@@ -39,7 +41,7 @@ public sealed class ForwardedHeadersTests
     {
         public HttpClient Client { get; } = host.GetTestClient();
 
-        public static async Task<ForwardedHeadersTestHost> CreateAsync(bool trustAllProxies)
+        public static async Task<ForwardedHeadersTestHost> CreateAsync(bool restrictToKnownProxy)
         {
             var builder = new HostBuilder();
 
@@ -63,11 +65,12 @@ public sealed class ForwardedHeadersTests
                     services.Configure<ForwardedHeadersOptions>(options =>
                     {
                         options.ForwardedHeaders = ForwardedHeaders.XForwardedProto;
+                        options.KnownProxies.Clear();
+                        options.KnownIPNetworks.Clear();
 
-                        if (trustAllProxies)
+                        if (restrictToKnownProxy)
                         {
-                            options.KnownProxies.Clear();
-                            options.KnownIPNetworks.Clear();
+                            options.KnownProxies.Add(IPAddress.Parse("127.0.0.2"));
                         }
                     });
                 });
@@ -80,6 +83,11 @@ public sealed class ForwardedHeadersTests
                             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
                             return Task.CompletedTask;
                         });
+                    });
+                    app.Use((context, next) =>
+                    {
+                        context.Connection.RemoteIpAddress = IPAddress.Parse("127.0.0.1");
+                        return next();
                     });
                     app.UseForwardedHeaders();
                     app.UseRouting();

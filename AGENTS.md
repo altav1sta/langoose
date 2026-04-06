@@ -62,8 +62,6 @@
 - Before finishing a change, normalize edited files to the line endings required by .gitattributes and run git diff --check to catch EOF and whitespace issues.
 - Do not leave an edited file in a temporarily wrong line-ending state and treat the warning as acceptable. Before finishing, the working tree version of every edited file must already match the required line endings for that file.
 - Do not introduce or leave stray leading blank lines at the start of source, config, solution, or documentation files unless the file format explicitly requires them.
-- Do not leave an edited file in a temporarily wrong line-ending state and treat the warning as acceptable. Before finishing, the working tree version of every edited file must already match the required line endings for that file.
-- Do not introduce or leave stray leading blank lines at the start of source, config, solution, or documentation files unless the file format explicitly requires them.
 - When editing Markdown docs, verify relative links from the edited file's real directory rather than assuming repo-root paths. After doc changes, do a quick scan for broken sibling or nested `docs/...` links before finishing.
 - Protect non-ASCII product text. When a file contains Russian or other non-ASCII user-facing text, preserve it as valid UTF-8 or use explicit C# `\u` escapes if tooling might corrupt the literal; do not replace such text with `?`, rely on shell-default encodings, or finish a change while mojibake or placeholder characters remain in source files.
 - Treat seed files and other baseline content assets as especially sensitive to non-ASCII corruption. Inspect the actual file contents before finishing when they contain Russian or other non-ASCII text; do not trust terminal display alone.
@@ -76,26 +74,13 @@
 - In C# types, keep public and protected members before private helpers. Place private helper methods at the bottom unless a nearby private member clearly improves readability.
 - In C# code, prefer the shortest clear name available in scope. Do not use fully qualified type or member names when a normal `using`, alias, or local scope can express the same thing clearly without ambiguity.
 - In C# code, do not add or keep collection materialization or conversion calls such as `ToArray()`, `ToList()`, or similar wrappers unless the target API actually requires that shape or the code depends on the materialized snapshot semantics. Verify the callee signature before treating such a conversion as necessary.
-- Treat code inspection findings as part of normal correctness work, not optional polish. For every changed C# file, do a manual inspection pass for obvious highlighted issues such as unused or redundant imports, redundant conversions, wrong overloads, unnecessary qualification, and similar editor- or analyzer-visible problems, then fix them unless there is a concrete reason to keep them.
-- For every changed C# file, always run the full inspection checklist by default. Do not wait for a user callout, a suspicious line, or a first discovered issue before checking imports, redundant conversions, overload usage, unnecessary qualification, redundant registrations, and similar inspection-level concerns across the whole file.
-- Once an inspection issue pattern is discovered in a task, keep it active across the rest of the changed-file pass. Do not fix one instance and then forget to check for the same class of issue in adjacent files or later revisions of the same file.
-- In C# code, do not leave unused `using` directives behind. Clean them up during the change instead of treating them only as a final polish step.
-- After each C# file modification, re-check the `using` block for alignment. Keep `using` directives consistently ordered and grouped, with `System` namespaces first, instead of leaving the imports in an arbitrary edit order.
-- Treat unused `using` directives as a mandatory correctness check, not optional cleanup. Before asking for review or reporting progress on C# changes, verify that newly added or edited files do not contain stray unused `using` directives.
-- For backend C# work, always do a manual pass over the changed source and test files for obvious unused `using` directives, even when you also run analyzer-based checks.
-- Analyzer-based checks can support unused-`using` verification, but they never replace the manual pass. Always inspect the changed C# files directly for stray imports even after analyzer checks report clean results.
-- Do not verify a `using` directive from memory alone. When a C# import looks questionable, map it to the exact symbol(s) used in that file or treat it as suspect until proven necessary.
-- When checking a `using` directive, verify both that the file uses symbols from that namespace and that the explicit import is actually needed in that project context. In SDK-style projects with implicit or global usings, treat redundant explicit imports as unused.
-- Apply the full import check to every changed C# file by default. Do not wait for the user to emphasize a file before checking symbol ownership and implicit/global-using redundancy.
-- For backend C# manual cleanup passes, use an explicit file-by-file flow: list the currently changed `.cs` files, include both modified tracked files and untracked new `.cs` files in that list, narrow to the files that still contain `using` directives, inspect each of those files directly, and only then report the sweep complete.
-- If the user explicitly calls out a specific file, re-inspect that file directly in the current pass even if it was checked earlier. Do not rely on memory or an earlier partial pass for user-emphasized files.
-- For user-emphasized files, do not justify an import by general framework familiarity or habit. Re-map each questioned `using` to a concrete symbol in that exact file before saying it is required.
-- For user-emphasized files, also re-check whether the questioned import is redundant because of implicit or global usings. A symbol being available in the file is not proof that the explicit `using` is needed.
-- Do not let a broad repo-wide pass override special attention the user asked for on a specific file. User-emphasized files must appear explicitly in the checked-file report.
-- Do not claim a specific file was verified unless that exact file was directly checked in the current pass. Do not infer verification status from adjacent files, naming patterns, or prior assumptions.
-- Do not treat an earlier partial cleanup pass as evidence for a later full pass. A new full pass must rebuild the file list from the current working tree and re-check every file on that list.
-- For unused `using` cleanup, do not infer correctness from how familiar, busy, or framework-heavy a file looks. Verify each import against symbols or extension methods actually used in that file.
-- Do not claim a manual cleanup pass is complete without a proof artifact in the response: the exact checked-file list, the files changed by the pass, and the post-fix validation results.
+- Treat code inspection findings as part of normal correctness work, not optional polish. For every changed C# file, always run the full inspection checklist on the current working-tree file, then fix any issue found unless there is a concrete reason to keep it.
+- The C# inspection checklist is unconditional and whole-file. It always includes imports, implicit/global-using redundancy, redundant conversions, suspicious overload usage, unnecessary qualification, redundant registrations, and similar editor- or analyzer-visible issues across the whole file.
+- For C# import cleanup, inspect the actual current file instead of relying on memory, familiarity, or a prior pass. Verify both symbol ownership and whether an explicit import is still needed in that project context.
+- In C# code, do not leave unused `using` directives behind. Clean them up during the change, keep them ordered with `System` namespaces first, and re-check the `using` block after each file modification.
+- For backend C# manual inspection passes, rebuild the changed `.cs` file list from the current working tree every time, include both modified tracked files and untracked new files, inspect those files directly, and report the exact checked-file list, files changed by the pass, and post-fix validation results.
+- Analyzer-based checks can support C# inspection, but they never replace the manual pass on the real current files.
+- Do not treat an earlier partial cleanup pass or a nearby file as evidence for a later full pass. A file is verified only when that exact current file was directly inspected in the current pass.
 - In dependency injection setup, do not keep redundant registrations. Register only the service forms the current code actually resolves, and remove duplicate `AddDbContext` or factory registrations when one of them is unused.
 - In C# code, keep property blocks internally consistent within a type. Do not leave stray one-off blank lines between consecutive properties, and prefer flat property blocks over subjective semantic grouping.
 - In C# code, prefer `""` over `string.Empty` for ordinary empty-string literals and default property values unless a specific API shape clearly benefits from `string.Empty`.
@@ -114,11 +99,11 @@
 - In TypeScript code, keep strict typing on and prefer precise request/response types over `Record<string, unknown>` or overly broad casts when practical.
 - Prefer plain React state and existing patterns in [App.tsx](D:\Projects\langoose\apps\web\src\App.tsx) over adding a state library.
 - Prefer plain CSS in [styles.css](D:\Projects\langoose\apps\web\src\styles.css) over CSS-in-JS or a component library.
-- Before declaring a task done, verify the real acceptance path the user will exercise. For Docker, persistence, startup,
-  auth, frontend/backend integration, or full-app questions, prefer a live end-to-end check over code-only confidence.
-- Treat build and test execution as part of the default sanity check, not optional extra validation. When a change affects compilable or testable code, attempt the relevant build and test commands in addition to manual inspection.
-- If build or test execution fails or is blocked, keep that as an active validation lane: diagnose the failure, retry when possible, and report the exact blocker plainly instead of silently downgrading the check to inspection only.
+- Before reporting work as fixed, ready, done, or ready for review or publish, rerun the real acceptance path the user will exercise, the relevant build/test lane, and the manual inspection pass on the current working-tree files, then fix any issue found. If any required lane is still failing or unverified, the work is not ready for handoff.
 - Treat inspection, import cleanup, build/test execution, and acceptance-path verification as cumulative validation lanes. Completing one of them never replaces the others that still apply to the change.
+- Treat build and test execution as part of the default sanity check whenever the change touches compilable, testable, deployable, or runtime-affecting code or configuration.
+- If build, test, or acceptance-path execution fails or is blocked, keep that lane active: diagnose the failure, retry when possible, and report the exact blocker plainly instead of silently downgrading the check to inspection only.
+- After every validation pass, re-check the actual current files for code-inspection issues instead of relying on memory, earlier snapshots, or one-time reasoning.
 - For whole-app verification, treat the containerized stack in `compose.yml` as the default validation path instead of
   relying only on host-local `npm` or partial backend-only checks.
 - When the repo has a Docker/Compose path for the frontend, use that path by default for frontend acceptance
@@ -202,7 +187,6 @@
 - When opening a PR, move the issue to `In Review`.
 - After merge, move the issue to `Done`.
 - Do not report an issue as finalized, handed off, or complete until every required repo workflow state transition has been verified live, including issue and project status changes where the repo flow requires them.
-- Treat issue and project status updates as part of completion, not as optional cleanup after the code and PR work are done.
 - Close child issues automatically from PRs when appropriate by using `Closes #...` in the PR body.
 - Close epics manually only after confirming the grouped outcome is actually complete.
 - When a new task truly belongs under an existing epic, add it as a real GitHub child issue rather than only mentioning
@@ -226,8 +210,9 @@
   - the linked issue is correct
   - the issue itself has the right labels, milestone, assignee, and project placement
   - the PR itself has the expected assignee, labels, milestone, and review state for the repo flow
-- Before reporting any issue or PR workflow as complete, rerun the full completion checklist from the current repo rules. Do not stop after the most visible transitions such as branch push, PR creation, mergeability, or issue status movement if metadata verification steps still remain.
-- Treat workflow completion as an explicit checklist pass, not a narrative judgment. The final pass must verify both issue-side and PR-side metadata and state, even if the main user-visible transition already happened.
+- Do not treat complete PR metadata as permission to skip the full required checks. Metadata alignment never replaces the
+  real acceptance path, build/test verification, or the manual current-file inspection pass.
+- Treat workflow completion as an explicit checklist pass, not a narrative judgment. Before reporting any issue or PR workflow as complete, rerun the full completion checklist from the current repo rules and verify both issue-side and PR-side metadata and state instead of stopping after the most visible transitions.
 - Before reporting a PR as ready, verify that GitHub shows it as mergeable. If it is conflicted, resolve that before
   treating the issue as handed off to review.
 - Do not mix unrelated changes in one PR.

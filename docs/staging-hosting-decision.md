@@ -754,7 +754,6 @@ Current configuration contract:
 
 - `Cors:AllowedOrigins`
 - `ForwardedHeaders:Enabled`
-- `ForwardedHeaders:TrustAllProxies`
 - `ForwardedHeaders:KnownProxies`
 - `ForwardedHeaders:KnownNetworks`
 
@@ -763,8 +762,8 @@ Practical intent:
 - local defaults can stay safe and minimal
 - staging can inject its real browser origin allowlist and forwarding trust settings through environment variables
 - later deployment issues can wire real values without changing the API policy shape again
-- direct Railway-hosted staging can use `ForwardedHeaders:TrustAllProxies=true` so forwarded HTTPS is honored for secure
-  antiforgery and auth-cookie behavior
+- direct Railway-hosted staging can enable forwarded headers without specifying `KnownProxies` or `KnownNetworks` so
+  forwarded HTTPS is honored for secure antiforgery and auth-cookie behavior
 
 ### Validation expectations after the decision
 

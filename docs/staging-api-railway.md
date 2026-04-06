@@ -37,14 +37,13 @@ Set these service variables in Railway:
 - `ConnectionStrings__AuthDatabase=<Neon staging connection string for langoose_auth>`
 - `Cors__AllowedOrigins__0=<staging web origin>`
 - `ForwardedHeaders__Enabled=true`
-- `ForwardedHeaders__TrustAllProxies=true`
 
 Why this is required now:
 
 - Railway terminates HTTPS before forwarding requests to the container
 - the staging API must trust the forwarded scheme so antiforgery and auth cookies can require secure requests
-- for this direct hosted Railway path, trusting all proxies is the pragmatic staging-safe setting until a narrower trusted
-  proxy model is proven for the platform
+- for this direct hosted Railway path, enabling forwarded headers without specifying `KnownProxies` or `KnownNetworks`
+  is the pragmatic staging-safe setting until a narrower trusted proxy model is proven for the platform
 
 ## Migration Workflow
 
