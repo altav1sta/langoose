@@ -99,7 +99,7 @@ For the GitHub-driven deploy orchestration that can run these steps together, us
   successful `CI`, while manual runs can choose lanes explicitly
 - unified workflow scope: it is self-contained and does not depend on the standalone maintenance workflow YAML files
 - required GitHub environment variable for Railway target selection: `RAILWAY_ENVIRONMENT`
-- API deploy path: `railway up apps/api/src/Langoose.Api --ci ...`
+- API deploy path: `railway up --ci ...`
 
 ## Manual Railway Setup
 
