@@ -86,6 +86,15 @@ The GitHub deployment workflow uses:
 That lets the workflow deploy the same commit it checked out for the rest of the environment update, including reruns
 of older successful workflow runs.
 
+Current GitHub workflow path:
+
+1. check out the workflow commit
+2. run `vercel pull`
+3. run `vercel deploy`
+
+That keeps the build in Vercel's normal hosted environment instead of relying on a local `vercel build` step inside
+GitHub Actions.
+
 ## First Hosted Smoke Checks
 
 After the first staging web deploy succeeds, verify:
