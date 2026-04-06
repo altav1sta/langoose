@@ -1,0 +1,303 @@
+name: Deploy Environment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - apps/api/src/**
+      - apps/api/NuGet.Config
+      - apps/api/Langoose.sln
+      - apps/web/**
+      - .github/workflows/deploy-environment.yml
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: Target environment to deploy
+        required: true
+        type: choice
+        default: production
+        options:
+          - staging
+          - production
+      deploy_ref:
+        description: Optional git ref to deploy. Leave empty to use the manually selected ref.
+        required: false
+        type: string
+
+run-name: Deploy ${{ github.event_name == 'push' && 'staging' || inputs.target_environment }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event_name == 'push' && 'staging' || inputs.target_environment }}
+  cancel-in-progress: false
+
+jobs:
+  detect-context:
+    name: Detect Deploy Context
+    runs-on: ubuntu-latest
+    outputs:
+      target_environment: ${{ steps.detect.outputs.target_environment }}
+      deploy_api: ${{ steps.detect.outputs.deploy_api }}
+      deploy_web: ${{ steps.detect.outputs.deploy_web }}
+      source_ref: ${{ steps.detect.outputs.source_ref }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect target environment and deploy lanes
+        id: detect
+        shell: bash
+        run: |
+          set -eu
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            source_ref="${{ inputs.deploy_ref }}"
+
+            if [ -z "$source_ref" ]; then
+              source_ref="${{ github.sha }}"
+            fi
+
+            echo "target_environment=${{ inputs.target_environment }}" >> "$GITHUB_OUTPUT"
+            echo "deploy_api=true" >> "$GITHUB_OUTPUT"
+            echo "deploy_web=true" >> "$GITHUB_OUTPUT"
+            echo "source_ref=$source_ref" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          before_sha="${{ github.event.before }}"
+          current_sha="${{ github.sha }}"
+
+          changed_files="$(git diff --name-only "$before_sha" "$current_sha")"
+
+          deploy_api=false
+          deploy_web=false
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+
+            case "$file" in
+              apps/api/src/Langoose.Api/*|\
+              apps/api/src/Langoose.Domain/*|\
+              apps/api/src/Langoose.Data/*|\
+              apps/api/src/Langoose.Auth.Data/*|\
+              apps/api/NuGet.Config|\
+              apps/api/Langoose.sln)
+                deploy_api=true
+                ;;
+              apps/api/src/Langoose.DbTool/*)
+                ;;
+              apps/web/src/__tests__/*|\
+              apps/web/src/lib/__tests__/*)
+                ;;
+              apps/web/src/*|\
+              apps/web/public/*|\
+              apps/web/package.json|\
+              apps/web/package-lock.json|\
+              apps/web/tsconfig.json|\
+              apps/web/vite.config.ts|\
+              apps/web/index.html|\
+              apps/web/vercel.json)
+                deploy_web=true
+                ;;
+            esac
+          done <<< "$changed_files"
+
+          echo "target_environment=staging" >> "$GITHUB_OUTPUT"
+          echo "deploy_api=$deploy_api" >> "$GITHUB_OUTPUT"
+          echo "deploy_web=$deploy_web" >> "$GITHUB_OUTPUT"
+          echo "source_ref=$current_sha" >> "$GITHUB_OUTPUT"
+
+  validate-config:
+    name: Validate Deploy Configuration
+    runs-on: ubuntu-latest
+    needs: detect-context
+    environment: ${{ needs.detect-context.outputs.target_environment }}
+
+    steps:
+      - name: Validate required secrets and variables
+        env:
+          DEPLOY_API: ${{ needs.detect-context.outputs.deploy_api }}
+          DEPLOY_WEB: ${{ needs.detect-context.outputs.deploy_web }}
+          AUTH_DATABASE: ${{ secrets.AUTH_DATABASE }}
+          APP_DATABASE: ${{ secrets.APP_DATABASE }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+          RAILWAY_API_SERVICE: ${{ vars.RAILWAY_API_SERVICE }}
+        run: |
+          set -eu
+
+          if [ -z "$AUTH_DATABASE" ]; then
+            echo "Missing AUTH_DATABASE secret for database migrations." >&2
+            exit 1
+          fi
+
+          if [ -z "$APP_DATABASE" ]; then
+            echo "Missing APP_DATABASE secret for database migrations." >&2
+            exit 1
+          fi
+
+          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_TOKEN" ]; then
+            echo "Missing RAILWAY_TOKEN secret for Railway deployment." >&2
+            exit 1
+          fi
+
+          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_PROJECT_ID" ]; then
+            echo "Missing RAILWAY_PROJECT_ID environment variable for Railway deployment." >&2
+            exit 1
+          fi
+
+          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_API_SERVICE" ]; then
+            echo "Missing RAILWAY_API_SERVICE environment variable for Railway deployment." >&2
+            exit 1
+          fi
+
+          if [ "$DEPLOY_WEB" = "true" ] && [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+            echo "Missing VERCEL_DEPLOY_HOOK_URL secret for Vercel deployment." >&2
+            exit 1
+          fi
+
+  build-dbtool-image:
+    name: Build DbTool Image
+    runs-on: ubuntu-latest
+    needs:
+      - detect-context
+      - validate-config
+    environment: ${{ needs.detect-context.outputs.target_environment }}
+
+    steps:
+      - name: Checkout deployment ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.detect-context.outputs.source_ref }}
+
+      - name: Build DbTool Docker image
+        run: |
+          mkdir -p .artifacts/dbtool-image
+          docker build \
+            -f apps/api/src/Langoose.DbTool/Dockerfile \
+            -t langoose-dbtool:${{ github.sha }} \
+            .
+          docker save langoose-dbtool:${{ github.sha }} | gzip > .artifacts/dbtool-image/langoose-dbtool.tar.gz
+
+      - name: Upload DbTool image artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: dbtool-image
+          path: .artifacts/dbtool-image
+          if-no-files-found: error
+
+  auth-db-migrations:
+    name: Auth DB Migrations
+    runs-on: ubuntu-latest
+    needs:
+      - detect-context
+      - build-dbtool-image
+    environment: ${{ needs.detect-context.outputs.target_environment }}
+
+    env:
+      AUTH_DATABASE: ${{ secrets.AUTH_DATABASE }}
+
+    steps:
+      - name: Download DbTool image artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: dbtool-image
+          path: .artifacts/dbtool-image
+
+      - name: Load DbTool Docker image
+        run: docker load --input .artifacts/dbtool-image/langoose-dbtool.tar.gz
+
+      - name: Apply auth database migrations
+        run: |
+          docker run --rm \
+            -e ConnectionStrings__AuthDatabase="${AUTH_DATABASE}" \
+            langoose-dbtool:${{ github.sha }} \
+            dotnet /src/apps/api/src/Langoose.DbTool/bin/Release/net10.0/Langoose.DbTool.dll apply-auth-migrations
+
+  app-db-migrations:
+    name: App DB Migrations
+    runs-on: ubuntu-latest
+    needs:
+      - detect-context
+      - build-dbtool-image
+    environment: ${{ needs.detect-context.outputs.target_environment }}
+
+    env:
+      APP_DATABASE: ${{ secrets.APP_DATABASE }}
+
+    steps:
+      - name: Download DbTool image artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: dbtool-image
+          path: .artifacts/dbtool-image
+
+      - name: Load DbTool Docker image
+        run: docker load --input .artifacts/dbtool-image/langoose-dbtool.tar.gz
+
+      - name: Apply app database migrations
+        run: |
+          docker run --rm \
+            -e ConnectionStrings__AppDatabase="${APP_DATABASE}" \
+            langoose-dbtool:${{ github.sha }} \
+            dotnet /src/apps/api/src/Langoose.DbTool/bin/Release/net10.0/Langoose.DbTool.dll apply-app-migrations
+
+  deploy-api:
+    name: Deploy API
+    runs-on: ubuntu-latest
+    needs:
+      - detect-context
+      - auth-db-migrations
+      - app-db-migrations
+    if: needs.detect-context.outputs.deploy_api == 'true'
+    environment: ${{ needs.detect-context.outputs.target_environment }}
+
+    steps:
+      - name: Checkout deployment ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.detect-context.outputs.source_ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli
+
+      - name: Deploy API to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+          RAILWAY_API_SERVICE: ${{ vars.RAILWAY_API_SERVICE }}
+          TARGET_ENVIRONMENT: ${{ needs.detect-context.outputs.target_environment }}
+        run: >
+          railway up apps/api/src/Langoose.Api
+          --path-as-root
+          --ci
+          --service "$RAILWAY_API_SERVICE"
+          --environment "$TARGET_ENVIRONMENT"
+          --project "$RAILWAY_PROJECT_ID"
+
+  deploy-web:
+    name: Deploy Web
+    runs-on: ubuntu-latest
+    needs:
+      - detect-context
+      - deploy-api
+    if: always() && needs.detect-context.outputs.deploy_web == 'true' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    environment: ${{ needs.detect-context.outputs.target_environment }}
+
+    steps:
+      - name: Trigger Vercel deploy hook
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: curl --fail --silent --show-error --request POST "$VERCEL_DEPLOY_HOOK_URL"

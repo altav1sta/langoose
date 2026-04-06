@@ -22,9 +22,20 @@ public static class Program
 
         return command switch
         {
+            "apply-app-migrations" => await ApplyAppMigrationsAsync(commandArgs),
+            "apply-auth-migrations" => await ApplyAuthMigrationsAsync(commandArgs),
             "seed-app" => await SeedAppAsync(commandArgs),
             _ => throw new InvalidOperationException($"Unknown db tool command '{command}'.")
         };
+    }
+
+    public static HostApplicationBuilder CreateApplicationBuilder(string[] args)
+    {
+        return Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            Args = args,
+            ContentRootPath = AppContext.BaseDirectory
+        });
     }
 
     public static IHost BuildHost(
@@ -33,11 +44,7 @@ public static class Program
         bool configureAuthDatabase = true,
         bool configureAppSeeding = false)
     {
-        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
-        {
-            Args = args,
-            ContentRootPath = AppContext.BaseDirectory
-        });
+        var builder = CreateApplicationBuilder(args);
 
         if (configureAppDatabase)
         {
@@ -76,6 +83,38 @@ public static class Program
         return builder.Build();
     }
 
+    private static async Task<int> ApplyAppMigrationsAsync(string[] args)
+    {
+        using var host = BuildHost(
+            args,
+            configureAppDatabase: true,
+            configureAuthDatabase: false);
+
+        var contextFactory = host.Services.GetRequiredService<IDbContextFactory<AppDbContext>>();
+
+        await using var context = await contextFactory.CreateDbContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        return 0;
+    }
+
+    private static async Task<int> ApplyAuthMigrationsAsync(string[] args)
+    {
+        using var host = BuildHost(
+            args,
+            configureAppDatabase: false,
+            configureAuthDatabase: true);
+
+        var contextFactory = host.Services.GetRequiredService<IDbContextFactory<AuthDbContext>>();
+
+        await using var context = await contextFactory.CreateDbContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        return 0;
+    }
+
     private static async Task<int> SeedAppAsync(string[] args)
     {
         using var host = BuildHost(
@@ -83,7 +122,9 @@ public static class Program
             configureAppDatabase: true,
             configureAuthDatabase: false,
             configureAppSeeding: true);
+
         await using var scope = host.Services.CreateAsyncScope();
+
         var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
 
         await seeder.SeedAsync();

@@ -13,6 +13,7 @@ Related notes:
 
 - [staging-hosting-decision.md](staging-hosting-decision.md)
 - [staging-db-operations.md](staging-db-operations.md)
+- [staging-deployment-workflow.md](staging-deployment-workflow.md)
 
 ## Service Shape
 
@@ -47,7 +48,7 @@ Why this is required now:
 
 ## Migration Workflow
 
-Use the separate GitHub Actions workflow when the deploy includes schema changes:
+Use the separate GitHub Actions workflows when the deploy includes schema changes:
 
 - auth workflow: `.github/workflows/auth-db-migrations.yml`
 - app workflow: `.github/workflows/app-db-migrations.yml`
@@ -62,8 +63,7 @@ These workflows:
 
 - checks out trusted `main`
 - builds a trusted `Langoose.DbTool` Docker image within that run
-- generates the idempotent EF SQL script for the targeted database from that image
-- applies that script in a guarded apply job through that image
+- applies EF migrations directly through `Langoose.DbTool` using the normal `.NET` connection string
 - does not start the API
 - does not make seeding part of every deploy
 - does not execute arbitrary user-supplied refs against staging secrets
@@ -81,14 +81,23 @@ Base-content seeding remains a separate maintenance workflow:
 
 Release sequence:
 
-1. run the auth migration workflow when auth schema changes are present, or when the auth DB needs to catch up to
-   trusted `main`
-2. run the app migration workflow when app schema changes are present, or when the app DB needs to catch up to trusted
-   `main`
+1. run the auth migration workflow so the auth DB catches up to trusted `main`
+2. run the app migration workflow so the app DB catches up to trusted `main`
 3. deploy the Railway API service
 4. run the hosted smoke checks
 
 Base-content seeding remains a separate maintenance operation rather than part of the normal Railway deploy path.
+
+For the GitHub-driven deploy orchestration that can run these steps together, use:
+
+- workflow: `.github/workflows/deploy-environment.yml`
+- staging trigger: automatic on push to `main`
+- manual trigger: `workflow_dispatch` with `target_environment=staging|production`
+- optional manual override: `deploy_ref` to deploy a specific git ref instead of the ref selected in the Actions UI
+- unified workflow behavior: migrations always run first; API and web deploy lanes are selected from changed app
+  context on staging pushes and always run on manual dispatch
+- unified workflow scope: it is self-contained and does not depend on the standalone maintenance workflow YAML files
+- API deploy path: `railway up apps/api/src/Langoose.Api --path-as-root --ci ...`
 
 ## Manual Railway Setup
 

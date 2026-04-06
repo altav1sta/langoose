@@ -13,6 +13,7 @@ Related notes:
 
 - [staging-hosting-decision.md](staging-hosting-decision.md)
 - [staging-api-railway.md](staging-api-railway.md)
+- [staging-deployment-workflow.md](staging-deployment-workflow.md)
 
 ## Browser Routing Model
 
@@ -67,6 +68,16 @@ Expected shape:
 - framework preset: Vite
 - project root: `apps/web`
 - repo config file: `apps/web/vercel.json`
+
+## GitHub-Driven Deploy Trigger
+
+For the GitHub-driven staging deploy flow, the web deploy is triggered through a Vercel Deploy Hook configured for the
+trusted deployment branch, normally `main`.
+
+The GitHub deployment workflow uses:
+
+- secret: `VERCEL_DEPLOY_HOOK_URL`
+- workflow: `.github/workflows/deploy-environment.yml`
 
 ## First Hosted Smoke Checks
 
