@@ -89,11 +89,11 @@ of older successful workflow runs.
 Current GitHub workflow path:
 
 1. check out the workflow commit
-2. run `vercel pull`
-3. run `vercel deploy`
+2. run `vercel pull` from the repo root
+3. run `vercel deploy` from the repo root
 
 That keeps the build in Vercel's normal hosted environment instead of relying on a local `vercel build` step inside
-GitHub Actions.
+GitHub Actions, while letting the Vercel project settings apply the configured `apps/web` root directory only once.
 
 ## First Hosted Smoke Checks
 
