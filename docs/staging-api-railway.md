@@ -49,21 +49,34 @@ Why this is required now:
 
 Use the separate GitHub Actions workflow when the deploy includes schema changes:
 
-- workflow: `.github/workflows/staging-db-migrations.yml`
+- workflow: `.github/workflows/db-migrations.yml`
 - trigger: manual `workflow_dispatch`
+- dispatch input: `target_environment=staging`
 - environment: `staging`
 - required secrets:
-  - `STAGING_APP_DATABASE`
-  - `STAGING_AUTH_DATABASE`
+  - `APP_DATABASE`
+  - `AUTH_DATABASE`
 
 This workflow:
 
 - checks out trusted `main`
-- builds separate auth and app EF migration bundles as artifacts within that run
-- runs those bundles in separate guarded apply jobs
+- builds a trusted `Langoose.DbTool` Docker image within that run
+- generates separate auth and app idempotent EF SQL scripts from that image
+- applies those scripts in separate guarded apply jobs through that image
 - does not start the API
 - does not make seeding part of every deploy
 - does not execute arbitrary user-supplied refs against staging secrets
+
+Base-content seeding remains a separate maintenance workflow:
+
+- workflow: `.github/workflows/app-seed.yml`
+- trigger: manual `workflow_dispatch`
+- dispatch input: `target_environment=staging`
+- environment: `staging`
+- required secret:
+  - `APP_DATABASE`
+- execution model: build a trusted `Langoose.DbTool` Docker image from `main`, then run `seed-app` in that image
+  against the app database only
 
 Release sequence:
 

@@ -60,12 +60,22 @@ The intended staging flow is:
 
 For the staging API on Railway, the explicit migration step is the separate GitHub Actions workflow:
 
-- workflow: `.github/workflows/staging-db-migrations.yml`
-- secrets: `STAGING_APP_DATABASE`, `STAGING_AUTH_DATABASE`
-- execution model: manually trigger the workflow, build EF migration bundles from trusted `main`, then run those bundles against staging
+- workflow: `.github/workflows/db-migrations.yml`
+- dispatch input: `target_environment=staging`
+- staging environment secrets: `APP_DATABASE`, `AUTH_DATABASE`
+- execution model: manually trigger the workflow, build a trusted `Langoose.DbTool` Docker image from `main`, generate
+  idempotent EF SQL scripts from that image, then apply those scripts against the selected environment
 
 Base-content seeding stays separate and should be run only when the environment is first prepared, recreated, or needs
 repair.
+
+For staging, the explicit base-content seeding step is the separate GitHub Actions workflow:
+
+- workflow: `.github/workflows/app-seed.yml`
+- dispatch input: `target_environment=staging`
+- staging environment secret: `APP_DATABASE`
+- execution model: manually trigger the workflow, build a trusted `Langoose.DbTool` Docker image from `main`, then run
+  `seed-app` in that image against the selected environment's app database
 
 ## Operational Procedures
 
