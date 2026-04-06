@@ -1,0 +1,1 @@
+window.LANGOOSE_CONFIG = {};
