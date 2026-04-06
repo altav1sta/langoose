@@ -91,6 +91,7 @@
 - In C# code, add a separating blank line before `if` and `return` statements when it improves block readability, especially after variable setup or guard-condition preparation.
 - In C# code, follow the same readability rule for functional block starters such as `try`, `for`, `foreach`, `while`, and `switch` when they follow setup code.
 - In C# code, use blank lines to separate distinct logic phases inside a method. Prefer grouping by purpose, such as setup, data loading, transformation, branching, and persistence, instead of treating long blocks as one uninterrupted sequence.
+- In C# code, when consecutive `using`, `await`, or `await using` statements belong to different logic phases, separate them with a blank line instead of stacking them together. Keep directly adjacent resource-acquisition or awaited statements only when they are part of one tight local sequence.
 - In C# lambda expressions, prefer short parameter names such as `x` or `y` when the expression is simple and the role is obvious locally. Use more descriptive parameter names when the lambda is nested, has multiple parameters with non-obvious roles, or would otherwise become harder to read.
 - In C# code, prefer `record` or `record struct` for POCO-style data carriers, request/response models, and immutable value-like objects when reference-identity semantics are not required.
 - In React code, keep components pure and avoid mutating values during render.

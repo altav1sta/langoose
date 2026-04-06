@@ -50,7 +50,7 @@ jobs:
           docker save langoose-dbtool:${{ github.sha }} | gzip > .artifacts/dbtool-image/langoose-dbtool.tar.gz
 
       - name: Upload DbTool image artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dbtool-image
           path: .artifacts/dbtool-image
@@ -67,7 +67,7 @@ jobs:
 
     steps:
       - name: Download DbTool image artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dbtool-image
           path: .artifacts/dbtool-image

@@ -908,7 +908,7 @@ For Langoose, the likely staging database operations include:
 
 - wiping staging user data safely
 - resetting the database to a known-good state
-- reseeding base content correctly
+- reseeding base content from an empty app database
 - inspecting and fixing bad rows after test or migration mistakes
 - validating both app and auth database changes
 - running migrations repeatedly during M1 and M2 work
@@ -1103,7 +1103,7 @@ This is the next foundation step because the API cannot work without real databa
 Why:
 
 - the API requires both `AppDatabase` and `AuthDatabase`
-- startup currently runs migrations for both databases and seeds app data
+- startup currently runs migrations for both databases and seeds app data when the app database is empty
 - staging needs a repeatable database naming and secret model before the hosted API is configured
 
 Likely issues:

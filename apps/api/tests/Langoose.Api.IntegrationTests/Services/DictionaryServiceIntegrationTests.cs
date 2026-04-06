@@ -30,7 +30,7 @@ public sealed class DictionaryServiceIntegrationTests
     }
 
     [Fact]
-    public async Task SeedData_WhenBaseItemDrifts_RepairRestoresVariantsAndDistractors()
+    public async Task SeedData_WhenDataAlreadyExists_DoesNotRewriteExistingValues()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase($"langoose-seed-tests-{Guid.NewGuid():N}")
@@ -53,14 +53,14 @@ public sealed class DictionaryServiceIntegrationTests
 
         await seeder.SeedAsync();
 
-        await using var repairedDbContext = await dbContextFactory.CreateDbContextAsync();
-        var repaired = await TestDataSnapshot.LoadAsync(repairedDbContext);
-        var repairedItem = Assert.Single(repaired.DictionaryItems, item =>
+        await using var unchangedDbContext = await dbContextFactory.CreateDbContextAsync();
+        var unchanged = await TestDataSnapshot.LoadAsync(unchangedDbContext);
+        var unchangedItem = Assert.Single(unchanged.DictionaryItems, item =>
             item.SourceType == SourceType.Base &&
             item.EnglishText == "book");
 
-        Assert.Equal(["book"], repairedItem.AcceptedVariants);
-        Assert.Equal(["make", "get", "use"], repairedItem.Distractors);
+        Assert.Equal(["book", "volume"], unchangedItem.AcceptedVariants);
+        Assert.Equal(["alpha"], unchangedItem.Distractors);
     }
 
     [Fact]
