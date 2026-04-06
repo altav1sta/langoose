@@ -12,6 +12,7 @@ Use it for:
 Related notes:
 
 - [staging-hosting-decision.md](staging-hosting-decision.md)
+- [staging-setup-runbook.md](staging-setup-runbook.md)
 - [staging-api-railway.md](staging-api-railway.md)
 - [staging-deployment-workflow.md](staging-deployment-workflow.md)
 

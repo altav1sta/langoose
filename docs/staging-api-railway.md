@@ -12,6 +12,7 @@ Use it for:
 Related notes:
 
 - [staging-hosting-decision.md](staging-hosting-decision.md)
+- [staging-setup-runbook.md](staging-setup-runbook.md)
 - [staging-db-operations.md](staging-db-operations.md)
 - [staging-deployment-workflow.md](staging-deployment-workflow.md)
 
@@ -91,13 +92,13 @@ Base-content seeding remains a separate maintenance operation rather than part o
 For the GitHub-driven deploy orchestration that can run these steps together, use:
 
 - workflow: `.github/workflows/deploy-environment.yml`
-- staging trigger: automatic on push to `main`
+- staging trigger: automatic after a successful `CI` run for a push to `main`
 - manual trigger: `workflow_dispatch` with `target_environment=staging|production` and optional `deploy_api` /
   `deploy_web` toggles
-- unified workflow behavior: migrations always run first; staging pushes deploy the API for backend deploy-input
-  changes, the web app for `apps/web/**` changes, and workflow-file changes trigger both lanes, while manual runs can
-  choose lanes explicitly
+- unified workflow behavior: automatic staging runs always apply migrations and deploy both hosted apps after
+  successful `CI`, while manual runs can choose lanes explicitly
 - unified workflow scope: it is self-contained and does not depend on the standalone maintenance workflow YAML files
+- required GitHub environment variable for Railway target selection: `RAILWAY_ENVIRONMENT`
 - API deploy path: `railway up apps/api/src/Langoose.Api --path-as-root --ci ...`
 
 ## Manual Railway Setup

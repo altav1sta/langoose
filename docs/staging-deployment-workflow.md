@@ -11,6 +11,7 @@ Use it for:
 
 Related notes:
 
+- [staging-setup-runbook.md](staging-setup-runbook.md)
 - [staging-db-operations.md](staging-db-operations.md)
 - [staging-api-railway.md](staging-api-railway.md)
 - [staging-web-vercel.md](staging-web-vercel.md)
@@ -23,11 +24,11 @@ The repo now provides one environment-deploy workflow:
 
 It is:
 
-- automatically triggered for `staging` on pushes to `main`
+- automatically triggered for `staging` after a successful `CI` run for pushes to `main`
 - manually runnable through `workflow_dispatch`
 
-The staging path does not require per-step deploy toggles anymore. Manual runs can still choose whether to deploy the
-API, the web app, or both.
+Automatic staging runs do not require per-step deploy toggles. Manual runs can still choose whether to deploy the API,
+the web app, or both.
 
 ## What It Can Do
 
@@ -36,7 +37,7 @@ The workflow orchestrates these steps:
 - auth database migrations
 - app database migrations
 - API deploy to Railway
-- web deploy trigger for Vercel
+- web deploy to Vercel
 
 This keeps the update path explicit without folding base-content seeding into every deploy. Seeding remains a separate
 maintenance workflow.
@@ -69,6 +70,8 @@ Use the same secret names in every environment.
   Railway project ID that contains the API service
 - `RAILWAY_API_SERVICE`
   Railway API service name or ID
+- `RAILWAY_ENVIRONMENT`
+  Railway environment name or ID used by the API deploy step
 - `VERCEL_ORG_ID`
   Vercel team or personal account ID for the web project
 - `VERCEL_PROJECT_ID`
@@ -91,7 +94,7 @@ Current workflow behavior:
 
 - checks out the resolved deployment ref
 - installs the Railway CLI
-- runs `railway up` in CI mode against the configured API service in the selected environment
+- runs `railway up` in CI mode against the configured API service in the configured Railway environment
 - deploys `apps/api/src/Langoose.Api` explicitly with `--path-as-root` so the workflow does not rely on repo-root
   upload behavior or manual Railway root-directory setup
 
@@ -117,16 +120,12 @@ Current workflow behavior:
 For a normal staging release:
 
 1. merge the change into `main`
-2. let `.github/workflows/deploy-environment.yml` run automatically
-3. let the workflow always apply auth and app migrations
-4. let the workflow deploy the API when backend deploy inputs changed
-5. let the workflow deploy the web app when files under `apps/web/**` changed
-6. trigger the separate seed workflow only when the app database is intentionally empty
-
-The staging workflow always:
-
-- applies auth migrations
-- applies app migrations
+2. let `CI` finish successfully for that merge
+3. let `.github/workflows/deploy-environment.yml` run automatically from that successful `CI` run
+4. let the workflow always apply auth and app migrations
+5. let the workflow deploy the API
+6. let the workflow deploy the web app
+7. trigger the separate seed workflow only when the app database is intentionally empty
 
 For manual production dispatch:
 
@@ -140,12 +139,11 @@ For manual staging dispatch:
 - choose whether to deploy the API, the web app, or both
 - auth and app migrations still run first
 
-For pushes to `main`, deploy lanes are selected like this:
+For automatic staging runs after successful `CI` on `main`:
 
-- API deploy runs when backend deploy inputs changed, such as `apps/api/src/**`, `apps/api/Langoose.sln`, or
-  `apps/api/NuGet.Config`
-- web deploy runs when files under `apps/web/**` changed
-- changes to `.github/workflows/deploy-environment.yml` trigger both deploy lanes
+- auth and app migrations always run
+- API deploy always runs
+- web deploy always runs
 
 ## Release Order
 
@@ -167,5 +165,5 @@ This model keeps deployment automation aligned with the actual staging architect
 - staging deploys happen automatically from trusted `main`
 - manual dispatch can target either staging or production
 - API deploy uses Railway's supported CLI and project-token path
-- web deploy uses Vercel's supported deploy-hook path
+- web deploy uses Vercel's supported CLI path
 - staging remains operable from GitHub without mixing provider-specific ad hoc steps into the normal release path
