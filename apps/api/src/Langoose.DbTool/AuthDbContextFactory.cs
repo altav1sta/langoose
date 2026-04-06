@@ -9,7 +9,10 @@ public sealed class AuthDbContextFactory : IDesignTimeDbContextFactory<AuthDbCon
 {
     public AuthDbContext CreateDbContext(string[] args)
     {
-        var host = Program.BuildHost(args);
+        var host = Program.BuildHost(
+            args,
+            configureAppDatabase: false,
+            configureAuthDatabase: true);
         var contextFactory = host.Services.GetRequiredService<IDbContextFactory<AuthDbContext>>();
 
         return contextFactory.CreateDbContext();

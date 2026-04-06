@@ -9,7 +9,10 @@ public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
 {
     public AppDbContext CreateDbContext(string[] args)
     {
-        var host = Program.BuildHost(args);
+        var host = Program.BuildHost(
+            args,
+            configureAppDatabase: true,
+            configureAuthDatabase: false);
         var contextFactory = host.Services.GetRequiredService<IDbContextFactory<AppDbContext>>();
 
         return contextFactory.CreateDbContext();
