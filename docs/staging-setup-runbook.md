@@ -78,7 +78,7 @@ For a normal change:
 2. let `CI` finish successfully for that merge
 3. let `Deploy Environment` start from that successful `CI` run
 4. confirm the deploy workflow applied auth and app migrations
-5. confirm the expected API and/or web deploy lanes ran
+5. confirm the API and web deploy lanes ran
 6. run the smoke checks below
 
 For manual staging verification or redeploy:

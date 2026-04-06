@@ -123,14 +123,9 @@ For a normal staging release:
 2. let `CI` finish successfully for that merge
 3. let `.github/workflows/deploy-environment.yml` run automatically from that successful `CI` run
 4. let the workflow always apply auth and app migrations
-5. let the workflow deploy the API when backend deploy inputs changed
-6. let the workflow deploy the web app when files under `apps/web/**` changed
+5. let the workflow deploy the API
+6. let the workflow deploy the web app
 7. trigger the separate seed workflow only when the app database is intentionally empty
-
-The staging workflow always:
-
-- applies auth migrations
-- applies app migrations
 
 For manual production dispatch:
 
@@ -144,12 +139,11 @@ For manual staging dispatch:
 - choose whether to deploy the API, the web app, or both
 - auth and app migrations still run first
 
-For pushes to `main`, deploy lanes are selected like this:
+For automatic staging runs after successful `CI` on `main`:
 
-- API deploy runs when backend deploy inputs changed, such as `apps/api/src/**`, `apps/api/Langoose.sln`, or
-  `apps/api/NuGet.Config`
-- web deploy runs when files under `apps/web/**` changed
-- changes to `.github/workflows/deploy-environment.yml` trigger both deploy lanes
+- auth and app migrations always run
+- API deploy always runs
+- web deploy always runs
 
 ## Release Order
 
