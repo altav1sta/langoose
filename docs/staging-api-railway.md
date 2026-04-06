@@ -51,7 +51,6 @@ Use the separate GitHub Actions workflow when the deploy includes schema changes
 
 - workflow: `.github/workflows/staging-db-migrations.yml`
 - trigger: manual `workflow_dispatch`
-- input: `ref` with default `main`
 - environment: `staging`
 - required secrets:
   - `STAGING_APP_DATABASE`
@@ -59,15 +58,16 @@ Use the separate GitHub Actions workflow when the deploy includes schema changes
 
 This workflow:
 
-- checks out the requested git ref
+- checks out trusted `main`
 - builds separate auth and app EF migration bundles as artifacts within that run
 - runs those bundles in separate guarded apply jobs
 - does not start the API
 - does not make seeding part of every deploy
+- does not execute arbitrary user-supplied refs against staging secrets
 
 Release sequence:
 
-1. run the staging migration workflow when schema changes are present, or when the staging DB needs to catch up to a known ref
+1. run the staging migration workflow when schema changes are present, or when the staging DB needs to catch up to trusted `main`
 2. deploy the Railway API service
 3. run the hosted smoke checks
 

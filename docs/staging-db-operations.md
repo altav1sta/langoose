@@ -62,7 +62,7 @@ For the staging API on Railway, the explicit migration step is the separate GitH
 
 - workflow: `.github/workflows/staging-db-migrations.yml`
 - secrets: `STAGING_APP_DATABASE`, `STAGING_AUTH_DATABASE`
-- execution model: manually choose a git ref, build EF migration bundles from that ref, then run those bundles against staging
+- execution model: manually trigger the workflow, build EF migration bundles from trusted `main`, then run those bundles against staging
 
 Base-content seeding stays separate and should be run only when the environment is first prepared, recreated, or needs
 repair.

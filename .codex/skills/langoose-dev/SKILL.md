@@ -116,6 +116,7 @@ Use this skill to stay aligned with the repo's MVP architecture and product inva
 - When repo structure, workflows, deployment files, test layout, shared config, or other important inputs change, re-evaluate which checks each path should trigger. Do not assume an old CI category mapping is still correct after the repo shape changes.
 - Prefer precise CI categorization over broad panic-runs. Workflow, Docker, deploy, and infra files should trigger the checks they actually affect, while truly global CI inputs should remain the only force-all paths.
 - When updating repo rules or skill rules, do a rule-hygiene pass in the same change: check whether the new wording adds redundancy, overlap, inconsistency, or trigger-style escape hatches, and simplify or reconcile the surrounding rules before finishing.
+- For workflows that run with environment approvals, deployment secrets, database secrets, or other sensitive credentials, do not build or execute arbitrary user-supplied refs in shared environments. Shared staging and production maintenance workflows must run only trusted protected-branch code unless the environment itself is isolated for branch-specific testing.
 - Do not assume the current known folders are complete forever. Extend CI detection rules as soon as new repo-level
   config, workflows, test areas, Docker paths, or other build/runtime dependencies appear.
 - Do not start issue discovery or implementation while workflow setup residue still exists. Clear unintended stashes,

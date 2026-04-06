@@ -163,6 +163,7 @@
 - When repo structure, workflows, deployment files, test layout, shared config, or other important inputs change, re-evaluate which checks each path should trigger. Do not assume an old CI category mapping is still correct after the repo shape changes.
 - Prefer precise CI categorization over broad panic-runs. Workflow, Docker, deploy, and infra files should trigger the checks they actually affect, while truly global CI inputs should remain the only force-all paths.
 - When updating repo rules or skill rules, do a rule-hygiene pass in the same change: check whether the new wording adds redundancy, overlap, inconsistency, or trigger-style escape hatches, and simplify or reconcile the surrounding rules before finishing.
+- For workflows that run with environment approvals, deployment secrets, database secrets, or other sensitive credentials, do not build or execute arbitrary user-supplied refs in shared environments. Shared staging and production maintenance workflows must run only trusted protected-branch code unless the environment itself is isolated for branch-specific testing.
 - Do not assume the current app folders are the only important inputs forever. If a new repo-level config, workflow,
   test area, Docker path, or build/runtime dependency becomes relevant, extend the CI detection rules immediately
   instead of leaving the new path outside the force-run or scoped-run model.
