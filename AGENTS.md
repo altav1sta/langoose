@@ -160,6 +160,9 @@
 - Treat CI change-detection rules as part of the repository architecture, not a one-off optimization. When changing CI
   filtering or adding new paths, review the full set of files that can affect build, test, packaging, runtime,
   workflow execution, or branch-protection-required checks, and update the detection logic in the same change.
+- When repo structure, workflows, deployment files, test layout, shared config, or other important inputs change, re-evaluate which checks each path should trigger. Do not assume an old CI category mapping is still correct after the repo shape changes.
+- Prefer precise CI categorization over broad panic-runs. Workflow, Docker, deploy, and infra files should trigger the checks they actually affect, while truly global CI inputs should remain the only force-all paths.
+- When updating repo rules or skill rules, do a rule-hygiene pass in the same change: check whether the new wording adds redundancy, overlap, inconsistency, or trigger-style escape hatches, and simplify or reconcile the surrounding rules before finishing.
 - Do not assume the current app folders are the only important inputs forever. If a new repo-level config, workflow,
   test area, Docker path, or build/runtime dependency becomes relevant, extend the CI detection rules immediately
   instead of leaving the new path outside the force-run or scoped-run model.

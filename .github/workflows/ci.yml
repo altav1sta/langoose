@@ -28,16 +28,15 @@ jobs:
             const globalForceAllFiles = [
               '.editorconfig',
               '.gitattributes',
-              'compose.yml'
-            ];
-            const globalForceAllPrefixes = [
-              '.github/workflows/'
+              'compose.yml',
+              '.github/workflows/ci.yml'
             ];
             const backendPrefixes = [
               'apps/api/'
             ];
             const backendFiles = [
-              'compose.yml'
+              'compose.yml',
+              '.github/workflows/staging-db-migrations.yml'
             ];
             const frontendPrefixes = [
               'apps/web/'
@@ -72,12 +71,14 @@ jobs:
               response => response.data.map(file => file.filename)
             );
 
+            const matchesAnyExact = exact =>
+              files.some(file => exact.includes(file));
             const includesAny = (prefixes, exact = []) =>
               files.some(file =>
                 exact.includes(file) ||
                 prefixes.some(prefix => file.startsWith(prefix)));
 
-            const forceAll = includesAny(globalForceAllPrefixes, globalForceAllFiles);
+            const forceAll = matchesAnyExact(globalForceAllFiles);
             const backend = forceAll || includesAny(backendPrefixes, backendFiles);
             const frontend = forceAll || includesAny(frontendPrefixes, frontendFiles);
             const e2e = forceAll || includesAny(e2ePrefixes, e2eFiles);
