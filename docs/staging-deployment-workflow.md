@@ -101,8 +101,8 @@ Current workflow behavior:
 
 The workflow deploys the web app through the Vercel CLI from the checked-out workflow commit.
 
-Vercel documents custom CI/CD workflows around `vercel pull`, `vercel build`, and `vercel deploy --prebuilt`, using
-`VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` from CI. Sources:
+Vercel documents custom CI/CD workflows around `vercel pull` and `vercel deploy`, using `VERCEL_TOKEN`,
+`VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` from CI. Sources:
 
 - [Deploying GitHub projects with Vercel](https://vercel.com/docs/deployments/git/vercel-for-github)
 - [Using the Vercel CLI for custom workflows](https://vercel.com/kb/guide/using-vercel-cli-for-custom-workflows)
@@ -111,8 +111,8 @@ Current workflow behavior:
 
 - checks out the workflow commit
 - pulls the target Vercel environment configuration
-- builds the app in GitHub Actions with the Vercel CLI
-- deploys the prebuilt output to Vercel
+- sends the checked-out source to Vercel through the CLI
+- lets Vercel perform the hosted build in its normal environment
 
 ## Recommended Staging Usage
 

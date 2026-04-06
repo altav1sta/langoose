@@ -298,35 +298,15 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
-
-      - name: Install web dependencies
-        working-directory: apps/web
-        run: npm ci
 
       - name: Pull Vercel environment information
         env:
           VERCEL_ENVIRONMENT: ${{ needs.resolve-context.outputs.target_environment == 'production' && 'production' || 'preview' }}
         working-directory: apps/web
         run: vercel pull --yes --environment="$VERCEL_ENVIRONMENT" --token="$VERCEL_TOKEN"
-
-      - name: Build Vercel artifacts
-        env:
-          TARGET_ENVIRONMENT: ${{ needs.resolve-context.outputs.target_environment }}
-        working-directory: apps/web
-        shell: bash
-        run: |
-          set -eu
-
-          if [ "$TARGET_ENVIRONMENT" = "production" ]; then
-            vercel build --prod --token="$VERCEL_TOKEN"
-          else
-            vercel build --token="$VERCEL_TOKEN"
-          fi
 
       - name: Deploy web to Vercel
         env:
@@ -337,7 +317,7 @@ jobs:
           set -eu
 
           if [ "$TARGET_ENVIRONMENT" = "production" ]; then
-            vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+            vercel deploy --prod --yes --token="$VERCEL_TOKEN"
           else
-            vercel deploy --prebuilt --token="$VERCEL_TOKEN"
+            vercel deploy --yes --token="$VERCEL_TOKEN"
           fi
