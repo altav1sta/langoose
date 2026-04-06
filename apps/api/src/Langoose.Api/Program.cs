@@ -150,6 +150,13 @@ if (forwardedHeaders.Enabled)
                                    ForwardedHeaders.XForwardedHost |
                                    ForwardedHeaders.XForwardedProto;
 
+        if (forwardedHeaders.TrustAllProxies)
+        {
+            options.KnownProxies.Clear();
+            options.KnownIPNetworks.Clear();
+            return;
+        }
+
         foreach (var proxy in forwardedHeaders.KnownProxies)
         {
             if (IPAddress.TryParse(proxy, out var ipAddress))

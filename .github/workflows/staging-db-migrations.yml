@@ -1,0 +1,168 @@
+name: Staging DB Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to build and apply migrations from
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-db-migrations
+  cancel-in-progress: false
+
+jobs:
+  build-auth-bundle:
+    name: Build Auth Migration Bundle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install dotnet-ef
+        run: dotnet tool install --global dotnet-ef --version 10.0.0
+
+      - name: Add dotnet tools to PATH
+        run: echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      - name: Restore backend solution
+        run: dotnet restore apps/api/Langoose.sln /p:RestoreConfigFile=${{ github.workspace }}/apps/api/NuGet.Config
+
+      - name: Build backend solution
+        run: dotnet build apps/api/Langoose.sln --configuration Release --no-restore /p:RestoreConfigFile=${{ github.workspace }}/apps/api/NuGet.Config
+
+      - name: Build auth migration bundle
+        run: |
+          mkdir -p .artifacts/staging-auth-db-migrations
+          dotnet ef migrations bundle \
+            --project apps/api/src/Langoose.Auth.Data/Langoose.Auth.Data.csproj \
+            --startup-project apps/api/src/Langoose.Api/Langoose.Api.csproj \
+            --context AuthDbContext \
+            --self-contained \
+            --target-runtime linux-x64 \
+            --output .artifacts/staging-auth-db-migrations/auth-efbundle \
+            --configuration Release \
+            --no-build \
+            --force
+
+      - name: Copy API appsettings for auth bundle execution
+        run: |
+          mkdir -p .artifacts/staging-auth-db-migrations
+          cp apps/api/src/Langoose.Api/appsettings.json .artifacts/staging-auth-db-migrations/appsettings.json
+
+      - name: Upload auth migration bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-auth-db-migrations
+          path: .artifacts/staging-auth-db-migrations
+          if-no-files-found: error
+
+  build-app-bundle:
+    name: Build App Migration Bundle
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install dotnet-ef
+        run: dotnet tool install --global dotnet-ef --version 10.0.0
+
+      - name: Add dotnet tools to PATH
+        run: echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      - name: Restore backend solution
+        run: dotnet restore apps/api/Langoose.sln /p:RestoreConfigFile=${{ github.workspace }}/apps/api/NuGet.Config
+
+      - name: Build backend solution
+        run: dotnet build apps/api/Langoose.sln --configuration Release --no-restore /p:RestoreConfigFile=${{ github.workspace }}/apps/api/NuGet.Config
+
+      - name: Build app migration bundle
+        run: |
+          mkdir -p .artifacts/staging-app-db-migrations
+          dotnet ef migrations bundle \
+            --project apps/api/src/Langoose.Data/Langoose.Data.csproj \
+            --startup-project apps/api/src/Langoose.Api/Langoose.Api.csproj \
+            --context AppDbContext \
+            --self-contained \
+            --target-runtime linux-x64 \
+            --output .artifacts/staging-app-db-migrations/app-efbundle \
+            --configuration Release \
+            --no-build \
+            --force
+
+      - name: Copy API appsettings for app bundle execution
+        run: |
+          mkdir -p .artifacts/staging-app-db-migrations
+          cp apps/api/src/Langoose.Api/appsettings.json .artifacts/staging-app-db-migrations/appsettings.json
+
+      - name: Upload app migration bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-app-db-migrations
+          path: .artifacts/staging-app-db-migrations
+          if-no-files-found: error
+
+  apply-auth-migrations:
+    name: Apply Auth Migrations
+    runs-on: ubuntu-latest
+    needs: build-auth-bundle
+    environment: staging
+
+    env:
+      AUTH_DATABASE: ${{ secrets.STAGING_AUTH_DATABASE }}
+
+    steps:
+      - name: Download auth migration bundle artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: staging-auth-db-migrations
+          path: .artifacts/staging-auth-db-migrations
+
+      - name: Make auth bundle executable
+        run: chmod +x .artifacts/staging-auth-db-migrations/auth-efbundle
+
+      - name: Apply auth database migrations
+        run: ./.artifacts/staging-auth-db-migrations/auth-efbundle --connection "$AUTH_DATABASE"
+
+  apply-app-migrations:
+    name: Apply App Migrations
+    runs-on: ubuntu-latest
+    needs: build-app-bundle
+    environment: staging
+
+    env:
+      APP_DATABASE: ${{ secrets.STAGING_APP_DATABASE }}
+
+    steps:
+      - name: Download app migration bundle artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: staging-app-db-migrations
+          path: .artifacts/staging-app-db-migrations
+
+      - name: Make app bundle executable
+        run: chmod +x .artifacts/staging-app-db-migrations/app-efbundle
+
+      - name: Apply app database migrations
+        run: ./.artifacts/staging-app-db-migrations/app-efbundle --connection "$APP_DATABASE"

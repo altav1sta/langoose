@@ -6,6 +6,8 @@ public sealed class ForwardedHeadersSettings
 
     public bool Enabled { get; init; }
 
+    public bool TrustAllProxies { get; init; }
+
     public string[] KnownProxies { get; init; } = [];
 
     public string[] KnownNetworks { get; init; } = [];
