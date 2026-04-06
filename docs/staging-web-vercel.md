@@ -71,13 +71,19 @@ Expected shape:
 
 ## GitHub-Driven Deploy Trigger
 
-For the GitHub-driven staging deploy flow, the web deploy is triggered through a Vercel Deploy Hook configured for the
-trusted deployment branch, normally `main`.
+For the GitHub-driven staging deploy flow, the web deploy runs through the Vercel CLI from the checked-out workflow
+commit instead of a branch-bound Deploy Hook.
 
 The GitHub deployment workflow uses:
 
-- secret: `VERCEL_DEPLOY_HOOK_URL`
+- secret: `VERCEL_TOKEN`
+- variables:
+  - `VERCEL_ORG_ID`
+  - `VERCEL_PROJECT_ID`
 - workflow: `.github/workflows/deploy-environment.yml`
+
+That lets the workflow deploy the same commit it checked out for the rest of the environment update, including reruns
+of older successful workflow runs.
 
 ## First Hosted Smoke Checks
 

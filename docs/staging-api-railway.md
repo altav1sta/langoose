@@ -94,7 +94,6 @@ For the GitHub-driven deploy orchestration that can run these steps together, us
 - staging trigger: automatic on push to `main`
 - manual trigger: `workflow_dispatch` with `target_environment=staging|production` and optional `deploy_api` /
   `deploy_web` toggles
-- optional manual override: `deploy_ref` to deploy a specific git ref instead of the ref selected in the Actions UI
 - unified workflow behavior: migrations always run first; staging pushes deploy the API for backend deploy-input
   changes, the web app for `apps/web/**` changes, and workflow-file changes trigger both lanes, while manual runs can
   choose lanes explicitly

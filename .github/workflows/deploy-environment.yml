@@ -20,10 +20,6 @@ on:
         options:
           - staging
           - production
-      deploy_ref:
-        description: Optional git ref to deploy. Leave empty to use the manually selected ref.
-        required: false
-        type: string
       deploy_api:
         description: Deploy the API service
         required: false
@@ -50,7 +46,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       target_environment: ${{ steps.resolve.outputs.target_environment }}
-      source_ref: ${{ steps.resolve.outputs.source_ref }}
       deploy_api: ${{ steps.resolve.outputs.deploy_api }}
       deploy_web: ${{ steps.resolve.outputs.deploy_web }}
 
@@ -61,21 +56,14 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Resolve target environment and deployment ref
+      - name: Resolve target environment and deploy lanes
         id: resolve
         shell: bash
         run: |
           set -eu
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            source_ref="${{ inputs.deploy_ref }}"
-
-            if [ -z "$source_ref" ]; then
-              source_ref="${{ github.sha }}"
-            fi
-
             echo "target_environment=${{ inputs.target_environment }}" >> "$GITHUB_OUTPUT"
-            echo "source_ref=$source_ref" >> "$GITHUB_OUTPUT"
             echo "deploy_api=${{ inputs.deploy_api }}" >> "$GITHUB_OUTPUT"
             echo "deploy_web=${{ inputs.deploy_web }}" >> "$GITHUB_OUTPUT"
           else
@@ -105,7 +93,6 @@ jobs:
             done <<< "$changed_files"
 
             echo "target_environment=staging" >> "$GITHUB_OUTPUT"
-            echo "source_ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
             echo "deploy_api=$deploy_api" >> "$GITHUB_OUTPUT"
             echo "deploy_web=$deploy_web" >> "$GITHUB_OUTPUT"
           fi
@@ -119,12 +106,16 @@ jobs:
     steps:
       - name: Validate required secrets and variables
         env:
+          DEPLOY_API: ${{ needs.resolve-context.outputs.deploy_api }}
+          DEPLOY_WEB: ${{ needs.resolve-context.outputs.deploy_web }}
           AUTH_DATABASE: ${{ secrets.AUTH_DATABASE }}
           APP_DATABASE: ${{ secrets.APP_DATABASE }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
           RAILWAY_API_SERVICE: ${{ vars.RAILWAY_API_SERVICE }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
         run: |
           set -eu
 
@@ -138,23 +129,33 @@ jobs:
             exit 1
           fi
 
-          if [ -z "$RAILWAY_TOKEN" ]; then
+          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_TOKEN" ]; then
             echo "Missing RAILWAY_TOKEN secret for Railway deployment." >&2
             exit 1
           fi
 
-          if [ -z "$RAILWAY_PROJECT_ID" ]; then
+          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_PROJECT_ID" ]; then
             echo "Missing RAILWAY_PROJECT_ID environment variable for Railway deployment." >&2
             exit 1
           fi
 
-          if [ -z "$RAILWAY_API_SERVICE" ]; then
+          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_API_SERVICE" ]; then
             echo "Missing RAILWAY_API_SERVICE environment variable for Railway deployment." >&2
             exit 1
           fi
 
-          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
-            echo "Missing VERCEL_DEPLOY_HOOK_URL secret for Vercel deployment." >&2
+          if [ "$DEPLOY_WEB" = "true" ] && [ -z "$VERCEL_TOKEN" ]; then
+            echo "Missing VERCEL_TOKEN secret for Vercel deployment." >&2
+            exit 1
+          fi
+
+          if [ "$DEPLOY_WEB" = "true" ] && [ -z "$VERCEL_ORG_ID" ]; then
+            echo "Missing VERCEL_ORG_ID environment variable for Vercel deployment." >&2
+            exit 1
+          fi
+
+          if [ "$DEPLOY_WEB" = "true" ] && [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "Missing VERCEL_PROJECT_ID environment variable for Vercel deployment." >&2
             exit 1
           fi
 
@@ -170,7 +171,7 @@ jobs:
       - name: Checkout deployment ref
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve-context.outputs.source_ref }}
+          ref: ${{ github.sha }}
 
       - name: Build DbTool Docker image
         run: |
@@ -258,7 +259,7 @@ jobs:
       - name: Checkout deployment ref
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.resolve-context.outputs.source_ref }}
+          ref: ${{ github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -290,9 +291,55 @@ jobs:
       - deploy-api
     if: always() && needs.resolve-context.outputs.deploy_web == 'true' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
     environment: ${{ needs.resolve-context.outputs.target_environment }}
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
 
     steps:
-      - name: Trigger Vercel deploy hook
+      - name: Checkout deployment ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment information
         env:
-          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
-        run: curl --fail --silent --show-error --request POST "$VERCEL_DEPLOY_HOOK_URL"
+          VERCEL_ENVIRONMENT: ${{ needs.resolve-context.outputs.target_environment == 'production' && 'production' || 'preview' }}
+        working-directory: apps/web
+        run: vercel pull --yes --environment="$VERCEL_ENVIRONMENT" --token="$VERCEL_TOKEN"
+
+      - name: Build Vercel artifacts
+        env:
+          TARGET_ENVIRONMENT: ${{ needs.resolve-context.outputs.target_environment }}
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -eu
+
+          if [ "$TARGET_ENVIRONMENT" = "production" ]; then
+            vercel build --prod --token="$VERCEL_TOKEN"
+          else
+            vercel build --token="$VERCEL_TOKEN"
+          fi
+
+      - name: Deploy web to Vercel
+        env:
+          TARGET_ENVIRONMENT: ${{ needs.resolve-context.outputs.target_environment }}
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -eu
+
+          if [ "$TARGET_ENVIRONMENT" = "production" ]; then
+            vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+          else
+            vercel deploy --prebuilt --token="$VERCEL_TOKEN"
+          fi

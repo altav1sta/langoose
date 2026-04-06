@@ -60,8 +60,8 @@ Use the same secret names in every environment.
   full app database connection string in the same `.NET`/Npgsql format used by the API
 - `RAILWAY_TOKEN`
   Railway project token scoped to the target Railway environment
-- `VERCEL_DEPLOY_HOOK_URL`
-  Vercel Deploy Hook URL for the target web project and branch
+- `VERCEL_TOKEN`
+  Vercel token allowed to build and deploy the target web project
 
 ### Variables
 
@@ -69,6 +69,10 @@ Use the same secret names in every environment.
   Railway project ID that contains the API service
 - `RAILWAY_API_SERVICE`
   Railway API service name or ID
+- `VERCEL_ORG_ID`
+  Vercel team or personal account ID for the web project
+- `VERCEL_PROJECT_ID`
+  Vercel project ID for the web app
 
 ## Provider Trigger Model
 
@@ -93,18 +97,20 @@ Current workflow behavior:
 
 ### Vercel
 
-The workflow triggers the web deploy through a Vercel Deploy Hook.
+The workflow deploys the web app through the Vercel CLI from the checked-out workflow commit.
 
-Vercel documents Deploy Hooks as unique URLs that can trigger deployments for connected Git projects through an HTTP
-`GET` or `POST` request, without requiring a new commit. Sources:
+Vercel documents custom CI/CD workflows around `vercel pull`, `vercel build`, and `vercel deploy --prebuilt`, using
+`VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` from CI. Sources:
 
-- [Deploying to Vercel](https://vercel.com/docs/deployments)
-- [Deploy Hooks guide](https://vercel.com/kb/guide/set-up-and-use-deploy-hooks-with-vercel-and-headless-cms)
+- [Deploying GitHub projects with Vercel](https://vercel.com/docs/deployments/git/vercel-for-github)
+- [Using the Vercel CLI for custom workflows](https://vercel.com/kb/guide/using-vercel-cli-for-custom-workflows)
 
 Current workflow behavior:
 
-- sends a `POST` request to `VERCEL_DEPLOY_HOOK_URL`
-- expects the hook to be configured for the trusted branch you want to deploy, normally `main`
+- checks out the workflow commit
+- pulls the target Vercel environment configuration
+- builds the app in GitHub Actions with the Vercel CLI
+- deploys the prebuilt output to Vercel
 
 ## Recommended Staging Usage
 
@@ -125,14 +131,12 @@ The staging workflow always:
 For manual production dispatch:
 
 - choose `target_environment=production`
-- optionally set `deploy_ref` if you want a different ref than the one selected in the GitHub Actions UI
 - choose whether to deploy the API, the web app, or both
 - auth and app migrations still run first
 
 For manual staging dispatch:
 
 - choose `target_environment=staging`
-- optionally set `deploy_ref` if you want a different ref than the one selected in the GitHub Actions UI
 - choose whether to deploy the API, the web app, or both
 - auth and app migrations still run first
 
