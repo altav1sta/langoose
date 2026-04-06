@@ -49,27 +49,44 @@ Why this is required now:
 
 Use the separate GitHub Actions workflow when the deploy includes schema changes:
 
-- workflow: `.github/workflows/staging-db-migrations.yml`
+- auth workflow: `.github/workflows/auth-db-migrations.yml`
+- app workflow: `.github/workflows/app-db-migrations.yml`
 - trigger: manual `workflow_dispatch`
+- dispatch input: `target_environment=staging`
 - environment: `staging`
 - required secrets:
-  - `STAGING_APP_DATABASE`
-  - `STAGING_AUTH_DATABASE`
+  - auth workflow: `AUTH_DATABASE`
+  - app workflow: `APP_DATABASE`
 
-This workflow:
+These workflows:
 
 - checks out trusted `main`
-- builds separate auth and app EF migration bundles as artifacts within that run
-- runs those bundles in separate guarded apply jobs
+- builds a trusted `Langoose.DbTool` Docker image within that run
+- generates the idempotent EF SQL script for the targeted database from that image
+- applies that script in a guarded apply job through that image
 - does not start the API
 - does not make seeding part of every deploy
 - does not execute arbitrary user-supplied refs against staging secrets
 
+Base-content seeding remains a separate maintenance workflow:
+
+- workflow: `.github/workflows/app-seed.yml`
+- trigger: manual `workflow_dispatch`
+- dispatch input: `target_environment=staging`
+- environment: `staging`
+- required secret:
+  - `APP_DATABASE`
+- execution model: build a trusted `Langoose.DbTool` Docker image from `main`, then run `seed-app` in that image
+  against the app database only
+
 Release sequence:
 
-1. run the staging migration workflow when schema changes are present, or when the staging DB needs to catch up to trusted `main`
-2. deploy the Railway API service
-3. run the hosted smoke checks
+1. run the auth migration workflow when auth schema changes are present, or when the auth DB needs to catch up to
+   trusted `main`
+2. run the app migration workflow when app schema changes are present, or when the app DB needs to catch up to trusted
+   `main`
+3. deploy the Railway API service
+4. run the hosted smoke checks
 
 Base-content seeding remains a separate maintenance operation rather than part of the normal Railway deploy path.
 
@@ -79,7 +96,7 @@ Base-content seeding remains a separate maintenance operation rather than part o
 2. Add a service for the API from this repository.
 3. Point the service at `/apps/api/src/Langoose.Api/railway.json`.
 4. Set the required variables.
-5. Run the staging migration workflow first when the release includes schema changes.
+5. Run the needed auth and app migration workflows first when the release includes schema changes.
 6. Review the staged changes and deploy.
 
 ## First Smoke Checks

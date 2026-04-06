@@ -10,6 +10,7 @@
     <ProjectReference Include="..\Langoose.Auth.Data\Langoose.Auth.Data.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.4.0" />
     <PackageReference Include="OpenIddict.Server.AspNetCore" Version="7.4.0" />
   </ItemGroup>
 </Project>

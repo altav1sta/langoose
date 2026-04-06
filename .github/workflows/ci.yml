@@ -28,21 +28,17 @@ jobs:
             const globalForceAllFiles = [
               '.editorconfig',
               '.gitattributes',
-              'compose.yml',
               '.github/workflows/ci.yml'
             ];
             const backendPrefixes = [
               'apps/api/'
             ];
             const backendFiles = [
-              'compose.yml',
-              '.github/workflows/staging-db-migrations.yml'
             ];
             const frontendPrefixes = [
               'apps/web/'
             ];
             const frontendFiles = [
-              'compose.yml'
             ];
             const e2ePrefixes = [
               'apps/api/',

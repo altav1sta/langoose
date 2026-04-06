@@ -58,14 +58,27 @@ The intended staging flow is:
 2. run the explicit migration step before deploy when schema changes are present
 3. start the API with normal startup initialization disabled
 
-For the staging API on Railway, the explicit migration step is the separate GitHub Actions workflow:
+For the staging API on Railway, the explicit migration steps are separate GitHub Actions workflows:
 
-- workflow: `.github/workflows/staging-db-migrations.yml`
-- secrets: `STAGING_APP_DATABASE`, `STAGING_AUTH_DATABASE`
-- execution model: manually trigger the workflow, build EF migration bundles from trusted `main`, then run those bundles against staging
+- auth workflow: `.github/workflows/auth-db-migrations.yml`
+- app workflow: `.github/workflows/app-db-migrations.yml`
+- dispatch input: `target_environment=staging`
+- staging environment secrets:
+  - auth workflow: `AUTH_DATABASE`
+  - app workflow: `APP_DATABASE`
+- execution model: manually trigger the needed workflow, build a trusted `Langoose.DbTool` Docker image from `main`,
+  generate the idempotent EF SQL script for that database, then apply it against the selected environment
 
 Base-content seeding stays separate and should be run only when the environment is first prepared, recreated, or needs
 repair.
+
+For staging, the explicit base-content seeding step is the separate GitHub Actions workflow:
+
+- workflow: `.github/workflows/app-seed.yml`
+- dispatch input: `target_environment=staging`
+- staging environment secret: `APP_DATABASE`
+- execution model: manually trigger the workflow, build a trusted `Langoose.DbTool` Docker image from `main`, then run
+  `seed-app` in that image against the selected environment's app database
 
 ## Operational Procedures
 
@@ -85,7 +98,7 @@ This is the default safe reset path.
 Recommended procedure:
 
 1. recreate the staging Neon branch or recreate both staging databases
-2. run the explicit migration step
+2. run the explicit auth and app migration steps
 3. run base-content seeding when the rebuilt environment needs it
 4. start the API with startup initialization disabled
 
@@ -120,7 +133,7 @@ Do not rely on reseeding as a substitute for a full reset when auth or schema st
 When staging becomes unreliable after a failed migration, bad data change, or accidental cleanup:
 
 - prefer restoring or recreating the Neon staging branch or database set
-- rerun the explicit migration step
+- rerun the explicit auth and app migration steps
 - rerun base-content seeding when the recreated environment needs it
 - only then reopen the environment for general use
 
