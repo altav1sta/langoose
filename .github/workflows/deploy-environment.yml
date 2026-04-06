@@ -305,13 +305,11 @@ jobs:
       - name: Pull Vercel environment information
         env:
           VERCEL_ENVIRONMENT: ${{ needs.resolve-context.outputs.target_environment == 'production' && 'production' || 'preview' }}
-        working-directory: apps/web
         run: vercel pull --yes --environment="$VERCEL_ENVIRONMENT" --token="$VERCEL_TOKEN"
 
       - name: Deploy web to Vercel
         env:
           TARGET_ENVIRONMENT: ${{ needs.resolve-context.outputs.target_environment }}
-        working-directory: apps/web
         shell: bash
         run: |
           set -eu

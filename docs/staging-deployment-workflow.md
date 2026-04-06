@@ -110,8 +110,8 @@ Vercel documents custom CI/CD workflows around `vercel pull` and `vercel deploy`
 Current workflow behavior:
 
 - checks out the workflow commit
-- pulls the target Vercel environment configuration
-- sends the checked-out source to Vercel through the CLI
+- pulls the target Vercel environment configuration from the repo root
+- sends the checked-out source to Vercel through the CLI from the repo root
 - lets Vercel perform the hosted build in its normal environment
 
 ## Recommended Staging Usage
