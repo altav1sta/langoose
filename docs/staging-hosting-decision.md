@@ -15,6 +15,7 @@ This note is intentionally about staging, not final production architecture.
 Related implementation notes:
 
 - [staging-db-operations.md](staging-db-operations.md)
+- [staging-api-railway.md](staging-api-railway.md)
 
 ## Table Of Contents
 
@@ -761,6 +762,8 @@ Practical intent:
 - local defaults can stay safe and minimal
 - staging can inject its real browser origin allowlist and forwarding trust settings through environment variables
 - later deployment issues can wire real values without changing the API policy shape again
+- direct Railway-hosted staging can enable forwarded headers without specifying `KnownProxies` or `KnownNetworks` so
+  forwarded HTTPS is honored for secure antiforgery and auth-cookie behavior
 
 ### Validation expectations after the decision
 
@@ -1111,8 +1114,8 @@ Likely issues:
 
 Current concrete recommendation for issue `#37`:
 
-- one dedicated Neon project for staging
-- two databases inside that project: `langoose_app` and `langoose_auth`
+- keep the existing Neon project and create a long-lived `staging` branch
+- two databases inside that staging branch: `langoose_app` and `langoose_auth`
 - staging should follow the same explicit migration/seed process as production instead of adding a staging-only runtime toggle
 - prefer full database recreation or Neon branch recreation over ad hoc partial wipes when staging becomes unreliable
 
@@ -1124,14 +1127,14 @@ Why:
 
 - the API needs real app and auth connection strings
 - it also needs staging-safe cookie security, CORS, forwarded headers, and environment config
-- migrations and seeding behavior need to succeed in the hosted runtime
+- the release flow needs a separate migration step before deploy when schema changes are present
 
 Likely issues:
 
 - cookie security or proxy header handling behind the host
 - runtime URL and HTTPS assumptions
 - over-permissive development CORS leaking into staging
-- migration failures on first deploy
+- migration sequencing failures before first deploy
 - auth endpoints working locally but failing in hosted browser flows
 
 ### Step 4: deploy the web app to Vercel against the chosen origin model

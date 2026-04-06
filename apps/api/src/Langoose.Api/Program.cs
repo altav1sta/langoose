@@ -149,6 +149,8 @@ if (forwardedHeaders.Enabled)
         options.ForwardedHeaders = ForwardedHeaders.XForwardedFor |
                                    ForwardedHeaders.XForwardedHost |
                                    ForwardedHeaders.XForwardedProto;
+        options.KnownProxies.Clear();
+        options.KnownIPNetworks.Clear();
 
         foreach (var proxy in forwardedHeaders.KnownProxies)
         {
