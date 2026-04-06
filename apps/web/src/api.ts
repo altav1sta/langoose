@@ -118,9 +118,17 @@ export class ApiError extends Error {
 
 const runtimeConfig = typeof window === 'undefined' ? undefined : window.LANGOOSE_CONFIG;
 
-const API_BASE = runtimeConfig?.apiBaseUrl
-  ?? import.meta.env.VITE_API_BASE_URL
-  ?? 'http://localhost:5000';
+export function resolveApiBase(
+  runtimeApiBaseUrl?: string,
+  configuredApiBaseUrl?: string,
+  isDev = import.meta.env.DEV
+) {
+  return runtimeApiBaseUrl
+    ?? configuredApiBaseUrl
+    ?? (isDev ? 'http://localhost:5000' : '/api');
+}
+
+const API_BASE = resolveApiBase(runtimeConfig?.apiBaseUrl, import.meta.env.VITE_API_BASE_URL);
 
 let csrfRequestToken: string | undefined;
 

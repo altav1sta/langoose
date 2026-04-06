@@ -16,6 +16,7 @@ Related implementation notes:
 
 - [staging-db-operations.md](staging-db-operations.md)
 - [staging-api-railway.md](staging-api-railway.md)
+- [staging-web-vercel.md](staging-web-vercel.md)
 
 ## Table Of Contents
 
