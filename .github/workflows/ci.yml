@@ -35,9 +35,7 @@ jobs:
               'apps/api/'
             ];
             const backendFiles = [
-              'compose.yml',
-              '.github/workflows/db-migrations.yml',
-              '.github/workflows/app-seed.yml'
+              'compose.yml'
             ];
             const frontendPrefixes = [
               'apps/web/'
