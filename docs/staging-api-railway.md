@@ -92,10 +92,12 @@ For the GitHub-driven deploy orchestration that can run these steps together, us
 
 - workflow: `.github/workflows/deploy-environment.yml`
 - staging trigger: automatic on push to `main`
-- manual trigger: `workflow_dispatch` with `target_environment=staging|production`
+- manual trigger: `workflow_dispatch` with `target_environment=staging|production` and optional `deploy_api` /
+  `deploy_web` toggles
 - optional manual override: `deploy_ref` to deploy a specific git ref instead of the ref selected in the Actions UI
-- unified workflow behavior: migrations always run first; API and web deploy lanes are selected from changed app
-  context on staging pushes and always run on manual dispatch
+- unified workflow behavior: migrations always run first; staging pushes deploy the API for backend deploy-input
+  changes, the web app for `apps/web/**` changes, and workflow-file changes trigger both lanes, while manual runs can
+  choose lanes explicitly
 - unified workflow scope: it is self-contained and does not depend on the standalone maintenance workflow YAML files
 - API deploy path: `railway up apps/api/src/Langoose.Api --path-as-root --ci ...`
 

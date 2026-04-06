@@ -24,6 +24,16 @@ on:
         description: Optional git ref to deploy. Leave empty to use the manually selected ref.
         required: false
         type: string
+      deploy_api:
+        description: Deploy the API service
+        required: false
+        type: boolean
+        default: true
+      deploy_web:
+        description: Deploy the web app
+        required: false
+        type: boolean
+        default: true
 
 run-name: Deploy ${{ github.event_name == 'push' && 'staging' || inputs.target_environment }}
 
@@ -35,23 +45,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  detect-context:
-    name: Detect Deploy Context
+  resolve-context:
+    name: Resolve Deploy Context
     runs-on: ubuntu-latest
     outputs:
-      target_environment: ${{ steps.detect.outputs.target_environment }}
-      deploy_api: ${{ steps.detect.outputs.deploy_api }}
-      deploy_web: ${{ steps.detect.outputs.deploy_web }}
-      source_ref: ${{ steps.detect.outputs.source_ref }}
+      target_environment: ${{ steps.resolve.outputs.target_environment }}
+      source_ref: ${{ steps.resolve.outputs.source_ref }}
+      deploy_api: ${{ steps.resolve.outputs.deploy_api }}
+      deploy_web: ${{ steps.resolve.outputs.deploy_web }}
 
     steps:
-      - name: Checkout
+      - name: Checkout push context
+        if: github.event_name == 'push'
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      - name: Detect target environment and deploy lanes
-        id: detect
+      - name: Resolve target environment and deployment ref
+        id: resolve
         shell: bash
         run: |
           set -eu
@@ -64,66 +75,50 @@ jobs:
             fi
 
             echo "target_environment=${{ inputs.target_environment }}" >> "$GITHUB_OUTPUT"
-            echo "deploy_api=true" >> "$GITHUB_OUTPUT"
-            echo "deploy_web=true" >> "$GITHUB_OUTPUT"
             echo "source_ref=$source_ref" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "deploy_api=${{ inputs.deploy_api }}" >> "$GITHUB_OUTPUT"
+            echo "deploy_web=${{ inputs.deploy_web }}" >> "$GITHUB_OUTPUT"
+          else
+            before_sha="${{ github.event.before }}"
+            current_sha="${{ github.sha }}"
+
+            changed_files="$(git diff --name-only "$before_sha" "$current_sha")"
+
+            deploy_api=false
+            deploy_web=false
+
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+
+              case "$file" in
+                apps/api/*)
+                  deploy_api=true
+                  ;;
+                apps/web/*)
+                  deploy_web=true
+                  ;;
+                .github/workflows/deploy-environment.yml)
+                  deploy_api=true
+                  deploy_web=true
+                  ;;
+              esac
+            done <<< "$changed_files"
+
+            echo "target_environment=staging" >> "$GITHUB_OUTPUT"
+            echo "source_ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "deploy_api=$deploy_api" >> "$GITHUB_OUTPUT"
+            echo "deploy_web=$deploy_web" >> "$GITHUB_OUTPUT"
           fi
-
-          before_sha="${{ github.event.before }}"
-          current_sha="${{ github.sha }}"
-
-          changed_files="$(git diff --name-only "$before_sha" "$current_sha")"
-
-          deploy_api=false
-          deploy_web=false
-
-          while IFS= read -r file; do
-            [ -z "$file" ] && continue
-
-            case "$file" in
-              apps/api/src/Langoose.Api/*|\
-              apps/api/src/Langoose.Domain/*|\
-              apps/api/src/Langoose.Data/*|\
-              apps/api/src/Langoose.Auth.Data/*|\
-              apps/api/NuGet.Config|\
-              apps/api/Langoose.sln)
-                deploy_api=true
-                ;;
-              apps/api/src/Langoose.DbTool/*)
-                ;;
-              apps/web/src/__tests__/*|\
-              apps/web/src/lib/__tests__/*)
-                ;;
-              apps/web/src/*|\
-              apps/web/public/*|\
-              apps/web/package.json|\
-              apps/web/package-lock.json|\
-              apps/web/tsconfig.json|\
-              apps/web/vite.config.ts|\
-              apps/web/index.html|\
-              apps/web/vercel.json)
-                deploy_web=true
-                ;;
-            esac
-          done <<< "$changed_files"
-
-          echo "target_environment=staging" >> "$GITHUB_OUTPUT"
-          echo "deploy_api=$deploy_api" >> "$GITHUB_OUTPUT"
-          echo "deploy_web=$deploy_web" >> "$GITHUB_OUTPUT"
-          echo "source_ref=$current_sha" >> "$GITHUB_OUTPUT"
 
   validate-config:
     name: Validate Deploy Configuration
     runs-on: ubuntu-latest
-    needs: detect-context
-    environment: ${{ needs.detect-context.outputs.target_environment }}
+    needs: resolve-context
+    environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     steps:
       - name: Validate required secrets and variables
         env:
-          DEPLOY_API: ${{ needs.detect-context.outputs.deploy_api }}
-          DEPLOY_WEB: ${{ needs.detect-context.outputs.deploy_web }}
           AUTH_DATABASE: ${{ secrets.AUTH_DATABASE }}
           APP_DATABASE: ${{ secrets.APP_DATABASE }}
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -143,22 +138,22 @@ jobs:
             exit 1
           fi
 
-          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_TOKEN" ]; then
+          if [ -z "$RAILWAY_TOKEN" ]; then
             echo "Missing RAILWAY_TOKEN secret for Railway deployment." >&2
             exit 1
           fi
 
-          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_PROJECT_ID" ]; then
+          if [ -z "$RAILWAY_PROJECT_ID" ]; then
             echo "Missing RAILWAY_PROJECT_ID environment variable for Railway deployment." >&2
             exit 1
           fi
 
-          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_API_SERVICE" ]; then
+          if [ -z "$RAILWAY_API_SERVICE" ]; then
             echo "Missing RAILWAY_API_SERVICE environment variable for Railway deployment." >&2
             exit 1
           fi
 
-          if [ "$DEPLOY_WEB" = "true" ] && [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
             echo "Missing VERCEL_DEPLOY_HOOK_URL secret for Vercel deployment." >&2
             exit 1
           fi
@@ -167,15 +162,15 @@ jobs:
     name: Build DbTool Image
     runs-on: ubuntu-latest
     needs:
-      - detect-context
+      - resolve-context
       - validate-config
-    environment: ${{ needs.detect-context.outputs.target_environment }}
+    environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     steps:
       - name: Checkout deployment ref
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.detect-context.outputs.source_ref }}
+          ref: ${{ needs.resolve-context.outputs.source_ref }}
 
       - name: Build DbTool Docker image
         run: |
@@ -197,9 +192,9 @@ jobs:
     name: Auth DB Migrations
     runs-on: ubuntu-latest
     needs:
-      - detect-context
+      - resolve-context
       - build-dbtool-image
-    environment: ${{ needs.detect-context.outputs.target_environment }}
+    environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     env:
       AUTH_DATABASE: ${{ secrets.AUTH_DATABASE }}
@@ -225,9 +220,9 @@ jobs:
     name: App DB Migrations
     runs-on: ubuntu-latest
     needs:
-      - detect-context
+      - resolve-context
       - build-dbtool-image
-    environment: ${{ needs.detect-context.outputs.target_environment }}
+    environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     env:
       APP_DATABASE: ${{ secrets.APP_DATABASE }}
@@ -253,17 +248,17 @@ jobs:
     name: Deploy API
     runs-on: ubuntu-latest
     needs:
-      - detect-context
+      - resolve-context
       - auth-db-migrations
       - app-db-migrations
-    if: needs.detect-context.outputs.deploy_api == 'true'
-    environment: ${{ needs.detect-context.outputs.target_environment }}
+    if: needs.resolve-context.outputs.deploy_api == 'true'
+    environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     steps:
       - name: Checkout deployment ref
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.detect-context.outputs.source_ref }}
+          ref: ${{ needs.resolve-context.outputs.source_ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -278,7 +273,7 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
           RAILWAY_API_SERVICE: ${{ vars.RAILWAY_API_SERVICE }}
-          TARGET_ENVIRONMENT: ${{ needs.detect-context.outputs.target_environment }}
+          TARGET_ENVIRONMENT: ${{ needs.resolve-context.outputs.target_environment }}
         run: >
           railway up apps/api/src/Langoose.Api
           --path-as-root
@@ -291,10 +286,10 @@ jobs:
     name: Deploy Web
     runs-on: ubuntu-latest
     needs:
-      - detect-context
+      - resolve-context
       - deploy-api
-    if: always() && needs.detect-context.outputs.deploy_web == 'true' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
-    environment: ${{ needs.detect-context.outputs.target_environment }}
+    if: always() && needs.resolve-context.outputs.deploy_web == 'true' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     steps:
       - name: Trigger Vercel deploy hook

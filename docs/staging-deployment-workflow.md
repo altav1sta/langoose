@@ -26,7 +26,8 @@ It is:
 - automatically triggered for `staging` on pushes to `main`
 - manually runnable through `workflow_dispatch`
 
-The staging path does not require per-step input toggles anymore.
+The staging path does not require per-step deploy toggles anymore. Manual runs can still choose whether to deploy the
+API, the web app, or both.
 
 ## What It Can Do
 
@@ -112,36 +113,35 @@ For a normal staging release:
 1. merge the change into `main`
 2. let `.github/workflows/deploy-environment.yml` run automatically
 3. let the workflow always apply auth and app migrations
-4. let the workflow deploy the API and/or web app based on changed app context
-5. trigger the separate seed workflow only when the app database is intentionally empty
+4. let the workflow deploy the API when backend deploy inputs changed
+5. let the workflow deploy the web app when files under `apps/web/**` changed
+6. trigger the separate seed workflow only when the app database is intentionally empty
 
 The staging workflow always:
 
 - applies auth migrations
 - applies app migrations
 
-For pushes to `main`, deploy lanes are selected like this:
-
-- API deploy runs when API deployable inputs changed, such as `Langoose.Api`, `Langoose.Domain`, `Langoose.Data`,
-  `Langoose.Auth.Data`, or backend build configuration files
-- API deploy does not run for `Langoose.DbTool`-only changes
-- web deploy runs when web deployable inputs changed, such as `apps/web/src`, `public`, or the web build
-  configuration files
-- web deploy does not run for frontend test-only changes under `__tests__`
-
 For manual production dispatch:
 
 - choose `target_environment=production`
 - optionally set `deploy_ref` if you want a different ref than the one selected in the GitHub Actions UI
-- both deploy lanes run
+- choose whether to deploy the API, the web app, or both
 - auth and app migrations still run first
 
 For manual staging dispatch:
 
 - choose `target_environment=staging`
 - optionally set `deploy_ref` if you want a different ref than the one selected in the GitHub Actions UI
-- both deploy lanes run
+- choose whether to deploy the API, the web app, or both
 - auth and app migrations still run first
+
+For pushes to `main`, deploy lanes are selected like this:
+
+- API deploy runs when backend deploy inputs changed, such as `apps/api/src/**`, `apps/api/Langoose.sln`, or
+  `apps/api/NuGet.Config`
+- web deploy runs when files under `apps/web/**` changed
+- changes to `.github/workflows/deploy-environment.yml` trigger both deploy lanes
 
 ## Release Order
 
@@ -150,8 +150,8 @@ The workflow enforces this order:
 1. validate environment configuration
 2. auth migrations
 3. app migrations
-4. API deploy when selected by deploy context
-5. web deploy when selected by deploy context
+4. API deploy when selected
+5. web deploy when selected
 
 This keeps schema-changing work ahead of hosted deploy steps.
 

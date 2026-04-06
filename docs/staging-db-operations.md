@@ -67,10 +67,9 @@ For the staging API on Railway, the explicit migration steps are separate GitHub
   - auth workflow: `AUTH_DATABASE`
   - app workflow: `APP_DATABASE`
 - execution model: manually trigger the needed workflow, build a trusted `Langoose.DbTool` Docker image from `main`,
-  generate the idempotent EF SQL script for that database, then apply it against the selected environment
+  then apply EF migrations directly against the selected environment
 
-Base-content seeding stays separate and should be run only when the environment is first prepared, recreated, or needs
-repair.
+Base-content seeding stays separate and should be run only when the environment is first prepared or recreated.
 
 For staging, the explicit base-content seeding step is the separate GitHub Actions workflow:
 
@@ -118,13 +117,15 @@ Until dedicated maintenance tooling exists, prefer a full reset over ad hoc part
 
 ### Reseed Base Content
 
-The base dictionary seeder is repair-capable and can restore missing or drifted base content.
+The base dictionary seeder is empty-database-only. If dictionary data already exists, the seeding step exits without
+rewriting or repairing existing rows.
 
 Recommended reseed path:
 
-1. ensure app schema is current
-2. run the base-content seeding step
-3. verify base dictionary content without assuming user-owned rows were changed intentionally
+1. ensure the app database is intentionally empty or freshly recreated
+2. ensure app schema is current
+3. run the base-content seeding step
+4. verify base dictionary content
 
 Do not rely on reseeding as a substitute for a full reset when auth or schema state is questionable.
 
