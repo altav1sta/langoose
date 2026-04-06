@@ -1,15 +1,11 @@
 name: Deploy Environment
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/api/src/**
-      - apps/api/NuGet.Config
-      - apps/api/Langoose.sln
-      - apps/web/**
-      - .github/workflows/deploy-environment.yml
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       target_environment:
@@ -31,29 +27,33 @@ on:
         type: boolean
         default: true
 
-run-name: Deploy ${{ github.event_name == 'push' && 'staging' || inputs.target_environment }}
+run-name: Deploy ${{ github.event_name == 'workflow_run' && 'staging' || inputs.target_environment }}
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ github.event_name == 'push' && 'staging' || inputs.target_environment }}
+  group: deploy-${{ github.event_name == 'workflow_run' && 'staging' || inputs.target_environment }}
   cancel-in-progress: false
 
 jobs:
   resolve-context:
     name: Resolve Deploy Context
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
     outputs:
       target_environment: ${{ steps.resolve.outputs.target_environment }}
+      source_sha: ${{ steps.resolve.outputs.source_sha }}
       deploy_api: ${{ steps.resolve.outputs.deploy_api }}
       deploy_web: ${{ steps.resolve.outputs.deploy_web }}
+      should_run: ${{ steps.resolve.outputs.should_run }}
 
     steps:
-      - name: Checkout push context
-        if: github.event_name == 'push'
-        uses: actions/checkout@v4
+      - name: Checkout workflow-run context
+        if: github.event_name == 'workflow_run'
+        uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 2
 
       - name: Resolve target environment and deploy lanes
@@ -64,13 +64,17 @@ jobs:
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "target_environment=${{ inputs.target_environment }}" >> "$GITHUB_OUTPUT"
+            echo "source_sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
             echo "deploy_api=${{ inputs.deploy_api }}" >> "$GITHUB_OUTPUT"
             echo "deploy_web=${{ inputs.deploy_web }}" >> "$GITHUB_OUTPUT"
+            if [ "${{ inputs.deploy_api }}" = "true" ] || [ "${{ inputs.deploy_web }}" = "true" ]; then
+              echo "should_run=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "should_run=false" >> "$GITHUB_OUTPUT"
+            fi
           else
-            before_sha="${{ github.event.before }}"
-            current_sha="${{ github.sha }}"
-
-            changed_files="$(git diff --name-only "$before_sha" "$current_sha")"
+            current_sha="${{ github.event.workflow_run.head_sha }}"
+            changed_files="$(git diff-tree --no-commit-id --name-only -r "$current_sha")"
 
             deploy_api=false
             deploy_web=false
@@ -93,14 +97,21 @@ jobs:
             done <<< "$changed_files"
 
             echo "target_environment=staging" >> "$GITHUB_OUTPUT"
+            echo "source_sha=$current_sha" >> "$GITHUB_OUTPUT"
             echo "deploy_api=$deploy_api" >> "$GITHUB_OUTPUT"
             echo "deploy_web=$deploy_web" >> "$GITHUB_OUTPUT"
+            if [ "$deploy_api" = "true" ] || [ "$deploy_web" = "true" ]; then
+              echo "should_run=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "should_run=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
   validate-config:
     name: Validate Deploy Configuration
     runs-on: ubuntu-latest
     needs: resolve-context
+    if: needs.resolve-context.outputs.should_run == 'true'
     environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     steps:
@@ -114,6 +125,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
           RAILWAY_API_SERVICE: ${{ vars.RAILWAY_API_SERVICE }}
+          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
         run: |
@@ -144,6 +156,11 @@ jobs:
             exit 1
           fi
 
+          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_ENVIRONMENT" ]; then
+            echo "Missing RAILWAY_ENVIRONMENT environment variable for Railway deployment." >&2
+            exit 1
+          fi
+
           if [ "$DEPLOY_WEB" = "true" ] && [ -z "$VERCEL_TOKEN" ]; then
             echo "Missing VERCEL_TOKEN secret for Vercel deployment." >&2
             exit 1
@@ -165,13 +182,14 @@ jobs:
     needs:
       - resolve-context
       - validate-config
+    if: needs.resolve-context.outputs.should_run == 'true'
     environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     steps:
       - name: Checkout deployment ref
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.resolve-context.outputs.source_sha }}
 
       - name: Build DbTool Docker image
         run: |
@@ -195,6 +213,7 @@ jobs:
     needs:
       - resolve-context
       - build-dbtool-image
+    if: needs.resolve-context.outputs.should_run == 'true'
     environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     env:
@@ -223,6 +242,7 @@ jobs:
     needs:
       - resolve-context
       - build-dbtool-image
+    if: needs.resolve-context.outputs.should_run == 'true'
     environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     env:
@@ -257,12 +277,12 @@ jobs:
 
     steps:
       - name: Checkout deployment ref
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.resolve-context.outputs.source_sha }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
 
@@ -274,13 +294,13 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
           RAILWAY_API_SERVICE: ${{ vars.RAILWAY_API_SERVICE }}
-          TARGET_ENVIRONMENT: ${{ needs.resolve-context.outputs.target_environment }}
+          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
         run: >
           railway up apps/api/src/Langoose.Api
           --path-as-root
           --ci
           --service "$RAILWAY_API_SERVICE"
-          --environment "$TARGET_ENVIRONMENT"
+          --environment "$RAILWAY_ENVIRONMENT"
           --project "$RAILWAY_PROJECT_ID"
 
   deploy-web:
@@ -298,17 +318,23 @@ jobs:
 
     steps:
       - name: Checkout deployment ref
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.resolve-context.outputs.source_sha }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
+
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
 
       - name: Pull Vercel environment information
         env:
