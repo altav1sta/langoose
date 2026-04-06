@@ -95,8 +95,7 @@ Current workflow behavior:
 - checks out the resolved deployment ref
 - installs the Railway CLI
 - runs `railway up` in CI mode against the configured API service in the configured Railway environment
-- deploys `apps/api/src/Langoose.Api` explicitly while keeping the repo root as the archive base so the Railway config
-  file and Dockerfile can continue to use repo-root-relative paths
+- deploys from the repo root so Railway can resolve the existing repo-root-relative config and Dockerfile paths
 
 ### Vercel
 

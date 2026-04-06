@@ -269,7 +269,7 @@ jobs:
           RAILWAY_API_SERVICE: ${{ vars.RAILWAY_API_SERVICE }}
           RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
         run: >
-          railway up apps/api/src/Langoose.Api
+          railway up
           --ci
           --service "$RAILWAY_API_SERVICE"
           --environment "$RAILWAY_ENVIRONMENT"
