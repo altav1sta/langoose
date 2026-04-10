@@ -1,0 +1,65 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.detect.outputs.app }}
+      backend: ${{ steps.detect.outputs.backend }}
+      frontend: ${{ steps.detect.outputs.frontend }}
+
+    steps:
+      - name: Detect deploy-relevant changes
+        id: detect
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const comparison = await github.rest.repos.compareCommitsWithBasehead({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              basehead: `${context.payload.before}...${context.payload.after}`
+            });
+
+            const files = comparison.data.files;
+
+            if (files.length >= 300) {
+              core.info('Compare API returned 300+ files — assuming truncation, deploying everything');
+              core.setOutput('app', 'true');
+              core.setOutput('backend', 'true');
+              core.setOutput('frontend', 'true');
+              return;
+            }
+
+            const backend = files.some(f => f.filename.startsWith('apps/api/'));
+            const frontend = files.some(f => f.filename.startsWith('apps/web/'));
+
+            core.setOutput('app', (backend || frontend) ? 'true' : 'false');
+            core.setOutput('backend', backend ? 'true' : 'false');
+            core.setOutput('frontend', frontend ? 'true' : 'false');
+
+  deploy-staging:
+    name: Deploy Staging
+    needs:
+      - ci
+      - changes
+    if: needs.changes.outputs.app == 'true'
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      target_environment: staging
+      deploy_api: ${{ needs.changes.outputs.backend == 'true' }}
+      deploy_web: ${{ needs.changes.outputs.frontend == 'true' }}
+    secrets: inherit

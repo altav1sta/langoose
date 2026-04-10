@@ -2,10 +2,12 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
+  workflow_call:
   workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -216,3 +218,20 @@ jobs:
       - name: Tear down Compose stack
         if: always()
         run: docker compose --profile e2e down --volumes
+
+  ci-gate:
+    name: CI Gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - backend-build
+      - backend-unit-tests
+      - backend-integration-tests
+      - frontend-tests
+      - frontend-build
+      - e2e
+
+    steps:
+      - name: Check CI results
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

@@ -92,11 +92,11 @@ Base-content seeding remains a separate maintenance operation rather than part o
 For the GitHub-driven deploy orchestration that can run these steps together, use:
 
 - workflow: `.github/workflows/deploy-environment.yml`
-- staging trigger: automatic after a successful `CI` run for a push to `main`
+- staging trigger: automatic through `.github/workflows/cd.yml` on push to `main`
 - manual trigger: `workflow_dispatch` with `target_environment=staging|production` and optional `deploy_api` /
   `deploy_web` toggles
-- unified workflow behavior: automatic staging runs always apply migrations and deploy both hosted apps after
-  successful `CI`, while manual runs can choose lanes explicitly
+- unified workflow behavior: automatic staging runs detect which app layers changed and only run migrations and API
+  deploy when backend files change, while manual runs can choose lanes explicitly
 - unified workflow scope: it is self-contained and does not depend on the standalone maintenance workflow YAML files
 - required GitHub environment variable for Railway target selection: `RAILWAY_ENVIRONMENT`
 - API deploy path: `railway up --ci ...`

@@ -25,7 +25,8 @@ The staging environment currently assumes:
 - auth database: `langoose_auth`
 - API hosting: Railway
 - web hosting: Vercel
-- deploy orchestration: GitHub Actions through `.github/workflows/deploy-environment.yml`
+- deploy orchestration: GitHub Actions through `.github/workflows/cd.yml` (automatic staging) and
+  `.github/workflows/deploy-environment.yml` (manual dispatch)
 
 ## One-Time Setup
 
