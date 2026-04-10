@@ -18,17 +18,19 @@ Related notes:
 
 ## Workflow
 
-The repo now provides one environment-deploy workflow:
+The repo provides two deployment-related workflows:
 
-- workflow: `.github/workflows/deploy-environment.yml`
+- `.github/workflows/cd.yml` — triggers on push to `main`, runs CI then deploys to staging
+- `.github/workflows/deploy-environment.yml` — reusable deploy pipeline, also manually runnable through
+  `workflow_dispatch`
 
-It is:
+The CD workflow calls CI (`.github/workflows/ci.yml`) as a reusable workflow, then calls the deploy workflow for
+staging. This keeps CI and deploy in a single pipeline run for main pushes without creating phantom workflow runs for
+PR CI.
 
-- automatically triggered for `staging` after a successful `CI` run for pushes to `main`
-- manually runnable through `workflow_dispatch`
-
-Automatic staging runs do not require per-step deploy toggles. Manual runs can still choose whether to deploy the API,
-the web app, or both.
+The CD workflow detects which parts of the app changed and passes granular deploy flags. When only frontend files
+change, the deploy skips the DbTool image build, database migrations, and API deploy. Manual runs through
+`deploy-environment.yml` can still choose whether to deploy the API, the web app, or both.
 
 ## What It Can Do
 
@@ -119,8 +121,7 @@ Current workflow behavior:
 For a normal staging release:
 
 1. merge the change into `main`
-2. let `CI` finish successfully for that merge
-3. let `.github/workflows/deploy-environment.yml` run automatically from that successful `CI` run
+2. let `.github/workflows/cd.yml` run CI and then deploy staging automatically
 4. let the workflow always apply auth and app migrations
 5. let the workflow deploy the API
 6. let the workflow deploy the web app
@@ -138,11 +139,12 @@ For manual staging dispatch:
 - choose whether to deploy the API, the web app, or both
 - auth and app migrations still run first
 
-For automatic staging runs after successful `CI` on `main`:
+For automatic staging runs after `CD` on `main`:
 
-- auth and app migrations always run
-- API deploy always runs
-- web deploy always runs
+- changes under `apps/api/` trigger migrations and API deploy
+- changes under `apps/web/` trigger web deploy
+- changes outside `apps/` skip the deploy entirely
+- migrations and DbTool image build only run when backend changes are detected
 
 ## Release Order
 

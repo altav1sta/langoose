@@ -1,11 +1,19 @@
 name: Deploy Environment
 
 on:
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
+  workflow_call:
+    inputs:
+      target_environment:
+        required: true
+        type: string
+      deploy_api:
+        required: false
+        type: boolean
+        default: true
+      deploy_web:
+        required: false
+        type: boolean
+        default: true
   workflow_dispatch:
     inputs:
       target_environment:
@@ -27,31 +35,29 @@ on:
         type: boolean
         default: true
 
-run-name: Deploy ${{ github.event_name == 'workflow_run' && 'staging' || inputs.target_environment }}
+run-name: Deploy ${{ inputs.target_environment }}
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ github.event_name == 'workflow_run' && 'staging' || inputs.target_environment }}
+  group: deploy-${{ inputs.target_environment }}
   cancel-in-progress: false
 
 jobs:
   resolve-context:
     name: Resolve Deploy Context
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main')
     outputs:
-      target_environment: ${{ steps.resolve_manual.outputs.target_environment || steps.resolve_workflow_run.outputs.target_environment }}
-      source_sha: ${{ steps.resolve_manual.outputs.source_sha || steps.resolve_workflow_run.outputs.source_sha }}
-      deploy_api: ${{ steps.resolve_manual.outputs.deploy_api || steps.resolve_workflow_run.outputs.deploy_api }}
-      deploy_web: ${{ steps.resolve_manual.outputs.deploy_web || steps.resolve_workflow_run.outputs.deploy_web }}
-      should_run: ${{ steps.resolve_manual.outputs.should_run || steps.resolve_workflow_run.outputs.should_run }}
+      target_environment: ${{ steps.resolve.outputs.target_environment }}
+      source_sha: ${{ steps.resolve.outputs.source_sha }}
+      deploy_api: ${{ steps.resolve.outputs.deploy_api }}
+      deploy_web: ${{ steps.resolve.outputs.deploy_web }}
+      should_run: ${{ steps.resolve.outputs.should_run }}
 
     steps:
-      - name: Resolve manual dispatch context
-        id: resolve_manual
-        if: github.event_name == 'workflow_dispatch'
+      - name: Resolve deploy context
+        id: resolve
         shell: bash
         run: |
           set -eu
@@ -66,19 +72,6 @@ jobs:
           else
             echo "should_run=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Resolve successful CI push context
-        id: resolve_workflow_run
-        if: github.event_name == 'workflow_run'
-        shell: bash
-        run: |
-          set -eu
-
-          echo "target_environment=staging" >> "$GITHUB_OUTPUT"
-          echo "source_sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
-          echo "deploy_api=true" >> "$GITHUB_OUTPUT"
-          echo "deploy_web=true" >> "$GITHUB_OUTPUT"
-          echo "should_run=true" >> "$GITHUB_OUTPUT"
 
   validate-config:
     name: Validate Deploy Configuration
@@ -155,7 +148,7 @@ jobs:
     needs:
       - resolve-context
       - validate-config
-    if: needs.resolve-context.outputs.should_run == 'true'
+    if: needs.resolve-context.outputs.deploy_api == 'true'
     environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     steps:
@@ -186,7 +179,7 @@ jobs:
     needs:
       - resolve-context
       - build-dbtool-image
-    if: needs.resolve-context.outputs.should_run == 'true'
+    if: needs.resolve-context.outputs.deploy_api == 'true'
     environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     env:
@@ -215,7 +208,7 @@ jobs:
     needs:
       - resolve-context
       - build-dbtool-image
-    if: needs.resolve-context.outputs.should_run == 'true'
+    if: needs.resolve-context.outputs.deploy_api == 'true'
     environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     env:

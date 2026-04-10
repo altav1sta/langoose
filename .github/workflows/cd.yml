@@ -1,0 +1,53 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.detect.outputs.app }}
+      backend: ${{ steps.detect.outputs.backend }}
+
+    steps:
+      - name: Detect deploy-relevant changes
+        id: detect
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const comparison = await github.rest.repos.compareCommitsWithBasehead({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              basehead: `${context.payload.before}...${context.payload.after}`
+            });
+
+            const files = comparison.data.files.map(f => f.filename);
+            const backend = files.some(f => f.startsWith('apps/api/'));
+            const frontend = files.some(f => f.startsWith('apps/web/'));
+
+            core.setOutput('app', (backend || frontend) ? 'true' : 'false');
+            core.setOutput('backend', backend ? 'true' : 'false');
+
+  deploy-staging:
+    name: Deploy Staging
+    needs:
+      - ci
+      - changes
+    if: needs.changes.outputs.app == 'true'
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      target_environment: staging
+      deploy_api: ${{ needs.changes.outputs.backend == 'true' }}
+    secrets: inherit
