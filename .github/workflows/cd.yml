@@ -33,9 +33,17 @@ jobs:
               basehead: `${context.payload.before}...${context.payload.after}`
             });
 
-            const files = comparison.data.files.map(f => f.filename);
-            const backend = files.some(f => f.startsWith('apps/api/'));
-            const frontend = files.some(f => f.startsWith('apps/web/'));
+            const files = comparison.data.files;
+
+            if (files.length >= 300) {
+              core.info('Compare API returned 300+ files — assuming truncation, deploying everything');
+              core.setOutput('app', 'true');
+              core.setOutput('backend', 'true');
+              return;
+            }
+
+            const backend = files.some(f => f.filename.startsWith('apps/api/'));
+            const frontend = files.some(f => f.filename.startsWith('apps/web/'));
 
             core.setOutput('app', (backend || frontend) ? 'true' : 'false');
             core.setOutput('backend', backend ? 'true' : 'false');
