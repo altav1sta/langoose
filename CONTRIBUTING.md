@@ -1,72 +1,101 @@
 # Contributing
 
-Langoose keeps the workflow intentionally lightweight for MVP development. The goal is to keep `main` deployable,
-make pull requests easy to review, and keep issue and board status in sync with real work.
+Keep the workflow lightweight and keep `main` healthy.
 
-## Branch workflow
+The basic expectations are:
 
-1. Start from `main`.
-2. Create a focused branch for one issue or one tightly related change.
-3. Keep changes small enough to review without unpacking unrelated work.
-4. Open a pull request back into `main`.
+- start from the latest `main`
+- use one focused branch per issue or tightly related change
+- keep pull requests small enough to review comfortably
+- run the smallest useful validation for the change
+- keep docs and repo guidance in sync when behavior or workflow changes
 
-Preferred branch naming is descriptive and short, for example:
+## Branches
 
-- `infra/ci-checks`
-- `infra/web-dockerfile`
-- `docs/pr-template-and-contrib-notes`
+Create a short, descriptive branch from `main`.
 
-Issue numbers can be linked in the PR body instead of the branch name.
+Preferred prefixes:
 
-## Pull request expectations
+- `feat/...` for product or implementation work
+- `fix/...` for bug fixes
+- `infra/...` for CI, Docker, deployment, or workflow changes
+- `docs/...` for documentation and repo-guidance changes
+- `chore/...` for maintenance
 
-Every PR should include:
+## Pull Requests
 
-- a short summary of what changed
-- the linked GitHub issue
+Every pull request should include:
+
+- a short summary of the change
+- the linked issue
 - the validation you ran
-- any reviewer context that helps explain tradeoffs or known follow-ups
+- any reviewer notes that explain tradeoffs, follow-ups, or known gaps
 
-Use closing keywords when the PR should close the issue, for example `Closes #5`.
+Use closing keywords when appropriate, for example `Closes #5`.
 
-The repository includes a pull request template to keep this consistent.
+The repo includes a PR template at [.github/pull_request_template.md](.github/pull_request_template.md).
 
-## Issues and board status
+## Issues And Project Status
 
 When you start work on an issue:
 
-- assign the issue
-- move the board item to `In Progress`
+- assign the issue if that is part of your workflow
+- move the project item to `In Progress` if the project board is being used
 
-When the PR is open:
+When a pull request is open:
 
 - link the issue in the PR body
-- mirror relevant assignees, labels, and milestone onto the PR
-- move the board item to `In Review`
+- move the project item to `In Review` if the project board is being used
 
-When the PR merges:
+When the pull request merges:
 
 - confirm the linked issue closes
-- move the board item to `Done` if it does not update automatically
+- move the project item to `Done` if it does not update automatically
 
 ## Validation
 
-Run the smallest useful checks for the change.
+Run the smallest relevant checks for the change.
 
-Common validation commands:
+Common backend checks:
 
 ```powershell
-dotnet build apps/api/Langoose.sln /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config
-dotnet test apps/api/tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config
+dotnet build apps/api/Langoose.sln /p:RestoreConfigFile=apps/api/NuGet.Config
+dotnet test apps/api/tests/Langoose.Api.UnitTests/Langoose.Api.UnitTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config
+dotnet test apps/api/tests/Langoose.Api.IntegrationTests/Langoose.Api.IntegrationTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config
+```
+
+Common frontend checks:
+
+```powershell
 cd apps/web
+npm run test
 npm run build
 ```
 
-If you do not run a check, say so in the PR.
+Whole-app and browser-facing checks:
 
-## Keep main deployable
+```powershell
+docker compose up --build
+docker compose --profile e2e up --build e2e
+```
 
-- Prefer small, reviewable pull requests.
-- Avoid mixing unrelated changes in one branch.
-- Keep documentation and workflow notes current when the process changes.
-- Do not merge known-broken changes into `main`.
+If you do not run a check, say so in the pull request.
+
+## CI
+
+The main CI workflow currently runs these checks when relevant:
+
+- `Backend Build`
+- `Backend Unit Tests`
+- `Backend Integration Tests`
+- `Frontend Tests`
+- `Frontend Build`
+- `E2E`
+
+See [.github/workflows/ci.yml](.github/workflows/ci.yml) for the current definitions.
+
+## Merge Expectation
+
+- keep unrelated changes out of the same PR
+- do not merge known-broken changes into `main`
+- use squash merge into `main`

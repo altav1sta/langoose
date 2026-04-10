@@ -5,7 +5,7 @@ description: Work on Langoose study-loop behavior. Use when changing card select
 
 # Langoose Study Engine
 
-Read [D:\Projects\langoose\AGENTS.md](D:\Projects\langoose\AGENTS.md) first.
+Read [AGENTS.md](../../../AGENTS.md) first.
 
 Use this skill for study-loop behavior and grading logic.
 
@@ -17,16 +17,9 @@ Use this skill for study-loop behavior and grading logic.
 
 - Inspect `apps/api/src/Langoose.Api/Services/StudyService.cs`.
 - Inspect `apps/api/src/Langoose.Api/Services/TextNormalizer.cs` when matching or tolerance behavior is involved.
-- Inspect the discoverable study-related tests in `apps/api/tests/Langoose.Api.Tests`.
+- Inspect the relevant tests under `apps/api/tests`, especially the unit and integration coverage around study behavior.
 - Update tests whenever the grading or scheduling contract changes intentionally.
-
-## Langoose-Specific Guidance
-
-- Preserve tolerant grading unless the task explicitly changes it.
-- Preserve deterministic scheduling semantics unless the task explicitly changes intervals or scoring policy.
-- Keep dashboard counts aligned with the same visible-item logic used by the study loop.
-- Treat card selection balance between base and custom items as intentional behavior.
 
 ## Load Additional Detail Only When Needed
 
-- For concrete study rules and review points, read [D:\Projects\langoose\.codex\skills\langoose-study-engine\references\study-rules.md](D:\Projects\langoose\.codex\skills\langoose-study-engine\references\study-rules.md).
+- For concrete study rules and review points, read [study-engine.md](../../../docs/agent/study-engine.md).

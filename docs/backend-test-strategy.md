@@ -28,10 +28,10 @@ Examples:
 
 If a test mostly exercises one method with in-memory objects and no meaningful app runtime, it is probably a unit test.
 
-## EF Core InMemory Is Not A Unit-Test Boundary
+## EF Core InMemory Usually Is Not A Unit-Test Boundary
 
-In this repo, tests that use a real `DbContext`, even with `UseInMemoryDatabase`, count as integration tests rather
-than unit tests.
+In this repo, tests that use a real `DbContext`, even with `UseInMemoryDatabase`, usually count as integration tests
+rather than unit tests.
 
 That is because they still rely on:
 
@@ -43,8 +43,10 @@ That is because they still rely on:
 
 `UseInMemoryDatabase` is a lower-fidelity integration tool, not a pure mock boundary.
 
-If a test needs EF Core at all, it belongs in integration unless the EF dependency is truly incidental and the test is
-still only proving isolated logic.
+If a test depends on EF behavior, seeded state, tracking, or persistence semantics, it belongs in integration.
+
+If a test only constructs a lightweight `DbContext` incidentally while still proving isolated logic, it can stay in
+unit tests, but that exception should be rare and obvious from the test body.
 
 ## What Belongs In Integration Tests
 
