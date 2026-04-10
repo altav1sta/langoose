@@ -1,0 +1,4 @@
+version: 1
+display_name: Langoose Auth Hosting
+short_description: Work on Langoose auth, antiforgery, cookie, proxy, and hosted environment behavior.
+default_prompt: Use this skill when working on Langoose auth flow, cookies, antiforgery, OpenIddict, forwarded headers, Data Protection, or hosted environment behavior.

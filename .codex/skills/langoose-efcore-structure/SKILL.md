@@ -5,7 +5,7 @@ description: Design or refactor Langoose EF Core and PostgreSQL structure. Use w
 
 # Langoose EF Core Structure
 
-Read [D:\Projects\langoose\AGENTS.md](D:\Projects\langoose\AGENTS.md) first.
+Read [AGENTS.md](../../../AGENTS.md) first.
 
 Use this skill when the task is about EF Core structure rather than day-to-day feature work.
 
@@ -13,24 +13,7 @@ Use this skill when the task is about EF Core structure rather than day-to-day f
 
 - Prefer a separate data project when the PostgreSQL and EF Core layer is expected to grow.
 - If persisted models need a shared home outside ASP.NET Core and EF Core, use `API + Domain + Data`.
-- Keep `apps/api` responsible for startup, controllers, and service-layer behavior.
-- Keep `apps/api/src/Langoose.Data` responsible for app `DbContext`, EF configuration, migrations, and database seeding components.
-- Keep `apps/api/src/Langoose.Auth.Data` responsible for auth `DbContext`, auth EF configuration, and auth migrations when the auth split is in use.
 - Preserve existing business rules and public API behavior while moving persistence structure around.
-
-## Target Shape
-
-- `apps/api`
-- `apps/api/src/Langoose.Domain`
-- `apps/api/src/Langoose.Data`
-- `apps/api/tests/Langoose.Api.Tests`
-
-Inside the data project, prefer:
-
-- `AppDbContext.cs`
-- `Configurations/*`
-- `Migrations/*`
-- `Seeding/*` for database bootstrap components and seed data loaders
 
 ## Structure Rules
 
@@ -49,20 +32,20 @@ Inside the data project, prefer:
 - Decide whether the change is only folder and namespace cleanup or a real project split.
 - If introducing or splitting data projects, move EF runtime files together: `DbContext`, design-time factory, configurations, migrations, and seeding types.
 - If the persistence types are shared beyond EF, move them into `apps/api/src/Langoose.Domain` instead of keeping them under the API project.
-- Start the refactor branch from the latest `main` branch so structural moves do not begin from an outdated base.
 - Update startup wiring, project references, namespaces, design-time tooling, and CI or workflow paths together.
 - Update repo guidance and skills if the persistence layout changes.
 
 ## Validation
 
 - Run the current backend tests:
-  - `dotnet test apps/api/tests/Langoose.Api.Tests/Langoose.Api.Tests.csproj /p:RestoreConfigFile=D:\Projects\langoose\apps\api\NuGet.Config`
+  - `dotnet test apps/api/tests/Langoose.Api.UnitTests/Langoose.Api.UnitTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config`
+  - `dotnet test apps/api/tests/Langoose.Api.IntegrationTests/Langoose.Api.IntegrationTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config`
 - If project boundaries changed, also build the affected projects or solution explicitly.
 - If startup or migrations wiring changed, verify the live container or local startup path before declaring the structure work complete.
 - Before finalizing, run an explicit line-ending check on the new Domain and Data files so Visual Studio does not surface inconsistent newline prompts.
 
 ## Load Additional Detail Only When Needed
 
-- For repo-wide working agreements and finish flow, use [D:\Projects\langoose\.codex\skills\langoose-dev\SKILL.md](D:\Projects\langoose\.codex\skills\langoose-dev\SKILL.md).
-- For ASP.NET Core and EF-adjacent framework guidance, use [C:\Users\altav1sta\.codex\skills\aspnet-core\SKILL.md](C:\Users\altav1sta\.codex\skills\aspnet-core\SKILL.md).
-- For the recommended Langoose layout and tradeoffs, read [D:\Projects\langoose\.codex\skills\langoose-efcore-structure\references\structure-guidance.md](D:\Projects\langoose\.codex\skills\langoose-efcore-structure\references\structure-guidance.md).
+- For repo-wide working agreements and finish flow, use [langoose-dev](../langoose-dev/SKILL.md).
+- For ASP.NET Core and EF-adjacent framework guidance, use the shared `aspnet-core` skill when it is available in the current Codex environment.
+- For the recommended Langoose layout and tradeoffs, read [efcore-structure.md](../../../docs/agent/efcore-structure.md).

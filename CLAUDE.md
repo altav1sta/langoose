@@ -78,15 +78,22 @@
 - `chore/...` for maintenance.
 
 
-## Skill Index
+## Guidance Index
 
-- Use [langoose-dev](.codex/skills/langoose-dev/SKILL.md) for general repo work or when no narrower skill clearly applies.
-- Use [langoose-auth-hosting](.codex/skills/langoose-auth-hosting/SKILL.md) for auth flow, cookies, antiforgery, OpenIddict, forwarded headers, and hosted environment behavior.
-- Use [langoose-dotnet-testing](.codex/skills/langoose-dotnet-testing/SKILL.md) for backend test layout and test-boundary decisions.
-- Use [langoose-react-typescript](.codex/skills/langoose-react-typescript/SKILL.md) for frontend component, state, and TS decisions.
-- Use [langoose-api-contracts](.codex/skills/langoose-api-contracts/SKILL.md) for backend/frontend contract changes.
-- Use [langoose-study-engine](.codex/skills/langoose-study-engine/SKILL.md) for grading, scheduling, and card-selection work.
-- Use [langoose-dictionary-imports](.codex/skills/langoose-dictionary-imports/SKILL.md) for dictionary and CSV rules.
-- Use [langoose-docker](.codex/skills/langoose-docker/SKILL.md) for Docker and Compose work.
-- Use [langoose-architecture](.codex/skills/langoose-architecture/SKILL.md) for project-boundary refactors.
-- Use [langoose-efcore-structure](.codex/skills/langoose-efcore-structure/SKILL.md) for EF Core structure and migrations layout.
+These docs capture detailed rules for specific areas. Read the relevant doc
+when you need detail; update it when a change alters the behavior it describes.
+
+Keep this table in sync when adding or removing docs under `docs/agent/`.
+
+| Doc | Scope |
+|-----|-------|
+| `docs/agent/auth-hosting.md` | Auth cookies, antiforgery, OpenIddict, forwarded headers, hosting |
+| `docs/agent/api-contracts.md` | Request/response models, controller payloads, frontend API types |
+| `docs/agent/dictionary-rules.md` | Dictionary visibility, CSV import/export, duplicate merging |
+| `docs/agent/study-engine.md` | Grading, scheduling, card selection, normalization |
+| `docs/agent/dotnet-testing.md` | Test layout, unit vs integration boundaries, test hosts |
+| `docs/agent/efcore-structure.md` | DbContext, migrations, entity config, data project layout |
+| `docs/agent/frontend-guidance.md` | React components, state, effects, TypeScript config |
+| `docs/agent/docker-guidance.md` | Dockerfiles, Compose, containerized dev |
+| `docs/agent/architecture-guidance.md` | Project boundaries, dependency direction |
+| `docs/agent/workflows.md` | Build/test commands, key file locations, validation |
