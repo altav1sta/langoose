@@ -2,17 +2,44 @@
 
 ## Main Boundary Files
 
-- Backend API models: `apps/api/src/Langoose.Api/Models/*.cs`
-- Persisted domain types: `apps/api/src/Langoose.Domain/Models/*.cs`
+- Request/response DTOs: `apps/api/src/Langoose.Api/Models/*.cs`
+- Domain entities: `apps/api/src/Langoose.Domain/Models/*.cs`
 - Controllers: `apps/api/src/Langoose.Api/Controllers/*.cs`
 - Frontend client types and calls: `apps/web/src/api.ts`
 
+## DTO Mapping Pattern
+
+Controllers own all DTO ↔ domain model mapping. Services in Core accept and return
+domain models only — they never see request/response DTOs.
+
+```
+Controller receives request DTO
+  → maps to domain model
+  → calls service interface (from Domain)
+  → receives domain model result
+  → maps to response DTO
+  → returns to client
+```
+
+Auth-specific DTOs (SignInRequest, SignUpRequest, etc.) stay in Api/Models since auth
+controllers don't go through Core services.
+
 ## Current Characteristics
 
-- Many request and response DTOs are records.
-- Some API result fields use `JsonStringEnumConverter`.
-- The frontend mirrors several API enums as string unions.
-- The frontend request helper treats `202` and `204` as no-body responses and handles CSV as `text/csv`.
+- Request and response DTOs are records.
+- Enum fields use `JsonStringEnumConverter`.
+- The frontend mirrors API enums as string unions.
+- The frontend request helper treats `202` and `204` as no-body responses and handles
+  CSV as `text/csv`.
+
+## Key Response Shapes
+
+- **Dictionary items**: flat DTO combining SharedItem + UserItem + Gloss data. Includes
+  `enrichmentStatus` for pending/enriched/failed indication.
+- **Study cards**: includes `clozeText`, `sentenceTranslation`, `glosses` (array of
+  canonical forms), `grammarHint`, `difficulty` (per-sentence).
+- **Import response**: includes `pendingEnrichment` count alongside totals.
+- **Study answer result**: includes `exampleSentenceId` for context tracking.
 
 ## Review Checklist
 
@@ -21,3 +48,4 @@
 - Did the frontend type or parsing logic change too?
 - Did enum values remain string-compatible?
 - Did nullable vs optional semantics stay consistent between C# and TypeScript?
+- Are controllers doing DTO ↔ domain mapping (not services)?

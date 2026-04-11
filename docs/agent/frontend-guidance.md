@@ -6,12 +6,26 @@
 - Avoid state in `apps/web/src/App.tsx` that merely mirrors other known values.
 - Prefer named request and response shapes in `apps/web/src/api.ts`.
 - Update `apps/web/src/api.ts` first when backend contracts evolve.
+- Prefer the current lightweight frontend style: plain React state plus plain CSS
+  unless the change clearly needs more.
+
+## API Integration
+
+- Controllers return flat DTOs (not raw domain models). The frontend never needs to
+  understand the SharedItem/UserItem/Gloss split — the API flattens it.
+- Dictionary item responses include `enrichmentStatus` for pending/enriched/failed display.
+- Study card responses include composite hint fields: `sentenceTranslation`, `glosses`
+  (array), `grammarHint`, `difficulty` (per-sentence).
+- When pending items exist, poll the dictionary endpoint on an interval to refresh status.
+  Stop polling when no items are pending.
 
 ## TypeScript
 
 - Keep `strict: true` in `apps/web/tsconfig.json`.
-- Consider `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` only when the repo is ready to absorb the fixes.
-- Evaluate `moduleResolution: "bundler"` against current Vite defaults when the frontend TS config is next revisited, but do not change it by rote.
+- Consider `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` only when the
+  repo is ready to absorb the fixes.
+- Evaluate `moduleResolution: "bundler"` against current Vite defaults when the frontend
+  TS config is next revisited, but do not change it by rote.
 - Prefer `unknown` plus narrowing over `any`.
 
 ## Review Checklist
@@ -20,6 +34,7 @@
 - Is this state minimal?
 - Is the API payload or response type precise enough to catch drift?
 - Should this section be extracted into a focused child component?
+- Does the frontend type match the backend DTO shape (not the domain model)?
 
 ## Sources
 
