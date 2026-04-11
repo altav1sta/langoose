@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Langoose.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260411170158_InitialNewDomainModel")]
+    [Migration("20260411173324_InitialNewDomainModel")]
     partial class InitialNewDomainModel
     {
         /// <inheritdoc />
@@ -290,6 +290,10 @@ namespace Langoose.Data.Migrations
 
                     b.Property<string>("UserInputTerm")
                         .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("UserInputTranslation")
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 

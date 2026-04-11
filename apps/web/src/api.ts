@@ -67,6 +67,7 @@ export type SignUpRequest = {
 
 export type AddUserEntryRequest = {
   userInputTerm: string;
+  userInputTranslation?: string | null;
   sourceLanguage: string;
   targetLanguage: string;
   notes?: string | null;

@@ -84,7 +84,15 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
             .Select(ude => ude.DictionaryEntryId!.Value)
             .ToListAsync(cancellationToken);
 
-        return publicEntryIds.Union(enrichedEntryIds).ToList();
+        var flaggedEntryIds = await dbContext.ContentFlags
+            .Where(f => f.ReportedByUserId == userId && !f.IsResolved)
+            .Select(f => f.DictionaryEntryId)
+            .ToListAsync(cancellationToken);
+        var flaggedSet = flaggedEntryIds.ToHashSet();
+
+        return publicEntryIds.Union(enrichedEntryIds)
+            .Where(id => !flaggedSet.Contains(id))
+            .ToList();
     }
 
     public async Task<AnswerResult?> SubmitAnswerAsync(

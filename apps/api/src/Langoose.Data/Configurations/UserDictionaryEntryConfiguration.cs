@@ -14,6 +14,7 @@ public sealed class UserDictionaryEntryConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.SourceLanguage).HasMaxLength(10);
         builder.Property(x => x.TargetLanguage).HasMaxLength(10);
         builder.Property(x => x.UserInputTerm).HasMaxLength(300);
+        builder.Property(x => x.UserInputTranslation).HasMaxLength(300);
         builder.Property(x => x.Type).HasMaxLength(20);
         builder.Property(x => x.Tags).HasColumnType("text[]");
 

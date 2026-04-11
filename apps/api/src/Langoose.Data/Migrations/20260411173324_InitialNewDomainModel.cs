@@ -133,6 +133,7 @@ namespace Langoose.Data.Migrations
                     SourceLanguage = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
                     TargetLanguage = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
                     UserInputTerm = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
+                    UserInputTranslation = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
                     EnrichmentStatus = table.Column<string>(type: "text", nullable: false),
                     EnrichmentAttempts = table.Column<int>(type: "integer", nullable: false),
                     EnrichmentNotBefore = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),

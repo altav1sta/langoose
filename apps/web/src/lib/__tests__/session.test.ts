@@ -11,6 +11,7 @@ describe('buildQuickAddPayload', () => {
 
     expect(payload).toEqual({
       userInputTerm: 'watch over',
+      userInputTranslation: '\u043f\u0440\u0438\u0441\u043c\u0430\u0442\u0440\u0438\u0432\u0430\u0442\u044c, \u043e\u043f\u0435\u043a\u0430\u0442\u044c',
       sourceLanguage: 'ru',
       targetLanguage: 'en'
     });

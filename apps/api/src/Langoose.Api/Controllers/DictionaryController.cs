@@ -42,6 +42,7 @@ public sealed class DictionaryController(
 
         var input = new AddUserEntryInput(
             request.UserInputTerm,
+            request.UserInputTranslation,
             request.SourceLanguage,
             request.TargetLanguage,
             request.Notes,

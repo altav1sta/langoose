@@ -10,6 +10,7 @@ public sealed class UserDictionaryEntry
     public required string SourceLanguage { get; set; }
     public required string TargetLanguage { get; set; }
     public required string UserInputTerm { get; set; }
+    public string? UserInputTranslation { get; set; }
     public required EnrichmentStatus EnrichmentStatus { get; set; }
     public int EnrichmentAttempts { get; set; }
     public DateTimeOffset? EnrichmentNotBefore { get; set; }

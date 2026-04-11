@@ -56,7 +56,7 @@ public sealed class DictionaryServiceIntegrationTests
 
         var entry = await dictionaryService.AddUserEntryAsync(
             userId,
-            new AddUserEntryInput("look for", "ru", "en", Tags: ["travel"]),
+            new AddUserEntryInput("look for", "искать", "ru", "en", Tags: ["travel"]),
             CancellationToken.None);
 
         Assert.Equal(EnrichmentStatus.Pending, entry.EnrichmentStatus);
@@ -123,7 +123,7 @@ public sealed class DictionaryServiceIntegrationTests
 
         await dictionaryService.AddUserEntryAsync(
             userId,
-            new AddUserEntryInput("look for", "ru", "en"),
+            new AddUserEntryInput("look for", "искать", "ru", "en"),
             CancellationToken.None);
 
         await dictionaryService.ClearUserDataAsync(userId, CancellationToken.None);
