@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, type AuthResponse, type Dashboard, type UserDictionaryEntry } from '../api';
+import { ApiError, type AuthResponse, type Dashboard, type DictionaryListItem } from '../api';
 
 const sessionApiMocks = vi.hoisted(() => ({
   bootstrapSession: vi.fn(),
@@ -37,20 +37,18 @@ const auth: AuthResponse = {
   email: 'learner@example.com'
 };
 
-const dictionary: UserDictionaryEntry[] = [
+const dictionary: DictionaryListItem[] = [
   {
-    id: '22222222-2222-2222-2222-222222222222',
-    userId: '11111111-1111-1111-1111-111111111111',
-    dictionaryEntryId: null,
-    sourceLanguage: 'ru',
-    targetLanguage: 'en',
-    userInputTerm: 'look for',
-    enrichmentStatus: 'pending',
-    enrichmentAttempts: 0,
-    tags: [],
+    dictionaryEntryId: '22222222-2222-2222-2222-222222222222',
+    text: 'look for',
+    language: 'en',
+    difficulty: 'A2',
+    isPublic: true,
+    userDictionaryEntryId: null,
+    enrichmentStatus: null,
     type: 'phrase',
-    createdAtUtc: '2026-04-01T00:00:00Z',
-    updatedAtUtc: '2026-04-01T00:00:00Z'
+    notes: null,
+    tags: []
   }
 ];
 

@@ -3,7 +3,7 @@ import {
   type AddUserEntryRequest,
   type AuthResponse,
   type Dashboard,
-  type UserDictionaryEntry,
+  type DictionaryListItem,
   type StudyAnswerResult,
   type StudyCard
 } from '../api';
@@ -11,7 +11,7 @@ import {
 export type SessionState = {
   auth?: AuthResponse;
   dashboard?: Dashboard;
-  dictionary: UserDictionaryEntry[];
+  dictionary: DictionaryListItem[];
   card?: StudyCard;
   result?: StudyAnswerResult;
   error?: string;
@@ -20,7 +20,7 @@ export type SessionState = {
 };
 
 export type SessionSnapshot = {
-  dictionary: UserDictionaryEntry[];
+  dictionary: DictionaryListItem[];
   dashboard: Dashboard;
   card?: StudyCard;
 };
@@ -109,8 +109,8 @@ export function buildRefreshNotice(previousCard: StudyCard | undefined, snapshot
   return `Session synced. ${cardMessage} Due now: ${snapshot.dashboard.dueNow}.`;
 }
 
-export function getCustomEntryCount(entries: UserDictionaryEntry[]) {
-  return entries.length;
+export function getCustomEntryCount(entries: DictionaryListItem[]) {
+  return entries.filter(e => e.userDictionaryEntryId).length;
 }
 
 export function buildQuickAddPayload(form: QuickAddFormState): AddUserEntryRequest {

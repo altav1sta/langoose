@@ -1,9 +1,9 @@
-import type { AuthResponse, UserDictionaryEntry } from '../api';
+import type { AuthResponse, DictionaryListItem } from '../api';
 
 type DictionaryPanelProps = {
   auth?: AuthResponse;
   customEntryCount: number;
-  dictionary: UserDictionaryEntry[];
+  dictionary: DictionaryListItem[];
   onClearCustomData: () => void;
 };
 
@@ -31,13 +31,14 @@ export function DictionaryPanel({
       </div>
       <div className="dictionary-list">
         {dictionary.map(entry => (
-          <article key={entry.id} className="dictionary-row">
+          <article key={entry.userDictionaryEntryId ?? entry.dictionaryEntryId} className="dictionary-row">
             <div>
-              <strong>{entry.userInputTerm}</strong>
+              <strong>{entry.text}</strong>
             </div>
             <div className="pill-row">
-              <span>{entry.enrichmentStatus}</span>
+              <span>{entry.isPublic ? 'base' : entry.enrichmentStatus ?? 'custom'}</span>
               <span>{entry.type ?? 'word'}</span>
+              {entry.difficulty ? <span>{entry.difficulty}</span> : null}
             </div>
           </article>
         ))}

@@ -13,20 +13,17 @@ type ProblemDetailsShape = {
   errors?: Record<string, string[]>;
 };
 
-export type UserDictionaryEntry = {
-  id: string;
-  userId: string;
-  dictionaryEntryId?: string | null;
-  sourceLanguage: string;
-  targetLanguage: string;
-  userInputTerm: string;
-  enrichmentStatus: 'pending' | 'enriched' | 'failed';
-  enrichmentAttempts: number;
+export type DictionaryListItem = {
+  dictionaryEntryId: string;
+  text: string;
+  language: string;
+  difficulty?: string | null;
+  isPublic: boolean;
+  userDictionaryEntryId?: string | null;
+  enrichmentStatus?: 'pending' | 'enriched' | 'failed' | null;
+  type?: string | null;
   notes?: string | null;
   tags: string[];
-  type?: string | null;
-  createdAtUtc: string;
-  updatedAtUtc: string;
 };
 
 export type StudyCard = {
@@ -232,10 +229,10 @@ export const api = {
     return request<AuthResponse>('/auth/me');
   },
   getDictionary() {
-    return request<UserDictionaryEntry[]>('/dictionary/entries');
+    return request<DictionaryListItem[]>('/dictionary/entries');
   },
   addUserEntry(payload: AddUserEntryRequest) {
-    return request<UserDictionaryEntry>('/dictionary/entries', {
+    return request<void>('/dictionary/entries', {
       method: 'POST',
       body: JSON.stringify(payload)
     });

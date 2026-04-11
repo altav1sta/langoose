@@ -13,15 +13,45 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
     private static readonly string[] RequiredCsvHeaders = ["english term", "russian translation s", "type"];
     private static readonly string[] OptionalCsvHeaders = ["notes", "tags"];
 
-    public async Task<IReadOnlyList<UserDictionaryEntry>> GetUserEntriesAsync(
+    public async Task<IReadOnlyList<DictionaryListItem>> GetVisibleEntriesAsync(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        return await dbContext.UserDictionaryEntries
+        var publicEntries = await dbContext.DictionaryEntries
+            .Where(e => e.IsPublic && e.IsBaseForm)
+            .OrderBy(e => e.Text)
+            .Select(e => new DictionaryListItem(
+                e.Id, e.Text, e.Language, e.Difficulty, true,
+                null, null, null, null, new List<string>()))
+            .ToListAsync(cancellationToken);
+
+        var userEntries = await dbContext.UserDictionaryEntries
             .Where(e => e.UserId == userId)
             .Include(e => e.DictionaryEntry)
             .OrderBy(e => e.CreatedAtUtc)
             .ToListAsync(cancellationToken);
+
+        var userItems = userEntries.Select(e => new DictionaryListItem(
+            e.DictionaryEntryId ?? e.Id,
+            e.DictionaryEntry?.Text ?? e.UserInputTerm,
+            e.TargetLanguage,
+            e.DictionaryEntry?.Difficulty,
+            false,
+            e.Id,
+            e.EnrichmentStatus,
+            e.Type,
+            e.Notes,
+            e.Tags));
+
+        // User entries linked to a public base entry replace the public row
+        var userLinkedEntryIds = userEntries
+            .Where(e => e.DictionaryEntryId is not null)
+            .Select(e => e.DictionaryEntryId!.Value)
+            .ToHashSet();
+
+        var baseOnly = publicEntries.Where(e => !userLinkedEntryIds.Contains(e.DictionaryEntryId));
+
+        return [.. baseOnly.Concat(userItems).OrderBy(e => e.Text)];
     }
 
     public async Task<UserDictionaryEntry> AddUserEntryAsync(
@@ -29,26 +59,25 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         AddUserEntryInput input,
         CancellationToken cancellationToken)
     {
-        var cleanedTerm = TextNormalizer.CleanInput(input.UserInputTerm);
-        var type = input.Type ?? (cleanedTerm.Contains(' ') ? "phrase" : "word");
+        var userEntries = await dbContext.UserDictionaryEntries
+            .Where(e => e.UserId == userId)
+            .ToListAsync(cancellationToken);
+        var publicBaseEntries = await dbContext.DictionaryEntries
+            .Where(e => e.IsPublic && e.IsBaseForm)
+            .ToListAsync(cancellationToken);
 
-        // TODO: #71 — implement form-based dedup lookup via DictionaryEntry
-        var entry = new UserDictionaryEntry
-        {
-            Id = Guid.CreateVersion7(),
-            UserId = userId,
-            SourceLanguage = input.SourceLanguage,
-            TargetLanguage = input.TargetLanguage,
-            UserInputTerm = cleanedTerm,
-            EnrichmentStatus = EnrichmentStatus.Pending,
-            Notes = input.Notes,
-            Tags = input.Tags is not null ? [.. input.Tags] : [],
-            Type = type,
-            CreatedAtUtc = DateTimeOffset.UtcNow,
-            UpdatedAtUtc = DateTimeOffset.UtcNow
-        };
+        var (entry, _) = UpsertUserEntry(
+            dbContext,
+            userId,
+            input.UserInputTerm,
+            input.SourceLanguage,
+            input.TargetLanguage,
+            input.Notes,
+            input.Tags ?? [],
+            input.Type,
+            userEntries,
+            publicBaseEntries);
 
-        dbContext.UserDictionaryEntries.Add(entry);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return entry;
@@ -101,27 +130,33 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             return new ImportResult(Math.Max(0, rows.Length - 1), 0, errors);
         }
 
+        var userEntries = await dbContext.UserDictionaryEntries
+            .Where(e => e.UserId == userId)
+            .ToListAsync(cancellationToken);
+        var publicBaseEntries = await dbContext.DictionaryEntries
+            .Where(e => e.IsPublic && e.IsBaseForm)
+            .ToListAsync(cancellationToken);
+
         var pendingCount = 0;
 
         foreach (var (term, notes, tags, type) in candidates)
         {
-            var entry = new UserDictionaryEntry
-            {
-                Id = Guid.CreateVersion7(),
-                UserId = userId,
-                SourceLanguage = "ru",
-                TargetLanguage = "en",
-                UserInputTerm = term,
-                EnrichmentStatus = EnrichmentStatus.Pending,
-                Notes = string.IsNullOrWhiteSpace(notes) ? null : notes,
-                Tags = tags,
-                Type = type,
-                CreatedAtUtc = DateTimeOffset.UtcNow,
-                UpdatedAtUtc = DateTimeOffset.UtcNow
-            };
+            var (_, created) = UpsertUserEntry(
+                dbContext,
+                userId,
+                term,
+                "ru",
+                "en",
+                string.IsNullOrWhiteSpace(notes) ? null : notes,
+                tags,
+                type,
+                userEntries,
+                publicBaseEntries);
 
-            dbContext.UserDictionaryEntries.Add(entry);
-            pendingCount++;
+            if (created)
+            {
+                pendingCount++;
+            }
         }
 
         dbContext.ImportRecords.Add(new ImportRecord
@@ -169,24 +204,122 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             .Where(e => e.UserId == userId)
             .ToListAsync(cancellationToken);
 
+        var publicEntryIds = await dbContext.DictionaryEntries
+            .Where(e => e.IsPublic)
+            .Select(e => e.Id)
+            .ToListAsync(cancellationToken);
+        var publicEntryIdSet = publicEntryIds.ToHashSet();
+
         var userProgress = await dbContext.UserProgress
             .Where(p => p.UserId == userId)
             .ToListAsync(cancellationToken);
+        var customProgress = userProgress
+            .Where(p => !publicEntryIdSet.Contains(p.DictionaryEntryId))
+            .ToList();
 
         var studyEvents = await dbContext.StudyEvents
             .Where(e => e.UserId == userId)
             .ToListAsync(cancellationToken);
+        var customStudyEvents = studyEvents
+            .Where(e => !publicEntryIdSet.Contains(e.DictionaryEntryId))
+            .ToList();
 
         var imports = await dbContext.ImportRecords
             .Where(r => r.UserId == userId)
             .ToListAsync(cancellationToken);
 
+        var userFlags = await dbContext.ContentFlags
+            .Where(f => f.ReportedByUserId == userId)
+            .ToListAsync(cancellationToken);
+
         dbContext.UserDictionaryEntries.RemoveRange(userEntries);
-        dbContext.UserProgress.RemoveRange(userProgress);
-        dbContext.StudyEvents.RemoveRange(studyEvents);
+        dbContext.UserProgress.RemoveRange(customProgress);
+        dbContext.StudyEvents.RemoveRange(customStudyEvents);
         dbContext.ImportRecords.RemoveRange(imports);
+        dbContext.ContentFlags.RemoveRange(userFlags);
 
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static (UserDictionaryEntry Entry, bool Created) UpsertUserEntry(
+        AppDbContext dbContext,
+        Guid userId,
+        string rawTerm,
+        string sourceLanguage,
+        string targetLanguage,
+        string? notes,
+        List<string> tags,
+        string? type,
+        List<UserDictionaryEntry> userEntries,
+        List<DictionaryEntry> publicBaseEntries)
+    {
+        var cleanedTerm = TextNormalizer.CleanInput(rawTerm);
+        var normalizedTerm = TextNormalizer.NormalizeForComparison(cleanedTerm);
+        var resolvedType = type ?? (cleanedTerm.Contains(' ') ? "phrase" : "word");
+
+        // 1. Check if user already has a UserDictionaryEntry for this term → merge
+        var existingUserEntry = userEntries.FirstOrDefault(e =>
+            TextNormalizer.NormalizeForComparison(e.UserInputTerm) == normalizedTerm);
+
+        if (existingUserEntry is not null)
+        {
+            MergeUserEntry(existingUserEntry, notes, tags);
+
+            return (existingUserEntry, false);
+        }
+
+        // 2. Check if a public base DictionaryEntry matches → link immediately
+        var matchingBaseEntry = publicBaseEntries.FirstOrDefault(e =>
+            e.Language == targetLanguage &&
+            TextNormalizer.NormalizeForComparison(e.Text) == normalizedTerm);
+
+        var entry = new UserDictionaryEntry
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = userId,
+            DictionaryEntryId = matchingBaseEntry?.Id,
+            SourceLanguage = sourceLanguage,
+            TargetLanguage = targetLanguage,
+            UserInputTerm = cleanedTerm,
+            EnrichmentStatus = matchingBaseEntry is not null
+                ? EnrichmentStatus.Enriched
+                : EnrichmentStatus.Pending,
+            Notes = notes,
+            Tags = [.. tags],
+            Type = resolvedType,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        };
+
+        dbContext.UserDictionaryEntries.Add(entry);
+        userEntries.Add(entry);
+
+        return (entry, true);
+    }
+
+    private static void MergeUserEntry(
+        UserDictionaryEntry existing,
+        string? notes,
+        List<string> tags)
+    {
+        if (tags.Count > 0)
+        {
+            existing.Tags = [.. existing.Tags
+                .Concat(tags)
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(TextNormalizer.CleanInput)
+                .Distinct(StringComparer.OrdinalIgnoreCase)];
+        }
+
+        if (!string.IsNullOrWhiteSpace(notes) &&
+            !(existing.Notes ?? "").Contains(notes, StringComparison.OrdinalIgnoreCase))
+        {
+            existing.Notes = string.IsNullOrWhiteSpace(existing.Notes)
+                ? notes
+                : $"{existing.Notes}; {notes}";
+        }
+
+        existing.UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
     private static void ValidateCsvHeader(string headerRow)

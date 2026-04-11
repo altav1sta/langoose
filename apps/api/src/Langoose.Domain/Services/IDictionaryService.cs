@@ -4,7 +4,7 @@ namespace Langoose.Domain.Services;
 
 public interface IDictionaryService
 {
-    Task<IReadOnlyList<UserDictionaryEntry>> GetUserEntriesAsync(Guid userId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<DictionaryListItem>> GetVisibleEntriesAsync(Guid userId, CancellationToken cancellationToken);
 
     Task<UserDictionaryEntry> AddUserEntryAsync(Guid userId, AddUserEntryInput input, CancellationToken cancellationToken);
 

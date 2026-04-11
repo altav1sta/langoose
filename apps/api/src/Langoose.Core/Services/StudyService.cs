@@ -24,28 +24,67 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var progressItems = await dbContext.UserProgress
-            .Where(p => p.UserId == userId)
-            .Include(p => p.DictionaryEntry)
-            .OrderBy(p => p.DueAtUtc)
-            .ThenBy(p => p.SuccessCount)
-            .ToListAsync(cancellationToken);
+        var studyableEntryIds = await GetStudyableEntryIdsAsync(userId, cancellationToken);
 
-        if (progressItems.Count == 0)
+        if (studyableEntryIds.Count == 0)
         {
             return null;
         }
 
-        var next = progressItems[0];
+        var existingProgress = await dbContext.UserProgress
+            .Where(p => p.UserId == userId && studyableEntryIds.Contains(p.DictionaryEntryId))
+            .ToDictionaryAsync(p => p.DictionaryEntryId, cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var entryId in studyableEntryIds.Where(id => !existingProgress.ContainsKey(id)))
+        {
+            var progress = new UserProgress
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = userId,
+                DictionaryEntryId = entryId,
+                DueAtUtc = now,
+                Stability = ProgressDefaults.InitialStability,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            };
+
+            dbContext.UserProgress.Add(progress);
+            existingProgress[entryId] = progress;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var next = existingProgress.Values
+            .OrderBy(p => p.DueAtUtc)
+            .ThenBy(p => p.SuccessCount)
+            .First();
+
         var context = await dbContext.EntryContexts
             .FirstOrDefaultAsync(c => c.DictionaryEntryId == next.DictionaryEntryId, cancellationToken);
 
         // TODO: #71 — get translation hint from EntryTranslation
         return new StudyCard(
             next.DictionaryEntryId,
-            context?.Cloze ?? $"Use ____ in a sentence.",
+            context?.Cloze ?? "Use ____ in a sentence.",
             "",
-            next.DictionaryEntry.Difficulty);
+            next.DictionaryEntry?.Difficulty);
+    }
+
+    private async Task<List<Guid>> GetStudyableEntryIdsAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var publicEntryIds = await dbContext.DictionaryEntries
+            .Where(e => e.IsPublic && e.IsBaseForm)
+            .Select(e => e.Id)
+            .ToListAsync(cancellationToken);
+
+        var enrichedEntryIds = await dbContext.UserDictionaryEntries
+            .Where(ude => ude.UserId == userId && ude.DictionaryEntryId != null)
+            .Select(ude => ude.DictionaryEntryId!.Value)
+            .ToListAsync(cancellationToken);
+
+        return publicEntryIds.Union(enrichedEntryIds).ToList();
     }
 
     public async Task<AnswerResult?> SubmitAnswerAsync(
@@ -144,9 +183,15 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
         Guid userId,
         CancellationToken cancellationToken)
     {
+        var studyableEntryIds = await GetStudyableEntryIdsAsync(userId, cancellationToken);
+        var studyableIdSet = studyableEntryIds.ToHashSet();
+
         var progressItems = await dbContext.UserProgress
-            .Where(p => p.UserId == userId)
+            .Where(p => p.UserId == userId && studyableIdSet.Contains(p.DictionaryEntryId))
             .ToListAsync(cancellationToken);
+        var progressEntryIds = progressItems.Select(p => p.DictionaryEntryId).ToHashSet();
+
+        var newEntries = studyableEntryIds.Count(id => !progressEntryIds.Contains(id));
 
         var startOfTodayUtc = DateTimeOffset.UtcNow.UtcDateTime.Date;
         var endOfTodayUtc = startOfTodayUtc.AddDays(1);
@@ -156,9 +201,9 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
             e.CreatedAtUtc < endOfTodayUtc, cancellationToken);
 
         return new ProgressDashboard(
-            progressItems.Count,
-            progressItems.Count(p => p.DueAtUtc <= DateTimeOffset.UtcNow),
-            progressItems.Count(p => p.SuccessCount == 0),
+            studyableEntryIds.Count,
+            progressItems.Count(p => p.DueAtUtc <= DateTimeOffset.UtcNow) + newEntries,
+            newEntries,
             studiedToday);
     }
 

@@ -16,7 +16,7 @@ public sealed class DictionaryController(
     UserManager<AuthUser> userManager) : ControllerBase
 {
     [HttpGet("entries")]
-    public async Task<ActionResult<IReadOnlyList<UserDictionaryEntry>>> GetEntries(CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<DictionaryListItem>>> GetEntries(CancellationToken cancellationToken)
     {
         var user = await userManager.GetUserAsync(User);
 
@@ -25,7 +25,7 @@ public sealed class DictionaryController(
             return Unauthorized();
         }
 
-        return Ok(await dictionaryService.GetUserEntriesAsync(user.Id, cancellationToken));
+        return Ok(await dictionaryService.GetVisibleEntriesAsync(user.Id, cancellationToken));
     }
 
     [HttpPost("entries")]
