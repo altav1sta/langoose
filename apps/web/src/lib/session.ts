@@ -114,15 +114,15 @@ export function getCustomEntryCount(entries: DictionaryListItem[]) {
 }
 
 export function buildQuickAddPayload(form: QuickAddFormState): AddUserEntryRequest {
-  const translation = form.russianText
+  const russianTerm = form.russianText
     .split(',')
     .map(x => x.trim())
     .filter(Boolean)
     .join(', ');
 
   return {
-    userInputTerm: form.englishText,
-    userInputTranslation: translation || undefined,
+    userInputTerm: russianTerm || form.englishText,
+    userInputTranslation: form.englishText,
     sourceLanguage: 'ru',
     targetLanguage: 'en'
   };

@@ -33,7 +33,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
 
         var userItems = userEntries.Select(e => new DictionaryListItem(
             e.DictionaryEntryId ?? e.Id,
-            e.DictionaryEntry?.Text ?? e.UserInputTerm,
+            e.DictionaryEntry?.Text ?? e.UserInputTranslation ?? e.UserInputTerm,
             e.TargetLanguage,
             e.DictionaryEntry?.Difficulty,
             false,
@@ -109,18 +109,21 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
                 continue;
             }
 
-            var term = TextNormalizer.CleanInput(columns[0]);
-            var translation = TextNormalizer.CleanInput(columns[1]);
+            var englishTerm = TextNormalizer.CleanInput(columns[0]);
+            var russianTranslation = TextNormalizer.CleanInput(columns[1]);
             var type = TextNormalizer.CleanInput(columns[2]);
             var notes = columns.Count > 3 ? TextNormalizer.CleanInput(columns[3]) : "";
             var tags = columns.Count > 4 ? SplitPipeValues(columns[4]) : [];
 
-            if (string.IsNullOrWhiteSpace(term))
+            if (string.IsNullOrWhiteSpace(englishTerm))
             {
                 errors.Add($"Missing required fields: {row}");
                 continue;
             }
 
+            // userInputTerm = Russian (source), userInputTranslation = English (target)
+            var term = string.IsNullOrWhiteSpace(russianTranslation) ? englishTerm : russianTranslation;
+            var translation = englishTerm;
             candidates.Add((term, translation, notes, tags, type));
         }
 
@@ -200,11 +203,19 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
 
         foreach (var entry in entries)
         {
+            var englishText = entry.DictionaryEntry?.Text
+                ?? entry.UserInputTranslation
+                ?? entry.UserInputTerm;
             var russianText = ResolveTranslation(entry, translationsBySource, targetEntries, "ru");
+
+            if (string.IsNullOrWhiteSpace(russianText))
+            {
+                russianText = entry.UserInputTerm;
+            }
 
             rows.Add(string.Join(
                 ",",
-                EscapeCsv(entry.UserInputTerm),
+                EscapeCsv(englishText),
                 EscapeCsv(russianText),
                 entry.Type ?? "word",
                 EscapeCsv(entry.Notes ?? ""),
@@ -296,7 +307,11 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
     {
         var cleanedTerm = TextNormalizer.CleanInput(rawTerm);
         var normalizedTerm = TextNormalizer.NormalizeForComparison(cleanedTerm);
-        var resolvedType = type ?? (cleanedTerm.Contains(' ') ? "phrase" : "word");
+        var cleanedTranslation = rawTranslation is not null
+            ? TextNormalizer.CleanInput(rawTranslation)
+            : null;
+        var displayTerm = cleanedTranslation ?? cleanedTerm;
+        var resolvedType = type ?? (displayTerm.Contains(' ') ? "phrase" : "word");
 
         // 1. Check if user already has a UserDictionaryEntry for this term → merge
         var existingUserEntry = userEntries.FirstOrDefault(e =>
@@ -309,48 +324,44 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             return (existingUserEntry, false);
         }
 
-        // 2. Follow documented dedup path: translation → source-language form →
+        // 2. Documented dedup path: source-language term → DictionaryEntry form →
         //    BaseEntryId → EntryTranslation → linked target-language base entry
         DictionaryEntry? linkedEntry = null;
 
-        var cleanedTranslation = rawTranslation is not null
-            ? TextNormalizer.CleanInput(rawTranslation)
-            : null;
+        // Look up the source-language term (userInputTerm) as a DictionaryEntry form
+        var sourceForm = allBaseEntries.FirstOrDefault(e =>
+            e.Language == sourceLanguage &&
+            TextNormalizer.NormalizeForComparison(e.Text) == normalizedTerm);
 
-        if (!string.IsNullOrWhiteSpace(cleanedTranslation))
+        // Follow BaseEntryId to the base form if this is a derived form
+        var sourceBase = sourceForm is not null && !sourceForm.IsBaseForm
+            ? allBaseEntries.FirstOrDefault(e => e.Id == sourceForm.BaseEntryId)
+            : sourceForm;
+
+        // Check EntryTranslation for a linked target-language entry
+        if (sourceBase is not null)
         {
-            var normalizedTranslation = TextNormalizer.NormalizeForComparison(cleanedTranslation);
+            var translationLink = allTranslations.FirstOrDefault(t =>
+                t.SourceEntryId == sourceBase.Id);
 
-            // Find source-language form matching the translation
-            var sourceForm = allBaseEntries.FirstOrDefault(e =>
-                e.Language == sourceLanguage &&
-                TextNormalizer.NormalizeForComparison(e.Text) == normalizedTranslation);
-
-            // Follow BaseEntryId to the base form if this is a derived form
-            var sourceBase = sourceForm is not null && !sourceForm.IsBaseForm
-                ? allBaseEntries.FirstOrDefault(e => e.Id == sourceForm.BaseEntryId)
-                : sourceForm;
-
-            // Check EntryTranslation for a linked target-language entry
-            if (sourceBase is not null)
+            if (translationLink is not null)
             {
-                var translationLink = allTranslations.FirstOrDefault(t =>
-                    t.SourceEntryId == sourceBase.Id);
-
-                if (translationLink is not null)
-                {
-                    linkedEntry = allBaseEntries.FirstOrDefault(e =>
-                        e.Id == translationLink.TargetEntryId &&
-                        e.Language == targetLanguage);
-                }
+                linkedEntry = allBaseEntries.FirstOrDefault(e =>
+                    e.Id == translationLink.TargetEntryId &&
+                    e.Language == targetLanguage);
             }
         }
 
-        // 3. Fallback: direct match on the target-language term
-        linkedEntry ??= allBaseEntries.FirstOrDefault(e =>
-            e.Language == targetLanguage &&
-            e.IsBaseForm &&
-            TextNormalizer.NormalizeForComparison(e.Text) == normalizedTerm);
+        // 3. Fallback: direct match on the target-language translation text
+        if (linkedEntry is null && !string.IsNullOrWhiteSpace(cleanedTranslation))
+        {
+            var normalizedTranslation = TextNormalizer.NormalizeForComparison(cleanedTranslation);
+
+            linkedEntry = allBaseEntries.FirstOrDefault(e =>
+                e.Language == targetLanguage &&
+                e.IsBaseForm &&
+                TextNormalizer.NormalizeForComparison(e.Text) == normalizedTranslation);
+        }
 
         var entry = new UserDictionaryEntry
         {
