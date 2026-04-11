@@ -78,6 +78,28 @@
 - `chore/...` for maintenance.
 
 
+## Guidance Index
+
+These docs capture detailed rules for specific areas. Read the relevant doc
+when you need detail; update it when a change alters the behavior it describes.
+
+Keep this table in sync when adding or removing docs under `docs/agent/`.
+
+| Doc | Scope |
+|-----|-------|
+| `docs/agent/auth-hosting.md` | Auth cookies, antiforgery, OpenIddict, forwarded headers, hosting |
+| `docs/agent/api-contracts.md` | Request/response models, controller payloads, frontend API types |
+| `docs/agent/dictionary-rules.md` | Dictionary visibility, CSV import/export, duplicate merging |
+| `docs/agent/enrichment-guidance.md` | Async enrichment, shared content layer, enrichment states, LLM provider |
+| `docs/agent/study-engine.md` | Grading, scheduling, card selection, normalization |
+| `docs/agent/dotnet-testing.md` | Test layout, unit vs integration boundaries, test hosts |
+| `docs/agent/efcore-structure.md` | DbContext, migrations, entity config, data project layout |
+| `docs/agent/frontend-guidance.md` | React components, state, effects, TypeScript config |
+| `docs/agent/docker-guidance.md` | Dockerfiles, Compose, containerized dev |
+| `docs/agent/architecture-guidance.md` | Project boundaries, dependency direction |
+| `docs/agent/workflows.md` | Build/test commands, key file locations, validation |
+
+
 ## Skill Index
 
 - Use [langoose-dev](.codex/skills/langoose-dev/SKILL.md) for general repo work or when no narrower skill clearly applies.

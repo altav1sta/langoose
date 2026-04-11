@@ -17,6 +17,19 @@
 - Missing articles, inflection variants, and minor typos are intentionally tolerated as `AlmostCorrect`.
 - Phrase similarity can also yield `AlmostCorrect`.
 
+## Enrichment Eligibility
+
+- A card is only eligible for study if its dictionary item has enrichment (AI-generated or user-provided context).
+- Items in pending enrichment state are excluded from card selection.
+- See `docs/agent/enrichment-guidance.md` for enrichment states.
+
+## Scheduling Direction
+
+- The current scheduler uses fixed stability increments and fixed intervals.
+- M3 plans adoption of FSRS (Free Spaced Repetition Scheduler) to replace it.
+- Error analytics should feed back into scheduling: frequently missed words surface more often.
+- All scheduling algorithm decisions and parameters must be documented when changed.
+
 ## Review Checklist
 
 - Did normalization behavior change?
@@ -24,3 +37,4 @@
 - Did scheduler intervals change?
 - Did card balancing between base and custom items change?
 - Did dashboard counts still match the same visibility rules?
+- Did card eligibility still respect enrichment state?

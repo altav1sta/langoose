@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sync shared rules between CLAUDE.md and AGENTS.md.
-# AGENTS.md = shared rules + Skill Index (Codex-only section).
-# CLAUDE.md = shared rules + Guidance Index (Claude-Code-only section).
+# Shared rules include the Guidance Index in both files.
+# AGENTS.md also keeps a Codex-only Skill Index appendix.
 #
 # Usage:
 #   scripts/sync-rules.sh to-codex           # CLAUDE.md -> AGENTS.md
@@ -15,27 +15,28 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-AGENTS_MARKER="## Skill Index"
-CLAUDE_MARKER="## Guidance Index"
+AGENTS_SKILL_MARKER="## Skill Index"
+GUIDANCE_MARKER="## Guidance Index"
+CLAUDE_SPECIFIC_MARKER="## Claude-Specific Notes"
 
 trim_trailing_blank_lines() {
   sed -e :a -e '/^[[:space:]]*$/{$d;N;ba;}'
 }
 
 get_agents_shared() {
-  sed "/^${AGENTS_MARKER}/,\$d" AGENTS.md | trim_trailing_blank_lines
+  sed "/^${AGENTS_SKILL_MARKER}/,\$d" AGENTS.md | trim_trailing_blank_lines
 }
 
 get_agents_skill_index() {
-  sed -n "/^${AGENTS_MARKER}/,\$p" AGENTS.md | trim_trailing_blank_lines
+  sed -n "/^${AGENTS_SKILL_MARKER}/,\$p" AGENTS.md | trim_trailing_blank_lines
 }
 
 get_claude_shared() {
-  sed "/^${CLAUDE_MARKER}/,\$d" CLAUDE.md | trim_trailing_blank_lines
-}
-
-get_claude_guidance_index() {
-  sed -n "/^${CLAUDE_MARKER}/,\$p" CLAUDE.md | trim_trailing_blank_lines
+  if grep -q "^${CLAUDE_SPECIFIC_MARKER}$" CLAUDE.md; then
+    sed "/^${CLAUDE_SPECIFIC_MARKER}/,\$d" CLAUDE.md | trim_trailing_blank_lines
+  else
+    trim_trailing_blank_lines < CLAUDE.md
+  fi
 }
 
 write_agents_from_claude() {
@@ -68,27 +69,32 @@ write_agents_from_claude() {
   audit
 }
 
+get_claude_specific() {
+  if grep -q "^${CLAUDE_SPECIFIC_MARKER}$" CLAUDE.md; then
+    sed -n "/^${CLAUDE_SPECIFIC_MARKER}/,\$p" CLAUDE.md | trim_trailing_blank_lines
+  fi
+}
+
 write_claude_from_agents() {
   if [ ! -f AGENTS.md ]; then
     echo "AGENTS.md not found"
     exit 1
   fi
 
-  local guidance_index=""
+  local claude_specific=""
   if [ -f CLAUDE.md ]; then
-    guidance_index=$(get_claude_guidance_index)
+    claude_specific=$(get_claude_specific)
   fi
 
   local tmp_file
   tmp_file=$(mktemp)
 
-  if [ -z "${guidance_index}" ]; then
-    echo "Warning: no Guidance Index found in CLAUDE.md, copying without it"
+  if [ -z "${claude_specific}" ]; then
     get_agents_shared > "${tmp_file}"
   else
     {
       get_agents_shared
-      printf '\n\n%s\n' "${guidance_index}"
+      printf '\n\n%s\n' "${claude_specific}"
     } > "${tmp_file}"
   fi
 
@@ -169,8 +175,9 @@ audit_index_links() {
 }
 
 audit() {
-  audit_index_links AGENTS.md "${AGENTS_MARKER}" "AGENTS Skill Index"
-  audit_index_links CLAUDE.md "${CLAUDE_MARKER}" "CLAUDE Guidance Index"
+  audit_index_links AGENTS.md "${GUIDANCE_MARKER}" "AGENTS Guidance Index"
+  audit_index_links AGENTS.md "${AGENTS_SKILL_MARKER}" "AGENTS Skill Index"
+  audit_index_links CLAUDE.md "${GUIDANCE_MARKER}" "CLAUDE Guidance Index"
 }
 
 reconcile() {
