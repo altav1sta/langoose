@@ -1,6 +1,7 @@
 using Langoose.Api.Models;
-using Langoose.Api.Services;
 using Langoose.Auth.Data.Models;
+using Langoose.Domain.Models;
+using Langoose.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +12,7 @@ namespace Langoose.Api.Controllers;
 [Authorize]
 [Route("content")]
 public sealed class ContentController(
-    ContentService contentService,
+    IContentService contentService,
     UserManager<AuthUser> userManager) : ControllerBase
 {
     [HttpPost("enrich")]
@@ -25,7 +26,18 @@ public sealed class ContentController(
             return Unauthorized();
         }
 
-        return Ok(contentService.Enrich(request));
+        var input = new EnrichmentInput(request.EnglishText, request.RussianGlosses, request.ItemKind);
+        var result = contentService.Enrich(input);
+
+        return Ok(new EnrichmentResponse(
+            result.EnglishText,
+            result.RussianGlosses,
+            result.Difficulty,
+            result.PartOfSpeech,
+            [.. result.Examples.Select(e => new Models.ExampleCandidate(
+                e.SentenceText, e.ClozeText, e.TranslationHint, e.QualityScore, e.Origin))],
+            result.ValidationWarnings,
+            result.AcceptedVariants));
     }
 
     [HttpPost("report-issue")]
@@ -40,7 +52,8 @@ public sealed class ContentController(
             return Unauthorized();
         }
 
-        await contentService.ReportIssueAsync(user.Id, request, cancellationToken);
+        var input = new ReportIssueInput(request.ItemId, request.Reason, request.Details);
+        await contentService.ReportIssueAsync(user.Id, input, cancellationToken);
 
         return Accepted();
     }

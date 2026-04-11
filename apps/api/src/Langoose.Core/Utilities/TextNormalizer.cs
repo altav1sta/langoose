@@ -1,11 +1,13 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Langoose.Api.Services;
+namespace Langoose.Core.Utilities;
 
-public static class TextNormalizer
+public static partial class TextNormalizer
 {
-    private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
+
     private static readonly HashSet<string> ArticleWords = ["a", "an", "the"];
 
     public static string NormalizeForComparison(string value)
@@ -30,7 +32,7 @@ public static class TextNormalizer
             }
         }
 
-        return WhitespaceRegex.Replace(builder.ToString(), " ").Trim();
+        return WhitespaceRegex().Replace(builder.ToString(), " ").Trim();
     }
 
     public static string CleanInput(string value)

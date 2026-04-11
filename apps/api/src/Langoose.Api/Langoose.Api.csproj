@@ -8,6 +8,7 @@
     <ProjectReference Include="..\Langoose.Domain\Langoose.Domain.csproj" />
     <ProjectReference Include="..\Langoose.Data\Langoose.Data.csproj" />
     <ProjectReference Include="..\Langoose.Auth.Data\Langoose.Auth.Data.csproj" />
+    <ProjectReference Include="..\Langoose.Core\Langoose.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.4.0" />

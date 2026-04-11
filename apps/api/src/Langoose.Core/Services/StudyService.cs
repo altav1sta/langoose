@@ -1,13 +1,14 @@
-using Langoose.Api.Models;
+using Langoose.Core.Utilities;
 using Langoose.Data;
 using Langoose.Domain.Constants;
 using Langoose.Domain.Enums;
 using Langoose.Domain.Models;
+using Langoose.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
-namespace Langoose.Api.Services;
+namespace Langoose.Core.Services;
 
-public sealed class StudyService(AppDbContext dbContext)
+public sealed class StudyService(AppDbContext dbContext) : IStudyService
 {
     private const double PhraseSimilarityThreshold = 0.60;
     private const double CorrectStabilityCap = 0.95;
@@ -20,7 +21,7 @@ public sealed class StudyService(AppDbContext dbContext)
     private const double IncorrectStabilityPenalty = 0.12;
     private const int IncorrectDueDelayMinutes = 10;
 
-    public async Task<StudyCardResponse?> GetNextCardAsync(
+    public async Task<StudyCard?> GetNextCardAsync(
         Guid userId,
         CancellationToken cancellationToken)
     {
@@ -30,9 +31,8 @@ public sealed class StudyService(AppDbContext dbContext)
             .ToListAsync(cancellationToken);
         var exampleSentences = await dbContext.ExampleSentences.ToListAsync(cancellationToken);
 
-        var visibleItems = GetVisibleItems(dictionaryItems, userId)
-            .Where(x => x.Status == DictionaryItemStatus.Active)
-            .ToList();
+        List<DictionaryItem> visibleItems = [.. GetVisibleItems(dictionaryItems, userId)
+            .Where(x => x.Status == DictionaryItemStatus.Active)];
         var reviewStatesByItemId = reviewStates.ToDictionary(x => x.ItemId);
 
         foreach (var item in visibleItems.Where(x => !reviewStatesByItemId.ContainsKey(x.Id)))
@@ -50,11 +50,10 @@ public sealed class StudyService(AppDbContext dbContext)
             dbContext.ReviewStates.Add(reviewState);
         }
 
-        var dueStates = reviewStatesByItemId.Values
+        List<ReviewState> dueStates = [.. reviewStatesByItemId.Values
             .Where(x => visibleItems.Any(item => item.Id == x.ItemId))
             .OrderBy(x => x.DueAtUtc)
-            .ThenBy(x => x.SuccessCount)
-            .ToList();
+            .ThenBy(x => x.SuccessCount)];
 
         if (dueStates.Count == 0)
         {
@@ -79,7 +78,7 @@ public sealed class StudyService(AppDbContext dbContext)
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return new StudyCardResponse(
+        return new StudyCard(
             itemForStudy.Id,
             sentence.ClozeText,
             sentence.TranslationHint,
@@ -89,13 +88,14 @@ public sealed class StudyService(AppDbContext dbContext)
             itemForStudy.Difficulty);
     }
 
-    public async Task<StudyAnswerResult?> SubmitAnswerAsync(
+    public async Task<AnswerResult?> SubmitAnswerAsync(
         Guid userId,
-        StudyAnswerRequest request,
+        Guid itemId,
+        string submittedAnswer,
         CancellationToken cancellationToken)
     {
         var item = await dbContext.DictionaryItems.FirstOrDefaultAsync(x =>
-            x.Id == request.ItemId &&
+            x.Id == itemId &&
             (x.OwnerId == null || x.OwnerId == userId),
             cancellationToken);
 
@@ -125,7 +125,7 @@ public sealed class StudyService(AppDbContext dbContext)
             dbContext.ReviewStates.Add(reviewState);
         }
 
-        var evaluation = EvaluateAnswer(item, request.SubmittedAnswer);
+        var evaluation = EvaluateAnswer(item, submittedAnswer);
         ApplyScheduler(reviewState, evaluation.Verdict);
 
         dbContext.StudyEvents.Add(new StudyEvent
@@ -134,7 +134,7 @@ public sealed class StudyService(AppDbContext dbContext)
             UserId = userId,
             ItemId = item.Id,
             AnsweredAtUtc = DateTimeOffset.UtcNow,
-            SubmittedAnswer = request.SubmittedAnswer,
+            SubmittedAnswer = submittedAnswer,
             NormalizedAnswer = evaluation.NormalizedAnswer,
             Verdict = evaluation.Verdict,
             FeedbackCode = evaluation.FeedbackCode
@@ -145,22 +145,21 @@ public sealed class StudyService(AppDbContext dbContext)
         return evaluation with { NextDueAtUtc = reviewState.DueAtUtc };
     }
 
-    public StudyAnswerResult EvaluateAnswer(DictionaryItem item, string submittedAnswer)
+    public AnswerResult EvaluateAnswer(DictionaryItem item, string submittedAnswer)
     {
         var normalizedSubmitted = TextNormalizer.NormalizeForComparison(submittedAnswer);
         var expected = item.EnglishText;
         var normalizedExpected = TextNormalizer.NormalizeForComparison(expected);
-        var acceptedVariants = item.AcceptedVariants
+        List<string> acceptedVariants = [.. item.AcceptedVariants
             .Append(expected)
             .Select(TextNormalizer.NormalizeForComparison)
-            .Distinct()
-            .ToList();
+            .Distinct()];
 
         if (acceptedVariants.Contains(normalizedSubmitted))
         {
             var isVariant = normalizedSubmitted != normalizedExpected;
 
-            return new StudyAnswerResult(
+            return new AnswerResult(
                 isVariant ? StudyVerdict.AlmostCorrect : StudyVerdict.Correct,
                 normalizedSubmitted,
                 normalizedSubmitted,
@@ -206,7 +205,7 @@ public sealed class StudyService(AppDbContext dbContext)
                 FeedbackCode.AcceptedVariant);
         }
 
-        return new StudyAnswerResult(
+        return new AnswerResult(
             StudyVerdict.Incorrect,
             normalizedSubmitted,
             null,
@@ -215,7 +214,7 @@ public sealed class StudyService(AppDbContext dbContext)
             DateTimeOffset.UtcNow);
     }
 
-    public async Task<ProgressDashboardResponse> GetDashboardAsync(
+    public async Task<ProgressDashboard> GetDashboardAsync(
         Guid userId,
         CancellationToken cancellationToken)
     {
@@ -233,7 +232,7 @@ public sealed class StudyService(AppDbContext dbContext)
             x.AnsweredAtUtc < endOfTodayUtc &&
             visibleItemIds.Contains(x.ItemId), cancellationToken);
 
-        return new ProgressDashboardResponse(
+        return new ProgressDashboard(
             items.Count,
             states.Count(x => x.DueAtUtc <= DateTimeOffset.UtcNow),
             states.Count(x => x.SuccessCount == 0),
@@ -244,14 +243,13 @@ public sealed class StudyService(AppDbContext dbContext)
 
     private static List<DictionaryItem> GetVisibleItems(List<DictionaryItem> dictionaryItems, Guid userId)
     {
-        return dictionaryItems
+        return [.. dictionaryItems
             .Where(x => x.OwnerId is null || x.OwnerId == userId)
             .GroupBy(x => TextNormalizer.NormalizeForComparison(x.EnglishText))
             .Select(group => group
                 .OrderByDescending(x => x.OwnerId == userId)
                 .ThenBy(x => x.CreatedAtUtc)
-                .First())
-            .ToList();
+                .First())];
     }
 
     private static double PhraseSimilarity(string left, string right)
@@ -316,13 +314,13 @@ public sealed class StudyService(AppDbContext dbContext)
         }
     }
 
-    private static StudyAnswerResult CreateAlmostCorrectResult(
+    private static AnswerResult CreateAlmostCorrectResult(
         string normalizedSubmitted,
         string normalizedExpected,
         string expected,
         FeedbackCode feedbackCode)
     {
-        return new StudyAnswerResult(
+        return new AnswerResult(
             StudyVerdict.AlmostCorrect,
             normalizedSubmitted,
             normalizedExpected,

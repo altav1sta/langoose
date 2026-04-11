@@ -1,4 +1,4 @@
-using Langoose.Api.Services;
+using Langoose.Core.Services;
 using Langoose.Data;
 using Langoose.Data.Seeding;
 using Microsoft.EntityFrameworkCore;

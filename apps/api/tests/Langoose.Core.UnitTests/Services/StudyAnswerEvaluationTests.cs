@@ -1,12 +1,11 @@
-using Langoose.Api.Models;
-using Langoose.Api.Services;
+using Langoose.Core.Services;
 using Langoose.Data;
 using Langoose.Domain.Enums;
 using Langoose.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
-namespace Langoose.Api.UnitTests.Services;
+namespace Langoose.Core.UnitTests.Services;
 
 public sealed class StudyAnswerEvaluationTests
 {

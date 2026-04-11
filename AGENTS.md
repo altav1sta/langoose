@@ -3,9 +3,11 @@
 ## Project Shape
 
 - `apps/api` is the backend boundary.
-- `apps/api/src/Langoose.Api` contains the ASP.NET Core API.
-- `apps/api/src/Langoose.Domain` contains shared domain models and abstractions.
+- `apps/api/src/Langoose.Domain` contains domain models, enums, constants, and service interfaces.
+- `apps/api/src/Langoose.Core` contains service implementations and utilities.
 - `apps/api/src/Langoose.Data` contains app persistence and seeding.
+- `apps/api/src/Langoose.Api` contains controllers, DTOs, middleware, and DI setup.
+- `apps/api/src/Langoose.Worker` contains the background processing host.
 - `apps/api/src/Langoose.Auth.Data` contains auth persistence.
 - `apps/api/tests` contains backend unit and integration tests.
 - `apps/web` contains the React 19 + TypeScript + Vite frontend.

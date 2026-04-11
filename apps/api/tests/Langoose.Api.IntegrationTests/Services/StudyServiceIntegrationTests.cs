@@ -1,8 +1,7 @@
-using Langoose.Api.Models;
+using Langoose.Api.IntegrationTests.Infrastructure;
 using Langoose.Domain.Constants;
 using Langoose.Domain.Enums;
 using Langoose.Domain.Models;
-using Langoose.Api.IntegrationTests.Infrastructure;
 using Xunit;
 
 namespace Langoose.Api.IntegrationTests.Services;
@@ -18,7 +17,7 @@ public sealed class StudyServiceIntegrationTests
         var studyService = TestAppSetup.CreateStudyService(dbContext);
         var userId = Guid.NewGuid();
 
-        var customItem = await dictionaryService.AddItemAsync(userId, new DictionaryItemRequest(
+        var customItem = await dictionaryService.AddItemAsync(userId, new AddItemInput(
             "look for",
             ["iskat"],
             "phrase",

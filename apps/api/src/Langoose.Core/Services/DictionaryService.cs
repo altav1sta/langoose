@@ -1,16 +1,17 @@
 using System.Text;
-using Langoose.Api.Models;
+using Langoose.Core.Utilities;
 using Langoose.Data;
 using Langoose.Domain.Constants;
 using Langoose.Domain.Enums;
 using Langoose.Domain.Models;
+using Langoose.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
-namespace Langoose.Api.Services;
+namespace Langoose.Core.Services;
 
 public sealed class DictionaryService(
     AppDbContext dbContext,
-    EnrichmentService enrichmentService)
+    IEnrichmentService enrichmentService) : IDictionaryService
 {
     private static readonly string[] RequiredCsvHeaders = ["english term", "russian translation s", "type"];
     private static readonly string[] OptionalCsvHeaders = ["notes", "tags"];
@@ -26,19 +27,18 @@ public sealed class DictionaryService(
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        return GetVisibleItems(state.DictionaryItems, userId)
+        return [.. GetVisibleItems(state.DictionaryItems, userId)
             .OrderBy(item => item.SourceType)
-            .ThenBy(item => item.EnglishText)
-            .ToList();
+            .ThenBy(item => item.EnglishText)];
     }
 
     public async Task<DictionaryItem> AddItemAsync(
         Guid userId,
-        DictionaryItemRequest request,
+        AddItemInput input,
         CancellationToken cancellationToken)
     {
         var state = await LoadTrackedStateAsync(dbContext, cancellationToken);
-        var (item, _) = await UpsertItemAsync(dbContext, state, userId, request, cancellationToken);
+        var (item, _) = await UpsertItemAsync(dbContext, state, userId, input, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return item;
@@ -47,7 +47,7 @@ public sealed class DictionaryService(
     public async Task<DictionaryItem?> PatchItemAsync(
         Guid userId,
         Guid itemId,
-        DictionaryItemPatchRequest request,
+        PatchItemInput input,
         CancellationToken cancellationToken)
     {
         var item = await dbContext.DictionaryItems.FirstOrDefaultAsync(candidate =>
@@ -59,33 +59,33 @@ public sealed class DictionaryService(
             return null;
         }
 
-        if (request.RussianGlosses is not null)
+        if (input.RussianGlosses is not null)
         {
-            item.RussianGlosses = CleanValues(request.RussianGlosses);
+            item.RussianGlosses = CleanValues(input.RussianGlosses);
         }
 
-        if (!string.IsNullOrWhiteSpace(request.PartOfSpeech))
+        if (!string.IsNullOrWhiteSpace(input.PartOfSpeech))
         {
-            item.PartOfSpeech = TextNormalizer.CleanInput(request.PartOfSpeech);
+            item.PartOfSpeech = TextNormalizer.CleanInput(input.PartOfSpeech);
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Difficulty))
+        if (!string.IsNullOrWhiteSpace(input.Difficulty))
         {
-            item.Difficulty = TextNormalizer.CleanInput(request.Difficulty);
+            item.Difficulty = TextNormalizer.CleanInput(input.Difficulty);
         }
 
-        if (request.Notes is not null)
+        if (input.Notes is not null)
         {
-            item.Notes = TextNormalizer.CleanInput(request.Notes);
+            item.Notes = TextNormalizer.CleanInput(input.Notes);
         }
 
-        if (request.Tags is not null)
+        if (input.Tags is not null)
         {
-            item.Tags = CleanValues(request.Tags);
+            item.Tags = CleanValues(input.Tags);
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Status) &&
-            Enum.TryParse<DictionaryItemStatus>(request.Status, true, out var status))
+        if (!string.IsNullOrWhiteSpace(input.Status) &&
+            Enum.TryParse<DictionaryItemStatus>(input.Status, true, out var status))
         {
             item.Status = status;
         }
@@ -95,12 +95,13 @@ public sealed class DictionaryService(
         return item;
     }
 
-    public async Task<ImportCsvResponse> ImportCsvAsync(
+    public async Task<ImportResult> ImportCsvAsync(
         Guid userId,
-        ImportCsvRequest request,
+        string csvContent,
+        string fileName,
         CancellationToken cancellationToken)
     {
-        var rows = request.CsvContent.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
+        var rows = csvContent.Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
 
         if (rows.Length == 0)
         {
@@ -109,8 +110,8 @@ public sealed class DictionaryService(
 
         ValidateCsvHeader(rows[0]);
 
-        var errors = new List<string>();
-        var candidates = new List<DictionaryItemRequest>();
+        List<string> errors = [];
+        List<AddItemInput> candidates = [];
 
         foreach (var row in rows.Skip(1))
         {
@@ -136,7 +137,7 @@ public sealed class DictionaryService(
                 continue;
             }
 
-            candidates.Add(new DictionaryItemRequest(
+            candidates.Add(new AddItemInput(
                 english,
                 russianGlosses,
                 type,
@@ -149,7 +150,7 @@ public sealed class DictionaryService(
 
         if (errors.Count > 0)
         {
-            return new ImportCsvResponse(
+            return new ImportResult(
                 Math.Max(0, rows.Length - 1),
                 0,
                 Math.Max(0, rows.Length - 1),
@@ -178,7 +179,7 @@ public sealed class DictionaryService(
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            FileName = request.FileName,
+            FileName = fileName,
             TotalRows = Math.Max(0, rows.Length - 1),
             ImportedRows = imported,
             SkippedRows = skipped,
@@ -189,7 +190,7 @@ public sealed class DictionaryService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return new ImportCsvResponse(Math.Max(0, rows.Length - 1), imported, skipped, []);
+        return new ImportResult(Math.Max(0, rows.Length - 1), imported, skipped, []);
     }
 
     public async Task<string> ExportCsvAsync(Guid userId, CancellationToken cancellationToken)
@@ -201,7 +202,7 @@ public sealed class DictionaryService(
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        var rows = new List<string> { "English term,Russian translation(s),Type,Notes,Tags" };
+        List<string> rows = ["English term,Russian translation(s),Type,Notes,Tags"];
         var visibleCustomItems = GetVisibleItems(state.DictionaryItems, userId)
             .Where(candidate => candidate.OwnerId == userId)
             .OrderBy(candidate => candidate.EnglishText);
@@ -256,14 +257,14 @@ public sealed class DictionaryService(
         AppDbContext dbContext,
         AppState state,
         Guid userId,
-        DictionaryItemRequest request,
+        AddItemInput input,
         CancellationToken cancellationToken)
     {
         NormalizeCustomDuplicates(dbContext, state, userId);
 
-        var cleanedEnglish = TextNormalizer.CleanInput(request.EnglishText);
+        var cleanedEnglish = TextNormalizer.CleanInput(input.EnglishText);
         var normalizedEnglish = TextNormalizer.NormalizeForComparison(cleanedEnglish);
-        var itemKind = ResolveItemKind(request.ItemKind, cleanedEnglish);
+        var itemKind = ResolveItemKind(input.ItemKind, cleanedEnglish);
         var existingCustom = state.DictionaryItems.FirstOrDefault(item =>
             item.OwnerId == userId &&
             TextNormalizer.NormalizeForComparison(item.EnglishText) == normalizedEnglish);
@@ -272,13 +273,13 @@ public sealed class DictionaryService(
             TextNormalizer.NormalizeForComparison(item.EnglishText) == normalizedEnglish);
 
         var enrichment = enrichmentService.Enrich(
-            new EnrichmentRequest(cleanedEnglish, request.RussianGlosses, request.ItemKind));
-        var glosses = (request.RussianGlosses?.Count ?? 0) > 0
-            ? request.RussianGlosses!
+            new EnrichmentInput(cleanedEnglish, input.RussianGlosses, input.ItemKind));
+        var glosses = (input.RussianGlosses?.Count ?? 0) > 0
+            ? input.RussianGlosses!
             : enrichment.RussianGlosses;
         var cleanedGlosses = CleanValues(glosses);
-        var cleanedTags = CleanValues(request.Tags ?? []);
-        var cleanedNotes = TextNormalizer.CleanInput(request.Notes ?? "");
+        var cleanedTags = CleanValues(input.Tags ?? []);
+        var cleanedNotes = TextNormalizer.CleanInput(input.Notes ?? "");
 
         if (existingCustom is not null)
         {
@@ -324,21 +325,20 @@ public sealed class DictionaryService(
             OwnerId = userId,
             SourceType = SourceType.Custom,
             EnglishText = cleanedEnglish,
-            RussianGlosses = cleanedGlosses.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            RussianGlosses = [.. cleanedGlosses.Distinct(StringComparer.OrdinalIgnoreCase)],
             ItemKind = itemKind,
-            PartOfSpeech = request.PartOfSpeech?.Trim() ?? enrichment.PartOfSpeech,
-            Difficulty = request.Difficulty?.Trim() ?? enrichment.Difficulty,
+            PartOfSpeech = input.PartOfSpeech?.Trim() ?? enrichment.PartOfSpeech,
+            Difficulty = input.Difficulty?.Trim() ?? enrichment.Difficulty,
             Status = DictionaryItemStatus.Active,
             Notes = cleanedNotes,
             Tags = cleanedTags,
-            CreatedByFlow = request.CreatedByFlow?.Trim() ?? "quick-add",
-            AcceptedVariants = enrichment.AcceptedVariants
+            CreatedByFlow = input.CreatedByFlow?.Trim() ?? "quick-add",
+            AcceptedVariants = [.. enrichment.AcceptedVariants
                 .Append(cleanedEnglish)
                 .Append(normalizedEnglish)
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Select(TextNormalizer.CleanInput)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList(),
+                .Distinct(StringComparer.OrdinalIgnoreCase)],
             CreatedAtUtc = DateTimeOffset.UtcNow
         };
 
@@ -349,7 +349,7 @@ public sealed class DictionaryService(
         dbContext.DictionaryItems.Add(item);
         state.DictionaryItems.Add(item);
 
-        if (request.GenerateExamples)
+        if (input.GenerateExamples)
         {
             var validExamples = enrichment.Examples.Where(candidate =>
                 !enrichment.ValidationWarnings.Contains(
@@ -389,14 +389,13 @@ public sealed class DictionaryService(
 
     private static IReadOnlyList<DictionaryItem> GetVisibleItems(List<DictionaryItem> dictionaryItems, Guid userId)
     {
-        return dictionaryItems
+        return [.. dictionaryItems
             .Where(item => item.OwnerId is null || item.OwnerId == userId)
             .GroupBy(item => TextNormalizer.NormalizeForComparison(item.EnglishText))
             .Select(group => group
                 .OrderByDescending(item => item.OwnerId == userId)
                 .ThenBy(item => item.CreatedAtUtc)
-                .First())
-            .ToList();
+                .First())];
     }
 
     private static async Task<AppState> LoadTrackedStateAsync(
@@ -416,9 +415,8 @@ public sealed class DictionaryService(
 
     private static void ValidateCsvHeader(string headerRow)
     {
-        var headers = ParseCsvRow(headerRow)
-            .Select(header => TextNormalizer.NormalizeForComparison(header))
-            .ToList();
+        List<string> headers = [.. ParseCsvRow(headerRow)
+            .Select(header => TextNormalizer.NormalizeForComparison(header))];
 
         if (headers.Count < 3 || headers.Count > 5)
         {
@@ -456,26 +454,23 @@ public sealed class DictionaryService(
         List<string> acceptedVariants,
         string normalizedEnglish)
     {
-        existing.RussianGlosses = existing.RussianGlosses
+        existing.RussianGlosses = [.. existing.RussianGlosses
             .Concat(cleanedGlosses)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(TextNormalizer.CleanInput)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        existing.Tags = existing.Tags
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
+        existing.Tags = [.. existing.Tags
             .Concat(cleanedTags)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(TextNormalizer.CleanInput)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        existing.AcceptedVariants = existing.AcceptedVariants
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
+        existing.AcceptedVariants = [.. existing.AcceptedVariants
             .Concat(acceptedVariants)
             .Append(cleanedEnglish)
             .Append(normalizedEnglish)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(TextNormalizer.CleanInput)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
         existing.ItemKind = existing.ItemKind == ItemKind.Phrase || itemKind == ItemKind.Phrase
             ? ItemKind.Phrase
             : ItemKind.Word;
@@ -543,29 +538,25 @@ public sealed class DictionaryService(
         DictionaryItem duplicate,
         Guid userId)
     {
-        primary.RussianGlosses = primary.RussianGlosses
+        primary.RussianGlosses = [.. primary.RussianGlosses
             .Concat(duplicate.RussianGlosses)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(TextNormalizer.CleanInput)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        primary.Tags = primary.Tags
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
+        primary.Tags = [.. primary.Tags
             .Concat(duplicate.Tags)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(TextNormalizer.CleanInput)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        primary.AcceptedVariants = primary.AcceptedVariants
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
+        primary.AcceptedVariants = [.. primary.AcceptedVariants
             .Concat(duplicate.AcceptedVariants)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(TextNormalizer.CleanInput)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        primary.Distractors = primary.Distractors
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
+        primary.Distractors = [.. primary.Distractors
             .Concat(duplicate.Distractors)
             .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
         primary.ItemKind = primary.ItemKind == ItemKind.Phrase || duplicate.ItemKind == ItemKind.Phrase
             ? ItemKind.Phrase
             : ItemKind.Word;
@@ -631,7 +622,7 @@ public sealed class DictionaryService(
 
     private static List<string> ParseCsvRow(string row)
     {
-        var result = new List<string>();
+        List<string> result = [];
         var current = new StringBuilder();
         var inQuotes = false;
 
@@ -670,21 +661,19 @@ public sealed class DictionaryService(
 
     private static List<string> CleanValues(IEnumerable<string> values)
     {
-        return values
+        return [.. values
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(TextNormalizer.CleanInput)
             .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
     }
 
     private static List<string> SplitPipeValues(string value)
     {
-        return value
+        return [.. value
             .Split('|', StringSplitOptions.RemoveEmptyEntries)
             .Select(TextNormalizer.CleanInput)
-            .Where(candidate => !string.IsNullOrWhiteSpace(candidate))
-            .ToList();
+            .Where(candidate => !string.IsNullOrWhiteSpace(candidate))];
     }
 
     private sealed class AppState

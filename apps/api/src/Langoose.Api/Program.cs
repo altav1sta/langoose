@@ -3,14 +3,15 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Langoose.Api.Configuration;
 using Langoose.Api.Middleware;
-using Langoose.Api.Services;
 using Langoose.Auth.Data;
 using Langoose.Auth.Data.Models;
+using Langoose.Core.Services;
 using Langoose.Data;
 using Langoose.Data.Seeding;
+using Langoose.Domain.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using IPNetwork = System.Net.IPNetwork;
 
@@ -115,10 +116,10 @@ builder.Services.AddOpenIddict()
         options.UseAspNetCore();
     });
 
-builder.Services.AddScoped<EnrichmentService>();
-builder.Services.AddScoped<DictionaryService>();
-builder.Services.AddScoped<StudyService>();
-builder.Services.AddScoped<ContentService>();
+builder.Services.AddScoped<IEnrichmentService, EnrichmentService>();
+builder.Services.AddScoped<IDictionaryService, DictionaryService>();
+builder.Services.AddScoped<IStudyService, StudyService>();
+builder.Services.AddScoped<IContentService, ContentService>();
 builder.Services.AddScoped<DatabaseSeeder>();
 
 builder.Services.AddControllers()
