@@ -2,39 +2,77 @@
 
 ## Main Files
 
-- `apps/api/src/Langoose.Api/Services/StudyService.cs`
-- `apps/api/src/Langoose.Api/Services/TextNormalizer.cs`
-- `apps/api/tests/Langoose.Api.UnitTests`
+- `apps/api/src/Langoose.Core/Services/StudyService.cs`
+- `apps/api/src/Langoose.Core/Utilities/TextNormalizer.cs`
+- `apps/api/tests/Langoose.Core.UnitTests`
 - `apps/api/tests/Langoose.Api.IntegrationTests`
 
-## Current Behavior
+## Study Unit
 
-- Due cards come from visible dictionary items, not hidden duplicates.
-- Missing review states are created lazily for visible items.
-- Card selection orders by due time and success count, then biases toward custom items when custom is not overrepresented.
-- Exact matches return `Correct`.
-- Accepted variants return `AlmostCorrect` with `AcceptedVariant`.
-- Missing articles, inflection variants, and minor typos are intentionally tolerated as `AlmostCorrect`.
-- Phrase similarity can also yield `AlmostCorrect`.
+The study unit is an **EntryContext** — a sentence with a cloze gap linked to a
+specific DictionaryEntry form. The expected answer and grammar hint are derived
+from the linked entry, not stored on the context.
 
-## Enrichment Eligibility
+### Study Card Content
 
-- A card is only eligible for study if its dictionary item has enrichment (AI-generated or user-provided context).
-- Items in pending enrichment state are excluded from card selection.
-- See `docs/agent/enrichment-guidance.md` for enrichment states.
+```
+Cloze:              "She ____ the room yesterday."
+Sentence hint:      "Она забронировала комнату вчера."  (paired context via ContextTranslation)
+Translations:       ["забронировать"]                   (via EntryTranslation)
+Grammar hint:       "past simple"                       (from DictionaryEntry.GrammarLabel)
+Expected answer:    "booked"                            (from DictionaryEntry.Text)
+Difficulty:         "B1"                                (from EntryContext.Difficulty)
+```
+
+## Card Selection
+
+1. Build the studyable pool:
+   - All public DictionaryEntries (base forms)
+   - DictionaryEntries linked from the user's enriched UserDictionaryEntries
+2. Exclude entries with no EntryContexts, pending/failed UserDictionaryEntries.
+3. Join UserProgress for scheduling (lazy create for new encounters).
+4. Order by DueAtUtc, then SuccessCount. Bias toward custom items.
+5. Pick a base entry → pick an EntryContext for one of its forms (rotate contexts).
+6. Include UserEntryContexts if the user has added their own.
+
+## Answer Evaluation
+
+Compare user input against the linked DictionaryEntry.Text (the expected form):
+- Levenshtein similarity via TextNormalizer for typo tolerance
+- Missing articles, inflection variants tolerated as AlmostCorrect
+- Record EntryContextId in StudyEvent for per-context analytics
+
+### Verdicts
+
+- `Correct` — exact match or near-exact
+- `AlmostCorrect` — minor typo, missing article, inflection variant
+- `Incorrect` — meaning mismatch
+
+## UserProgress
+
+Tracks spaced repetition per (UserId, DictionaryEntryId). Created lazily.
+Unique constraint on (UserId, DictionaryEntryId).
+
+## Dashboard
+
+- Total items: public base entries + user's enriched entries
+- Due now: UserProgress where DueAtUtc <= now
+- New items: entries in pool with no UserProgress row
+- Studied today: StudyEvents in last 24h
 
 ## Scheduling Direction
 
-- The current scheduler uses fixed stability increments and fixed intervals.
-- M3 plans adoption of FSRS (Free Spaced Repetition Scheduler) to replace it.
-- Error analytics should feed back into scheduling: frequently missed words surface more often.
-- All scheduling algorithm decisions and parameters must be documented when changed.
+- Current scheduler uses fixed stability increments and intervals.
+- M3 plans FSRS adoption.
+- Error analytics should feed back into scheduling.
+- All scheduling parameter changes must be documented.
 
 ## Review Checklist
 
-- Did normalization behavior change?
+- Did answer evaluation still compare against DictionaryEntry.Text?
+- Did Levenshtein tolerance thresholds change?
 - Did verdict categories or feedback codes change?
 - Did scheduler intervals change?
 - Did card balancing between base and custom items change?
-- Did dashboard counts still match the same visibility rules?
-- Did card eligibility still respect enrichment state?
+- Did dashboard counts still match the visibility rules?
+- Is EntryContextId recorded in StudyEvent?

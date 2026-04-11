@@ -1,26 +1,75 @@
 # Langoose EF Core Structure Guidance
 
-## Preferred Layout
+## Layout
 
-- `apps/api/src/Langoose.Domain` for shared persisted models and domain-facing abstractions.
-- `apps/api/src/Langoose.Data` for `AppDbContext`, configurations, migrations, and seeding.
-- `apps/api/src/Langoose.Auth.Data` for auth `DbContext`, auth configuration, and auth migrations.
-- `apps/api/tests/Langoose.Api.UnitTests`
-- `apps/api/tests/Langoose.Api.IntegrationTests`
+- `apps/api/src/Langoose.Domain` — entity classes, enums, constants.
+- `apps/api/src/Langoose.Data` — `AppDbContext`, entity configurations, migrations, seeding.
+- `apps/api/src/Langoose.Auth.Data` — auth `DbContext`, auth configuration, auth migrations.
+- `apps/api/src/Langoose.Core` — services that use `AppDbContext` directly.
 
-## What Belongs Where
+## Entities
 
+All entities use `Guid` primary keys generated with `Guid.CreateVersion7()` (time-ordered,
+better for B-tree indexing in PostgreSQL). Mapping tables use composite primary keys.
+
+### App Database (AppDbContext)
+
+| Entity | Table | Key Relationships |
+|--------|-------|-------------------|
+| DictionaryEntry | dictionary_entries | Self-ref BaseEntryId, has many EntryContexts |
+| EntryTranslation | entry_translations | Composite PK (SourceEntryId, TargetEntryId) |
+| EntryContext | entry_contexts | FK → DictionaryEntry |
+| ContextTranslation | context_translations | Composite PK (SourceContextId, TargetContextId) |
+| UserDictionaryEntry | user_dictionary_entries | FK → DictionaryEntry (nullable) |
+| UserEntryContext | user_entry_contexts | FK → UserDictionaryEntry |
+| UserProgress | user_progress | FK → DictionaryEntry. Unique (UserId, DictionaryEntryId) |
+| StudyEvent | study_events | FK → DictionaryEntry, FK → EntryContext (nullable) |
+| ContentFlag | content_flags | FK → DictionaryEntry |
+| ImportRecord | import_records | No FKs to content tables |
+
+### Auth Database (AuthDbContext)
+
+Unchanged. Contains `AuthUser`, `AuthSession`, and OpenIddict tables.
+
+## Conventions
+
+- One `IEntityTypeConfiguration<T>` per entity in `Data/Configurations/`.
+- Use `ApplyConfigurationsFromAssembly` in `AppDbContext.OnModelCreating`.
+- Enum fields stored as strings via `HasConversion<string>()`.
+- PostgreSQL arrays (`text[]`) for `List<string>` properties (Tags, etc.).
+- Composite PKs via `HasKey(x => new { x.A, x.B })` for mapping tables.
+- Services use `AppDbContext` directly — no repository-per-entity abstraction.
 - Keep EF-specific concerns out of controllers.
-- Keep service-layer business rules in `apps/api/src/Langoose.Api/Services`.
-- Keep shared persisted models in `apps/api/src/Langoose.Domain` when both API behavior and EF Core depend on them.
-- Prefer one `IEntityTypeConfiguration<T>` file per entity once mappings stop being tiny.
-- Prefer `ApplyConfigurationsFromAssembly` over a large inline mapping file.
-- Treat repositories, extra abstractions, and separate migrations projects as opt-in complexity, not default architecture.
+
+## Key Indexes
+
+- `DictionaryEntry`: index on `(Language, Text)`, index on `BaseEntryId`.
+- `EntryTranslation`: PK `(SourceEntryId, TargetEntryId)`.
+- `EntryContext`: index on `DictionaryEntryId`.
+- `ContextTranslation`: PK `(SourceContextId, TargetContextId)`.
+- `UserDictionaryEntry`: index on `UserId`, index on `EnrichmentStatus`.
+- `UserProgress`: unique on `(UserId, DictionaryEntryId)`.
+
+## Migrations
+
+- No production data yet — fresh migrations are acceptable for major model reworks.
+- Delete old migration files and create a new `InitialFoundation` migration.
+- App migrations: `dotnet ef migrations add <Name> --project apps/api/src/Langoose.Data --startup-project apps/api/src/Langoose.Api`
+- Auth migrations: `dotnet ef migrations add <Name> --project apps/api/src/Langoose.Auth.Data --startup-project apps/api/src/Langoose.Api`
+- Local/Docker: auto-applied on startup. Hosted: applied via `Langoose.DbTool`.
+
+## Seeding
+
+- `DatabaseSeeder` and `SeedDataLoader` in `Data/Seeding/`.
+- `base-store.json` contains DictionaryEntries (base forms + derived forms),
+  EntryTranslations, EntryContexts, and ContextTranslations.
+- Seeding is empty-database-only via `Langoose.DbTool seed-app`.
 
 ## Review Checklist
 
-- Did the change reduce persistence coupling in `apps/api`?
-- Are project references and namespaces straightforward?
-- Are migrations still discoverable and runnable?
-- Is `Program.cs` still simple?
-- Did tests keep exercising business rules rather than EF internals?
+- Are all Guid PKs using `Guid.CreateVersion7()`?
+- Are mapping tables using composite PKs?
+- Are entity configurations in separate files per entity?
+- Are enum fields stored as strings?
+- Are indexes appropriate for query patterns?
+- Are migrations discoverable and runnable?

@@ -52,13 +52,20 @@ Complete the core product loop for a returning learner.
 - Each base entry includes: English term, Russian glosses, example sentences with cloze gaps, difficulty, part of speech, accepted variants
 - Iterate on base content quality through the existing content flagging system
 
-**AI-powered enrichment**
+**Domain model and architecture (#68)**
+
+- Restructure the solution into onion architecture (Domain, Core, Data, Api, Worker)
+- Replace the flat DictionaryItem model with SharedItem (enriched content), UserItem (per-user entries), Gloss/GlossSurfaceForm (language-agnostic morphological normalization)
+- Sentence-based study cards with per-sentence difficulty, grammar hints, and expected answer forms
+- Services use domain models only; DTOs map in the presentation layer
+
+**AI-powered enrichment (#56, depends on #68)**
 
 - Async background enrichment for custom words added by users
-- Shared enrichment layer: if a word is already enriched, reuse the result for all users
-- User-provided custom context (own sentences, translations) takes priority and remains private per user
-- Three-state visibility: custom context provided (ready), AI-enriched (ready), pending enrichment (hidden from study cards)
-- Provider: best available free-tier LLM (currently Gemini Flash)
+- SharedItem is the shared content layer: only enriched/validated content lives there, reusable across users
+- UserItem owns the enrichment lifecycle (pending/failed state); linked to SharedItem once enriched
+- GlossSurfaceForm dedup: morphological variants resolved to canonical form by LLM, cached for instant lookup
+- Provider: best available free-tier LLM (currently Gemini Flash), abstracted behind IEnrichmentProvider
 - Batch processing within external API limits for CSV imports and bulk operations
 - Rate limiting to stay within API quotas and prevent abuse
 
