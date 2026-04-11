@@ -12,7 +12,19 @@ public sealed class StudyEventConfiguration : IEntityTypeConfiguration<StudyEven
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Verdict).HasConversion<string>();
         builder.Property(x => x.FeedbackCode).HasConversion<string>();
+
+        builder.HasOne(x => x.DictionaryEntry)
+            .WithMany()
+            .HasForeignKey(x => x.DictionaryEntryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.EntryContext)
+            .WithMany()
+            .HasForeignKey(x => x.EntryContextId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(x => x.UserId);
-        builder.HasIndex(x => x.ItemId);
+        builder.HasIndex(x => x.DictionaryEntryId);
     }
 }

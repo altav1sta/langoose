@@ -1,9 +1,7 @@
 namespace Langoose.Api.Models;
 
 public sealed record ProgressDashboardResponse(
-    int TotalItems,
+    int TotalEntries,
     int DueNow,
-    int NewItems,
-    int BaseItems,
-    int CustomItems,
+    int NewEntries,
     int StudiedToday);

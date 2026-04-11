@@ -10,10 +10,10 @@ export function ProgressPanel({ dashboard }: ProgressPanelProps) {
     <article className="panel stats-panel">
       <h2>Progress</h2>
       <div className="stats-grid">
-        <Metric label="Total items" value={dashboard?.totalItems ?? 0} />
+        <Metric label="Total entries" value={dashboard?.totalEntries ?? 0} />
         <Metric label="Due now" value={dashboard?.dueNow ?? 0} />
-        <Metric label="New" value={dashboard?.newItems ?? 0} />
-        <Metric label="Custom" value={dashboard?.customItems ?? 0} />
+        <Metric label="New" value={dashboard?.newEntries ?? 0} />
+        <Metric label="Studied today" value={dashboard?.studiedToday ?? 0} />
       </div>
     </article>
   );

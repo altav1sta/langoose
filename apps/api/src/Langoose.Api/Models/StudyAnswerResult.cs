@@ -5,7 +5,6 @@ namespace Langoose.Api.Models;
 public sealed record StudyAnswerResult(
     StudyVerdict Verdict,
     string NormalizedAnswer,
-    string? AcceptedVariant,
     string ExpectedAnswer,
-    FeedbackCode FeedbackCode,
+    FeedbackCode? FeedbackCode,
     DateTimeOffset NextDueAtUtc);

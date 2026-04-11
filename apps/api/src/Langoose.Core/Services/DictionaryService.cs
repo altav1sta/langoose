@@ -1,7 +1,6 @@
 using System.Text;
 using Langoose.Core.Utilities;
 using Langoose.Data;
-using Langoose.Domain.Constants;
 using Langoose.Domain.Enums;
 using Langoose.Domain.Models;
 using Langoose.Domain.Services;
@@ -9,90 +8,77 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Langoose.Core.Services;
 
-public sealed class DictionaryService(
-    AppDbContext dbContext,
-    IEnrichmentService enrichmentService) : IDictionaryService
+public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryService
 {
     private static readonly string[] RequiredCsvHeaders = ["english term", "russian translation s", "type"];
     private static readonly string[] OptionalCsvHeaders = ["notes", "tags"];
 
-    public async Task<IReadOnlyList<DictionaryItem>> GetItemsAsync(
+    public async Task<IReadOnlyList<DictionaryListItem>> GetVisibleEntriesAsync(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var state = await LoadTrackedStateAsync(dbContext, cancellationToken);
+        var publicEntries = await dbContext.DictionaryEntries
+            .Where(e => e.IsPublic && e.IsBaseForm)
+            .OrderBy(e => e.Text)
+            .Select(e => new DictionaryListItem(
+                e.Id, e.Text, e.Language, e.Difficulty, true,
+                null, null, null, null, new List<string>()))
+            .ToListAsync(cancellationToken);
 
-        if (NormalizeCustomDuplicates(dbContext, state, userId))
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
+        var userEntries = await dbContext.UserDictionaryEntries
+            .Where(e => e.UserId == userId)
+            .Include(e => e.DictionaryEntry)
+            .OrderBy(e => e.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
 
-        return [.. GetVisibleItems(state.DictionaryItems, userId)
-            .OrderBy(item => item.SourceType)
-            .ThenBy(item => item.EnglishText)];
+        var userItems = userEntries.Select(e => new DictionaryListItem(
+            e.DictionaryEntryId ?? e.Id,
+            e.DictionaryEntry?.Text ?? e.UserInputTranslation ?? e.UserInputTerm,
+            e.TargetLanguage,
+            e.DictionaryEntry?.Difficulty,
+            false,
+            e.Id,
+            e.EnrichmentStatus,
+            e.Type,
+            e.Notes,
+            e.Tags));
+
+        // User entries linked to a public base entry replace the public row
+        var userLinkedEntryIds = userEntries
+            .Where(e => e.DictionaryEntryId is not null)
+            .Select(e => e.DictionaryEntryId!.Value)
+            .ToHashSet();
+
+        var baseOnly = publicEntries.Where(e => !userLinkedEntryIds.Contains(e.DictionaryEntryId));
+
+        return [.. baseOnly.Concat(userItems).OrderBy(e => e.Text)];
     }
 
-    public async Task<DictionaryItem> AddItemAsync(
+    public async Task<UserDictionaryEntry> AddUserEntryAsync(
         Guid userId,
-        AddItemInput input,
+        AddUserEntryInput input,
         CancellationToken cancellationToken)
     {
-        var state = await LoadTrackedStateAsync(dbContext, cancellationToken);
-        var (item, _) = await UpsertItemAsync(dbContext, state, userId, input, cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var (userEntries, allBaseEntries, allTranslations) =
+            await LoadUpsertStateAsync(userId, cancellationToken);
 
-        return item;
-    }
-
-    public async Task<DictionaryItem?> PatchItemAsync(
-        Guid userId,
-        Guid itemId,
-        PatchItemInput input,
-        CancellationToken cancellationToken)
-    {
-        var item = await dbContext.DictionaryItems.FirstOrDefaultAsync(candidate =>
-            candidate.Id == itemId &&
-            candidate.OwnerId == userId, cancellationToken);
-
-        if (item is null)
-        {
-            return null;
-        }
-
-        if (input.RussianGlosses is not null)
-        {
-            item.RussianGlosses = CleanValues(input.RussianGlosses);
-        }
-
-        if (!string.IsNullOrWhiteSpace(input.PartOfSpeech))
-        {
-            item.PartOfSpeech = TextNormalizer.CleanInput(input.PartOfSpeech);
-        }
-
-        if (!string.IsNullOrWhiteSpace(input.Difficulty))
-        {
-            item.Difficulty = TextNormalizer.CleanInput(input.Difficulty);
-        }
-
-        if (input.Notes is not null)
-        {
-            item.Notes = TextNormalizer.CleanInput(input.Notes);
-        }
-
-        if (input.Tags is not null)
-        {
-            item.Tags = CleanValues(input.Tags);
-        }
-
-        if (!string.IsNullOrWhiteSpace(input.Status) &&
-            Enum.TryParse<DictionaryItemStatus>(input.Status, true, out var status))
-        {
-            item.Status = status;
-        }
+        var (entry, _) = UpsertUserEntry(
+            dbContext,
+            userId,
+            input.UserInputTerm,
+            input.UserInputTranslation,
+            input.SourceLanguage,
+            input.TargetLanguage,
+            input.Notes,
+            input.Tags ?? [],
+            input.Type,
+            userEntries,
+            allBaseEntries,
+            allTranslations);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return item;
+        return entry;
     }
 
     public async Task<ImportResult> ImportCsvAsync(
@@ -111,7 +97,7 @@ public sealed class DictionaryService(
         ValidateCsvHeader(rows[0]);
 
         List<string> errors = [];
-        List<AddItemInput> candidates = [];
+        List<(string Term, string Translation, string Notes, List<string> Tags, string Type)> candidates = [];
 
         foreach (var row in rows.Skip(1))
         {
@@ -123,294 +109,323 @@ public sealed class DictionaryService(
                 continue;
             }
 
-            var english = TextNormalizer.CleanInput(columns[0]);
-            var russianGlosses = SplitPipeValues(columns[1]);
+            var englishTerm = TextNormalizer.CleanInput(columns[0]);
+            var russianTranslation = TextNormalizer.CleanInput(columns[1]);
             var type = TextNormalizer.CleanInput(columns[2]);
-            var notes = columns.Count > 3
-                ? TextNormalizer.CleanInput(columns[3])
-                : "";
+            var notes = columns.Count > 3 ? TextNormalizer.CleanInput(columns[3]) : "";
             var tags = columns.Count > 4 ? SplitPipeValues(columns[4]) : [];
 
-            if (string.IsNullOrWhiteSpace(english) || russianGlosses.Count == 0)
+            if (string.IsNullOrWhiteSpace(englishTerm))
             {
                 errors.Add($"Missing required fields: {row}");
                 continue;
             }
 
-            candidates.Add(new AddItemInput(
-                english,
-                russianGlosses,
-                type,
-                null,
-                null,
-                notes,
-                tags,
-                "csv-import"));
+            // userInputTerm = Russian (source), userInputTranslation = English (target)
+            var term = string.IsNullOrWhiteSpace(russianTranslation) ? englishTerm : russianTranslation;
+            var translation = englishTerm;
+            candidates.Add((term, translation, notes, tags, type));
         }
 
         if (errors.Count > 0)
         {
-            return new ImportResult(
-                Math.Max(0, rows.Length - 1),
-                0,
-                Math.Max(0, rows.Length - 1),
-                errors);
+            return new ImportResult(Math.Max(0, rows.Length - 1), 0, errors);
         }
 
-        var state = await LoadTrackedStateAsync(dbContext, cancellationToken);
-        var imported = 0;
-        var skipped = 0;
+        var (userEntries, allBaseEntries, allTranslations) =
+            await LoadUpsertStateAsync(userId, cancellationToken);
 
-        foreach (var candidate in candidates)
+        var pendingCount = 0;
+
+        foreach (var (term, translation, notes, tags, type) in candidates)
         {
-            var (_, created) = await UpsertItemAsync(dbContext, state, userId, candidate, cancellationToken);
+            var (_, created) = UpsertUserEntry(
+                dbContext,
+                userId,
+                term,
+                string.IsNullOrWhiteSpace(translation) ? null : translation,
+                "ru",
+                "en",
+                string.IsNullOrWhiteSpace(notes) ? null : notes,
+                tags,
+                type,
+                userEntries,
+                allBaseEntries,
+                allTranslations);
 
             if (created)
             {
-                imported++;
-            }
-            else
-            {
-                skipped++;
+                pendingCount++;
             }
         }
 
-        var importRecord = new ImportRecord
+        dbContext.ImportRecords.Add(new ImportRecord
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserId = userId,
-            FileName = fileName,
-            TotalRows = Math.Max(0, rows.Length - 1),
-            ImportedRows = imported,
-            SkippedRows = skipped,
+            RowCount = Math.Max(0, rows.Length - 1),
+            PendingCount = pendingCount,
             CreatedAtUtc = DateTimeOffset.UtcNow
-        };
-        dbContext.ImportRecords.Add(importRecord);
-        state.Imports.Add(importRecord);
+        });
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return new ImportResult(Math.Max(0, rows.Length - 1), imported, skipped, []);
+        return new ImportResult(Math.Max(0, rows.Length - 1), pendingCount, []);
     }
 
     public async Task<string> ExportCsvAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var state = await LoadTrackedStateAsync(dbContext, cancellationToken);
+        var entries = await dbContext.UserDictionaryEntries
+            .Where(e => e.UserId == userId)
+            .Include(e => e.DictionaryEntry)
+            .OrderBy(e => e.UserInputTerm)
+            .ToListAsync(cancellationToken);
 
-        if (NormalizeCustomDuplicates(dbContext, state, userId))
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
+        var enrichedEntryIds = entries
+            .Where(e => e.DictionaryEntryId is not null)
+            .Select(e => e.DictionaryEntryId!.Value)
+            .ToHashSet();
+
+        var translations = await dbContext.EntryTranslations
+            .Where(t => enrichedEntryIds.Contains(t.SourceEntryId))
+            .ToListAsync(cancellationToken);
+
+        var targetEntryIds = translations.Select(t => t.TargetEntryId).ToHashSet();
+        var targetEntries = await dbContext.DictionaryEntries
+            .Where(e => targetEntryIds.Contains(e.Id))
+            .ToDictionaryAsync(e => e.Id, cancellationToken);
+
+        var translationsBySource = translations
+            .GroupBy(t => t.SourceEntryId)
+            .ToDictionary(g => g.Key, g => g.ToList());
 
         List<string> rows = ["English term,Russian translation(s),Type,Notes,Tags"];
-        var visibleCustomItems = GetVisibleItems(state.DictionaryItems, userId)
-            .Where(candidate => candidate.OwnerId == userId)
-            .OrderBy(candidate => candidate.EnglishText);
 
-        foreach (var item in visibleCustomItems)
+        foreach (var entry in entries)
         {
+            var englishText = entry.DictionaryEntry?.Text
+                ?? entry.UserInputTranslation
+                ?? entry.UserInputTerm;
+            var russianText = ResolveTranslation(entry, translationsBySource, targetEntries, "ru");
+
+            if (string.IsNullOrWhiteSpace(russianText))
+            {
+                russianText = entry.UserInputTerm;
+            }
+
             rows.Add(string.Join(
                 ",",
-                EscapeCsv(item.EnglishText),
-                EscapeCsv(string.Join('|', item.RussianGlosses)),
-                item.ItemKind.ToString().ToLowerInvariant(),
-                EscapeCsv(item.Notes),
-                EscapeCsv(string.Join('|', item.Tags))));
+                EscapeCsv(englishText),
+                EscapeCsv(russianText),
+                entry.Type ?? "word",
+                EscapeCsv(entry.Notes ?? ""),
+                EscapeCsv(string.Join('|', entry.Tags))));
         }
 
         return string.Join(Environment.NewLine, rows);
     }
 
-    public async Task ClearCustomDataAsync(Guid userId, CancellationToken cancellationToken)
+    private static string ResolveTranslation(
+        UserDictionaryEntry entry,
+        Dictionary<Guid, List<EntryTranslation>> translationsBySource,
+        Dictionary<Guid, DictionaryEntry> targetEntries,
+        string targetLanguage)
     {
-        var customItems = await dbContext.DictionaryItems
-            .Where(item => item.OwnerId == userId)
-            .ToListAsync(cancellationToken);
-        var customItemIds = customItems.Select(item => item.Id).ToHashSet();
-        var customSentences = await dbContext.ExampleSentences
-            .Where(sentence => customItemIds.Contains(sentence.ItemId))
-            .ToListAsync(cancellationToken);
-        var reviewStates = await dbContext.ReviewStates
-            .Where(state => state.UserId == userId)
-            .ToListAsync(cancellationToken);
-        var studyEvents = await dbContext.StudyEvents
-            .Where(ev => ev.UserId == userId)
-            .ToListAsync(cancellationToken);
-        var imports = await dbContext.ImportRecords
-            .Where(importRecord => importRecord.UserId == userId)
-            .ToListAsync(cancellationToken);
-        var flags = await dbContext.ContentFlags
-            .Where(flag => flag.UserId == userId || customItemIds.Contains(flag.ItemId))
+        if (entry.DictionaryEntryId is not null &&
+            translationsBySource.TryGetValue(entry.DictionaryEntryId.Value, out var links))
+        {
+            var translatedTexts = links
+                .Where(t => targetEntries.TryGetValue(t.TargetEntryId, out var te) && te.Language == targetLanguage)
+                .Select(t => targetEntries[t.TargetEntryId].Text)
+                .ToList();
+
+            if (translatedTexts.Count > 0)
+            {
+                return string.Join('|', translatedTexts);
+            }
+        }
+
+        return entry.UserInputTranslation ?? "";
+    }
+
+    public async Task ClearUserDataAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var userEntries = await dbContext.UserDictionaryEntries
+            .Where(e => e.UserId == userId)
             .ToListAsync(cancellationToken);
 
-        dbContext.DictionaryItems.RemoveRange(customItems);
-        dbContext.ExampleSentences.RemoveRange(customSentences);
-        dbContext.ReviewStates.RemoveRange(reviewStates);
-        dbContext.StudyEvents.RemoveRange(studyEvents);
+        var publicEntryIds = await dbContext.DictionaryEntries
+            .Where(e => e.IsPublic)
+            .Select(e => e.Id)
+            .ToListAsync(cancellationToken);
+        var publicEntryIdSet = publicEntryIds.ToHashSet();
+
+        var userProgress = await dbContext.UserProgress
+            .Where(p => p.UserId == userId)
+            .ToListAsync(cancellationToken);
+        var customProgress = userProgress
+            .Where(p => !publicEntryIdSet.Contains(p.DictionaryEntryId))
+            .ToList();
+
+        var studyEvents = await dbContext.StudyEvents
+            .Where(e => e.UserId == userId)
+            .ToListAsync(cancellationToken);
+        var customStudyEvents = studyEvents
+            .Where(e => !publicEntryIdSet.Contains(e.DictionaryEntryId))
+            .ToList();
+
+        var imports = await dbContext.ImportRecords
+            .Where(r => r.UserId == userId)
+            .ToListAsync(cancellationToken);
+
+        var userFlags = await dbContext.ContentFlags
+            .Where(f => f.ReportedByUserId == userId)
+            .ToListAsync(cancellationToken);
+
+        dbContext.UserDictionaryEntries.RemoveRange(userEntries);
+        dbContext.UserProgress.RemoveRange(customProgress);
+        dbContext.StudyEvents.RemoveRange(customStudyEvents);
         dbContext.ImportRecords.RemoveRange(imports);
-        dbContext.ContentFlags.RemoveRange(flags);
+        dbContext.ContentFlags.RemoveRange(userFlags);
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<(DictionaryItem Item, bool Created)> UpsertItemAsync(
+    private static (UserDictionaryEntry Entry, bool Created) UpsertUserEntry(
         AppDbContext dbContext,
-        AppState state,
         Guid userId,
-        AddItemInput input,
-        CancellationToken cancellationToken)
+        string rawTerm,
+        string? rawTranslation,
+        string sourceLanguage,
+        string targetLanguage,
+        string? notes,
+        List<string> tags,
+        string? type,
+        List<UserDictionaryEntry> userEntries,
+        List<DictionaryEntry> allBaseEntries,
+        List<EntryTranslation> allTranslations)
     {
-        NormalizeCustomDuplicates(dbContext, state, userId);
+        var cleanedTerm = TextNormalizer.CleanInput(rawTerm);
+        var normalizedTerm = TextNormalizer.NormalizeForComparison(cleanedTerm);
+        var cleanedTranslation = rawTranslation is not null
+            ? TextNormalizer.CleanInput(rawTranslation)
+            : null;
+        var displayTerm = cleanedTranslation ?? cleanedTerm;
+        var resolvedType = type ?? (displayTerm.Contains(' ') ? "phrase" : "word");
 
-        var cleanedEnglish = TextNormalizer.CleanInput(input.EnglishText);
-        var normalizedEnglish = TextNormalizer.NormalizeForComparison(cleanedEnglish);
-        var itemKind = ResolveItemKind(input.ItemKind, cleanedEnglish);
-        var existingCustom = state.DictionaryItems.FirstOrDefault(item =>
-            item.OwnerId == userId &&
-            TextNormalizer.NormalizeForComparison(item.EnglishText) == normalizedEnglish);
-        var existingBase = state.DictionaryItems.FirstOrDefault(item =>
-            item.OwnerId is null &&
-            TextNormalizer.NormalizeForComparison(item.EnglishText) == normalizedEnglish);
+        // 1. Check if user already has a UserDictionaryEntry for this term → merge
+        var existingUserEntry = userEntries.FirstOrDefault(e =>
+            TextNormalizer.NormalizeForComparison(e.UserInputTerm) == normalizedTerm);
 
-        var enrichment = enrichmentService.Enrich(
-            new EnrichmentInput(cleanedEnglish, input.RussianGlosses, input.ItemKind));
-        var glosses = (input.RussianGlosses?.Count ?? 0) > 0
-            ? input.RussianGlosses!
-            : enrichment.RussianGlosses;
-        var cleanedGlosses = CleanValues(glosses);
-        var cleanedTags = CleanValues(input.Tags ?? []);
-        var cleanedNotes = TextNormalizer.CleanInput(input.Notes ?? "");
-
-        if (existingCustom is not null)
+        if (existingUserEntry is not null)
         {
-            MergeIntoCustom(
-                existingCustom,
-                cleanedEnglish,
-                cleanedGlosses,
-                cleanedTags,
-                cleanedNotes,
-                itemKind,
-                enrichment.AcceptedVariants,
-                normalizedEnglish);
+            MergeUserEntry(existingUserEntry, notes, tags);
 
-            return (existingCustom, false);
+            return (existingUserEntry, false);
         }
 
-        if (existingBase is not null)
-        {
-            var reviewState = state.ReviewStates.FirstOrDefault(reviewState =>
-                reviewState.UserId == userId &&
-                reviewState.ItemId == existingBase.Id);
+        // 2. Documented dedup path: source-language term → DictionaryEntry form →
+        //    BaseEntryId → EntryTranslation → linked target-language base entry
+        DictionaryEntry? linkedEntry = null;
 
-            if (reviewState is null)
+        // Look up the source-language term (userInputTerm) as a DictionaryEntry form
+        var sourceForm = allBaseEntries.FirstOrDefault(e =>
+            e.Language == sourceLanguage &&
+            TextNormalizer.NormalizeForComparison(e.Text) == normalizedTerm);
+
+        // Follow BaseEntryId to the base form if this is a derived form
+        var sourceBase = sourceForm is not null && !sourceForm.IsBaseForm
+            ? allBaseEntries.FirstOrDefault(e => e.Id == sourceForm.BaseEntryId)
+            : sourceForm;
+
+        // Check EntryTranslation for a linked target-language entry
+        if (sourceBase is not null)
+        {
+            var translationLink = allTranslations.FirstOrDefault(t =>
+                t.SourceEntryId == sourceBase.Id);
+
+            if (translationLink is not null)
             {
-                reviewState = new ReviewState
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = userId,
-                    ItemId = existingBase.Id,
-                    Stability = ReviewDefaults.InitialStability,
-                    DueAtUtc = DateTimeOffset.UtcNow
-                };
-                dbContext.ReviewStates.Add(reviewState);
-                state.ReviewStates.Add(reviewState);
-            }
-
-            return (existingBase, false);
-        }
-
-        var item = new DictionaryItem
-        {
-            Id = Guid.NewGuid(),
-            OwnerId = userId,
-            SourceType = SourceType.Custom,
-            EnglishText = cleanedEnglish,
-            RussianGlosses = [.. cleanedGlosses.Distinct(StringComparer.OrdinalIgnoreCase)],
-            ItemKind = itemKind,
-            PartOfSpeech = input.PartOfSpeech?.Trim() ?? enrichment.PartOfSpeech,
-            Difficulty = input.Difficulty?.Trim() ?? enrichment.Difficulty,
-            Status = DictionaryItemStatus.Active,
-            Notes = cleanedNotes,
-            Tags = cleanedTags,
-            CreatedByFlow = input.CreatedByFlow?.Trim() ?? "quick-add",
-            AcceptedVariants = [.. enrichment.AcceptedVariants
-                .Append(cleanedEnglish)
-                .Append(normalizedEnglish)
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Select(TextNormalizer.CleanInput)
-                .Distinct(StringComparer.OrdinalIgnoreCase)],
-            CreatedAtUtc = DateTimeOffset.UtcNow
-        };
-
-        item.Distractors = item.ItemKind == ItemKind.Phrase
-            ? ["make up", "look after", "find out"]
-            : ["get", "make", "take"];
-
-        dbContext.DictionaryItems.Add(item);
-        state.DictionaryItems.Add(item);
-
-        if (input.GenerateExamples)
-        {
-            var validExamples = enrichment.Examples.Where(candidate =>
-                !enrichment.ValidationWarnings.Contains(
-                    "Example sentence must include the target term."));
-
-            foreach (var example in validExamples)
-            {
-                var sentence = new ExampleSentence
-                {
-                    Id = Guid.NewGuid(),
-                    ItemId = item.Id,
-                    SentenceText = example.SentenceText,
-                    ClozeText = example.ClozeText,
-                    TranslationHint = example.TranslationHint,
-                    QualityScore = example.QualityScore,
-                    Origin = ContentOrigin.Manual
-                };
-
-                dbContext.ExampleSentences.Add(sentence);
-                state.ExampleSentences.Add(sentence);
+                linkedEntry = allBaseEntries.FirstOrDefault(e =>
+                    e.Id == translationLink.TargetEntryId &&
+                    e.Language == targetLanguage);
             }
         }
 
-        var stateEntry = new ReviewState
+        // 3. Fallback: direct match on the target-language translation text
+        if (linkedEntry is null && !string.IsNullOrWhiteSpace(cleanedTranslation))
         {
-            Id = Guid.NewGuid(),
+            var normalizedTranslation = TextNormalizer.NormalizeForComparison(cleanedTranslation);
+
+            linkedEntry = allBaseEntries.FirstOrDefault(e =>
+                e.Language == targetLanguage &&
+                e.IsBaseForm &&
+                TextNormalizer.NormalizeForComparison(e.Text) == normalizedTranslation);
+        }
+
+        var entry = new UserDictionaryEntry
+        {
+            Id = Guid.CreateVersion7(),
             UserId = userId,
-            ItemId = item.Id,
-            Stability = ReviewDefaults.InitialStability,
-            DueAtUtc = DateTimeOffset.UtcNow
+            DictionaryEntryId = linkedEntry?.Id,
+            SourceLanguage = sourceLanguage,
+            TargetLanguage = targetLanguage,
+            UserInputTerm = cleanedTerm,
+            UserInputTranslation = cleanedTranslation,
+            EnrichmentStatus = linkedEntry is not null
+                ? EnrichmentStatus.Enriched
+                : EnrichmentStatus.Pending,
+            Notes = notes,
+            Tags = [.. tags],
+            Type = resolvedType,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
         };
-        dbContext.ReviewStates.Add(stateEntry);
-        state.ReviewStates.Add(stateEntry);
 
-        return (item, true);
+        dbContext.UserDictionaryEntries.Add(entry);
+        userEntries.Add(entry);
+
+        return (entry, true);
     }
 
-    private static IReadOnlyList<DictionaryItem> GetVisibleItems(List<DictionaryItem> dictionaryItems, Guid userId)
+    private static void MergeUserEntry(
+        UserDictionaryEntry existing,
+        string? notes,
+        List<string> tags)
     {
-        return [.. dictionaryItems
-            .Where(item => item.OwnerId is null || item.OwnerId == userId)
-            .GroupBy(item => TextNormalizer.NormalizeForComparison(item.EnglishText))
-            .Select(group => group
-                .OrderByDescending(item => item.OwnerId == userId)
-                .ThenBy(item => item.CreatedAtUtc)
-                .First())];
-    }
-
-    private static async Task<AppState> LoadTrackedStateAsync(
-        AppDbContext dbContext,
-        CancellationToken cancellationToken)
-    {
-        return new AppState
+        if (tags.Count > 0)
         {
-            DictionaryItems = await dbContext.DictionaryItems.ToListAsync(cancellationToken),
-            ExampleSentences = await dbContext.ExampleSentences.ToListAsync(cancellationToken),
-            ReviewStates = await dbContext.ReviewStates.ToListAsync(cancellationToken),
-            StudyEvents = await dbContext.StudyEvents.ToListAsync(cancellationToken),
-            Imports = await dbContext.ImportRecords.ToListAsync(cancellationToken),
-            ContentFlags = await dbContext.ContentFlags.ToListAsync(cancellationToken)
-        };
+            existing.Tags = [.. existing.Tags
+                .Concat(tags)
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(TextNormalizer.CleanInput)
+                .Distinct(StringComparer.OrdinalIgnoreCase)];
+        }
+
+        if (!string.IsNullOrWhiteSpace(notes) &&
+            !(existing.Notes ?? "").Contains(notes, StringComparison.OrdinalIgnoreCase))
+        {
+            existing.Notes = string.IsNullOrWhiteSpace(existing.Notes)
+                ? notes
+                : $"{existing.Notes}; {notes}";
+        }
+
+        existing.UpdatedAtUtc = DateTimeOffset.UtcNow;
+    }
+
+    private async Task<(List<UserDictionaryEntry> UserEntries, List<DictionaryEntry> BaseEntries, List<EntryTranslation> Translations)>
+        LoadUpsertStateAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var userEntries = await dbContext.UserDictionaryEntries
+            .Where(e => e.UserId == userId)
+            .ToListAsync(cancellationToken);
+        var allBaseEntries = await dbContext.DictionaryEntries
+            .Where(e => e.IsPublic)
+            .ToListAsync(cancellationToken);
+        var allTranslations = await dbContext.EntryTranslations
+            .ToListAsync(cancellationToken);
+
+        return (userEntries, allBaseEntries, allTranslations);
     }
 
     private static void ValidateCsvHeader(string headerRow)
@@ -442,182 +457,6 @@ public sealed class DictionaryService(
                     "Only Notes and Tags are allowed as optional CSV columns.");
             }
         }
-    }
-
-    private static void MergeIntoCustom(
-        DictionaryItem existing,
-        string cleanedEnglish,
-        List<string> cleanedGlosses,
-        List<string> cleanedTags,
-        string cleanedNotes,
-        ItemKind itemKind,
-        List<string> acceptedVariants,
-        string normalizedEnglish)
-    {
-        existing.RussianGlosses = [.. existing.RussianGlosses
-            .Concat(cleanedGlosses)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(TextNormalizer.CleanInput)
-            .Distinct(StringComparer.OrdinalIgnoreCase)];
-        existing.Tags = [.. existing.Tags
-            .Concat(cleanedTags)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(TextNormalizer.CleanInput)
-            .Distinct(StringComparer.OrdinalIgnoreCase)];
-        existing.AcceptedVariants = [.. existing.AcceptedVariants
-            .Concat(acceptedVariants)
-            .Append(cleanedEnglish)
-            .Append(normalizedEnglish)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(TextNormalizer.CleanInput)
-            .Distinct(StringComparer.OrdinalIgnoreCase)];
-        existing.ItemKind = existing.ItemKind == ItemKind.Phrase || itemKind == ItemKind.Phrase
-            ? ItemKind.Phrase
-            : ItemKind.Word;
-
-        if (!string.IsNullOrWhiteSpace(cleanedNotes) &&
-            !existing.Notes.Contains(cleanedNotes, StringComparison.OrdinalIgnoreCase))
-        {
-            existing.Notes = string.IsNullOrWhiteSpace(existing.Notes)
-                ? cleanedNotes
-                : $"{existing.Notes}; {cleanedNotes}";
-        }
-    }
-
-    private static ItemKind ResolveItemKind(string? rawItemKind, string englishText)
-    {
-        var cleanedKind = TextNormalizer.CleanInput(rawItemKind ?? "");
-
-        if (string.Equals(cleanedKind, "phrase", StringComparison.OrdinalIgnoreCase))
-        {
-            return ItemKind.Phrase;
-        }
-
-        if (string.Equals(cleanedKind, "word", StringComparison.OrdinalIgnoreCase))
-        {
-            return ItemKind.Word;
-        }
-
-        return englishText.Contains(' ') ? ItemKind.Phrase : ItemKind.Word;
-    }
-
-    private static bool NormalizeCustomDuplicates(AppDbContext dbContext, AppState state, Guid userId)
-    {
-        var duplicates = state.DictionaryItems
-            .Where(item => item.OwnerId == userId)
-            .GroupBy(item => new
-            {
-                item.OwnerId,
-                English = TextNormalizer.NormalizeForComparison(item.EnglishText)
-            })
-            .Where(group => group.Count() > 1)
-            .ToList();
-
-        if (duplicates.Count == 0)
-        {
-            return false;
-        }
-
-        foreach (var group in duplicates)
-        {
-            var primary = group.OrderBy(item => item.CreatedAtUtc).First();
-
-            foreach (var duplicate in group.Where(item => item.Id != primary.Id))
-            {
-                MergeItemInto(dbContext, state, primary, duplicate, userId);
-            }
-        }
-
-        return true;
-    }
-
-    private static void MergeItemInto(
-        AppDbContext dbContext,
-        AppState state,
-        DictionaryItem primary,
-        DictionaryItem duplicate,
-        Guid userId)
-    {
-        primary.RussianGlosses = [.. primary.RussianGlosses
-            .Concat(duplicate.RussianGlosses)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(TextNormalizer.CleanInput)
-            .Distinct(StringComparer.OrdinalIgnoreCase)];
-        primary.Tags = [.. primary.Tags
-            .Concat(duplicate.Tags)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(TextNormalizer.CleanInput)
-            .Distinct(StringComparer.OrdinalIgnoreCase)];
-        primary.AcceptedVariants = [.. primary.AcceptedVariants
-            .Concat(duplicate.AcceptedVariants)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(TextNormalizer.CleanInput)
-            .Distinct(StringComparer.OrdinalIgnoreCase)];
-        primary.Distractors = [.. primary.Distractors
-            .Concat(duplicate.Distractors)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase)];
-        primary.ItemKind = primary.ItemKind == ItemKind.Phrase || duplicate.ItemKind == ItemKind.Phrase
-            ? ItemKind.Phrase
-            : ItemKind.Word;
-
-        if (string.IsNullOrWhiteSpace(primary.Notes))
-        {
-            primary.Notes = duplicate.Notes;
-        }
-        else if (!string.IsNullOrWhiteSpace(duplicate.Notes) &&
-                 !primary.Notes.Contains(duplicate.Notes, StringComparison.OrdinalIgnoreCase))
-        {
-            primary.Notes = $"{primary.Notes}; {duplicate.Notes}";
-        }
-
-        foreach (var sentence in state.ExampleSentences.Where(sentence => sentence.ItemId == duplicate.Id).ToList())
-        {
-            sentence.ItemId = primary.Id;
-        }
-
-        foreach (var reviewState in state.ReviewStates.Where(reviewState =>
-                     reviewState.UserId == userId &&
-                     reviewState.ItemId == duplicate.Id).ToList())
-        {
-            var existingState = state.ReviewStates.FirstOrDefault(candidate =>
-                candidate.UserId == userId &&
-                candidate.ItemId == primary.Id);
-
-            if (existingState is null)
-            {
-                reviewState.ItemId = primary.Id;
-                continue;
-            }
-
-            existingState.Stability = Math.Max(existingState.Stability, reviewState.Stability);
-            existingState.DueAtUtc = existingState.DueAtUtc <= reviewState.DueAtUtc
-                ? existingState.DueAtUtc
-                : reviewState.DueAtUtc;
-            existingState.LapseCount += reviewState.LapseCount;
-            existingState.SuccessCount += reviewState.SuccessCount;
-            existingState.LastSeenAtUtc = new[] { existingState.LastSeenAtUtc, reviewState.LastSeenAtUtc }
-                .Where(value => value.HasValue)
-                .OrderByDescending(value => value)
-                .FirstOrDefault();
-            dbContext.ReviewStates.Remove(reviewState);
-            state.ReviewStates.Remove(reviewState);
-        }
-
-        foreach (var studyEvent in state.StudyEvents.Where(ev =>
-                     ev.UserId == userId &&
-                     ev.ItemId == duplicate.Id).ToList())
-        {
-            studyEvent.ItemId = primary.Id;
-        }
-
-        foreach (var flag in state.ContentFlags.Where(flag => flag.ItemId == duplicate.Id).ToList())
-        {
-            flag.ItemId = primary.Id;
-        }
-
-        dbContext.DictionaryItems.Remove(duplicate);
-        state.DictionaryItems.Remove(duplicate);
     }
 
     private static List<string> ParseCsvRow(string row)
@@ -659,30 +498,11 @@ public sealed class DictionaryService(
         return value;
     }
 
-    private static List<string> CleanValues(IEnumerable<string> values)
-    {
-        return [.. values
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(TextNormalizer.CleanInput)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase)];
-    }
-
     private static List<string> SplitPipeValues(string value)
     {
         return [.. value
             .Split('|', StringSplitOptions.RemoveEmptyEntries)
             .Select(TextNormalizer.CleanInput)
             .Where(candidate => !string.IsNullOrWhiteSpace(candidate))];
-    }
-
-    private sealed class AppState
-    {
-        public List<DictionaryItem> DictionaryItems { get; init; } = [];
-        public List<ExampleSentence> ExampleSentences { get; init; } = [];
-        public List<ReviewState> ReviewStates { get; init; } = [];
-        public List<StudyEvent> StudyEvents { get; init; } = [];
-        public List<ImportRecord> Imports { get; init; } = [];
-        public List<ContentFlag> ContentFlags { get; init; } = [];
     }
 }

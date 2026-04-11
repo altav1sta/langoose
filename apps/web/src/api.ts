@@ -13,52 +13,45 @@ type ProblemDetailsShape = {
   errors?: Record<string, string[]>;
 };
 
-export type DictionaryItem = {
-  id: string;
-  ownerId?: string | null;
-  sourceType: 'base' | 'custom';
-  englishText: string;
-  russianGlosses: string[];
-  itemKind: 'word' | 'phrase';
-  partOfSpeech: string;
-  difficulty: string;
-  status: 'active' | 'flagged' | 'archived';
-  createdByFlow: string;
-  notes: string;
+export type DictionaryListItem = {
+  dictionaryEntryId: string;
+  text: string;
+  language: string;
+  difficulty?: string | null;
+  isPublic: boolean;
+  userDictionaryEntryId?: string | null;
+  enrichmentStatus?: 'pending' | 'enriched' | 'failed' | null;
+  type?: string | null;
+  notes?: string | null;
   tags: string[];
 };
 
 export type StudyCard = {
-  itemId: string;
+  dictionaryEntryId: string;
   prompt: string;
   translationHint: string;
-  glosses: string[];
-  itemKind: 'word' | 'phrase';
-  sourceType: 'base' | 'custom';
-  difficulty: string;
+  difficulty?: string | null;
 };
 
 export type StudyAnswerResult = {
   verdict: 'correct' | 'almost_correct' | 'incorrect';
   normalizedAnswer: string;
-  acceptedVariant?: string | null;
   expectedAnswer: string;
-  feedbackCode:
+  feedbackCode?:
     | 'exact_match'
     | 'accepted_variant'
     | 'missing_article'
     | 'inflection_mismatch'
     | 'minor_typo'
-    | 'meaning_mismatch';
+    | 'meaning_mismatch'
+    | null;
   nextDueAtUtc: string;
 };
 
 export type Dashboard = {
-  totalItems: number;
+  totalEntries: number;
   dueNow: number;
-  newItems: number;
-  baseItems: number;
-  customItems: number;
+  newEntries: number;
   studiedToday: number;
 };
 
@@ -72,11 +65,14 @@ export type SignUpRequest = {
   password: string;
 };
 
-export type AddDictionaryItemRequest = {
-  englishText: string;
-  russianGlosses: string[];
-  itemKind: 'word' | 'phrase';
-  createdByFlow: 'quick-add' | string;
+export type AddUserEntryRequest = {
+  userInputTerm: string;
+  userInputTranslation?: string | null;
+  sourceLanguage: string;
+  targetLanguage: string;
+  notes?: string | null;
+  tags?: string[];
+  type?: string | null;
 };
 
 export type ImportCsvRequest = {
@@ -85,21 +81,19 @@ export type ImportCsvRequest = {
 };
 
 export type ImportCsvResult = {
-  totalRows: number;
-  importedRows: number;
-  skippedRows: number;
+  rowCount: number;
+  pendingCount: number;
   errors: string[];
 };
 
 export type SubmitAnswerRequest = {
-  itemId: string;
+  entryId: string;
   submittedAnswer: string;
 };
 
 export type ReportIssueRequest = {
-  itemId: string;
+  dictionaryEntryId: string;
   reason: string;
-  details: string;
 };
 
 export class ApiError extends Error {
@@ -236,10 +230,10 @@ export const api = {
     return request<AuthResponse>('/auth/me');
   },
   getDictionary() {
-    return request<DictionaryItem[]>('/dictionary/items');
+    return request<DictionaryListItem[]>('/dictionary/entries');
   },
-  addDictionaryItem(payload: AddDictionaryItemRequest) {
-    return request<DictionaryItem>('/dictionary/items', {
+  addUserEntry(payload: AddUserEntryRequest) {
+    return request<void>('/dictionary/entries', {
       method: 'POST',
       body: JSON.stringify(payload)
     });
@@ -262,8 +256,8 @@ export const api = {
   getNextCard() {
     return request<StudyCard>('/study/next');
   },
-  submitAnswer(itemId: string, submittedAnswer: string) {
-    const payload: SubmitAnswerRequest = { itemId, submittedAnswer };
+  submitAnswer(entryId: string, submittedAnswer: string) {
+    const payload: SubmitAnswerRequest = { entryId, submittedAnswer };
     return request<StudyAnswerResult>('/study/answer', {
       method: 'POST',
       body: JSON.stringify(payload)
@@ -272,8 +266,8 @@ export const api = {
   getDashboard() {
     return request<Dashboard>('/study/dashboard');
   },
-  reportIssue(itemId: string, reason: string, details: string) {
-    const payload: ReportIssueRequest = { itemId, reason, details };
+  reportIssue(dictionaryEntryId: string, reason: string) {
+    const payload: ReportIssueRequest = { dictionaryEntryId, reason };
     return request<void>('/content/report-issue', {
       method: 'POST',
       body: JSON.stringify(payload)

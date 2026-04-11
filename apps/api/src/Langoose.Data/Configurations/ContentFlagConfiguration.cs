@@ -10,7 +10,12 @@ public sealed class ContentFlagConfiguration : IEntityTypeConfiguration<ContentF
     {
         builder.ToTable("content_flags");
         builder.HasKey(x => x.Id);
-        builder.HasIndex(x => x.UserId);
-        builder.HasIndex(x => x.ItemId);
+
+        builder.HasOne(x => x.DictionaryEntry)
+            .WithMany()
+            .HasForeignKey(x => x.DictionaryEntryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(x => x.DictionaryEntryId);
     }
 }

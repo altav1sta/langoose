@@ -54,8 +54,8 @@ Unchanged. Contains `AuthUser`, `AuthSession`, and OpenIddict tables.
 
 - No production data yet — fresh migrations are acceptable for major model reworks.
 - Delete old migration files and create a new `InitialFoundation` migration.
-- App migrations: `dotnet ef migrations add <Name> --project apps/api/src/Langoose.Data --startup-project apps/api/src/Langoose.Api`
-- Auth migrations: `dotnet ef migrations add <Name> --project apps/api/src/Langoose.Auth.Data --startup-project apps/api/src/Langoose.Api`
+- App migrations: `dotnet ef migrations add <Name> --project apps/api/src/Langoose.Data --startup-project apps/api/src/Langoose.DbTool --context AppDbContext`
+- Auth migrations: `dotnet ef migrations add <Name> --project apps/api/src/Langoose.Auth.Data --startup-project apps/api/src/Langoose.DbTool --context AuthDbContext`
 - Local/Docker: auto-applied on startup. Hosted: applied via `Langoose.DbTool`.
 
 ## Seeding

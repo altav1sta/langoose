@@ -1,4 +1,3 @@
-using Langoose.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Langoose.Data.Seeding;
@@ -7,20 +6,16 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
 {
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
-        var hasDictionaryItems = await dbContext.DictionaryItems.AnyAsync(cancellationToken);
-
-        if (hasDictionaryItems)
+        if (await dbContext.DictionaryEntries.AnyAsync(cancellationToken))
         {
             return;
         }
 
-        var seedItems = SeedDataLoader.LoadBaseItems();
+        var batch = SeedDataLoader.LoadBaseItems();
 
-        foreach (var (item, sentence) in seedItems)
-        {
-            dbContext.DictionaryItems.Add(item);
-            dbContext.ExampleSentences.Add(sentence);
-        }
+        dbContext.DictionaryEntries.AddRange(batch.Entries);
+        dbContext.EntryTranslations.AddRange(batch.Translations);
+        dbContext.EntryContexts.AddRange(batch.Contexts);
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }

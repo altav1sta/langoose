@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, type AuthResponse, type Dashboard, type DictionaryItem } from '../api';
+import { ApiError, type AuthResponse, type Dashboard, type DictionaryListItem } from '../api';
 
 const sessionApiMocks = vi.hoisted(() => ({
   bootstrapSession: vi.fn(),
@@ -37,29 +37,25 @@ const auth: AuthResponse = {
   email: 'learner@example.com'
 };
 
-const dictionary: DictionaryItem[] = [
+const dictionary: DictionaryListItem[] = [
   {
-    id: '22222222-2222-2222-2222-222222222222',
-    ownerId: null,
-    sourceType: 'base',
-    englishText: 'look for',
-    russianGlosses: ['искать'],
-    itemKind: 'phrase',
-    partOfSpeech: 'verb',
-    difficulty: 'easy',
-    status: 'active',
-    createdByFlow: 'seed',
-    notes: '',
+    dictionaryEntryId: '22222222-2222-2222-2222-222222222222',
+    text: 'look for',
+    language: 'en',
+    difficulty: 'A2',
+    isPublic: true,
+    userDictionaryEntryId: null,
+    enrichmentStatus: null,
+    type: 'phrase',
+    notes: null,
     tags: []
   }
 ];
 
 const dashboard: Dashboard = {
-  totalItems: 1,
+  totalEntries: 1,
   dueNow: 1,
-  newItems: 1,
-  baseItems: 1,
-  customItems: 0,
+  newEntries: 1,
   studiedToday: 0
 };
 

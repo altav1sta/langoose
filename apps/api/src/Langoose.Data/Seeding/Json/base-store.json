@@ -2,53 +2,43 @@
   "items": [
     {
       "english": "book",
-      "glosses": ["книга"],
-      "kind": "Word",
-      "partOfSpeech": "noun",
+      "russian": "книга",
       "difficulty": "A1",
+      "grammarLabel": "noun",
       "cloze": "I read a ____ before bed.",
-      "translationHint": "Я читаю книгу перед сном.",
-      "acceptedVariants": []
+      "translationHint": "Я читаю книгу перед сном."
     },
     {
       "english": "go",
-      "glosses": ["идти", "ехать"],
-      "kind": "Word",
-      "partOfSpeech": "verb",
+      "russian": "идти",
       "difficulty": "A1",
+      "grammarLabel": "verb",
       "cloze": "We usually ____ to school by bus.",
-      "translationHint": "Мы обычно ездим в школу на автобусе.",
-      "acceptedVariants": ["travel"]
+      "translationHint": "Мы обычно ездим в школу на автобусе."
     },
     {
       "english": "take care of",
-      "glosses": ["заботиться о"],
-      "kind": "Phrase",
-      "partOfSpeech": "phrase",
+      "russian": "заботиться о",
       "difficulty": "B1",
+      "grammarLabel": "phrase",
       "cloze": "They ____ their grandmother every weekend.",
-      "translationHint": "Они заботятся о своей бабушке каждые выходные.",
-      "acceptedVariants": ["look after"]
+      "translationHint": "Они заботятся о своей бабушке каждые выходные."
     },
     {
       "english": "decision",
-      "glosses": ["решение"],
-      "kind": "Word",
-      "partOfSpeech": "noun",
+      "russian": "решение",
       "difficulty": "B1",
+      "grammarLabel": "noun",
       "cloze": "It was a difficult ____ to make.",
-      "translationHint": "Это было трудное решение.",
-      "acceptedVariants": ["choice"]
+      "translationHint": "Это было трудное решение."
     },
     {
       "english": "at least",
-      "glosses": ["по крайней мере"],
-      "kind": "Phrase",
-      "partOfSpeech": "phrase",
+      "russian": "по крайней мере",
       "difficulty": "A2",
+      "grammarLabel": "phrase",
       "cloze": "Call me once a week, ____.",
-      "translationHint": "Позвони мне хотя бы раз в неделю.",
-      "acceptedVariants": []
+      "translationHint": "Позвони мне хотя бы раз в неделю."
     }
   ]
 }

@@ -1,31 +1,92 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using Langoose.Domain.Constants;
-using Langoose.Domain.Enums;
 using Langoose.Domain.Models;
 
 namespace Langoose.Data.Seeding;
 
 public static class SeedDataLoader
 {
-    private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
-
-    public static IReadOnlyList<(DictionaryItem Item, ExampleSentence Sentence)> LoadBaseItems()
+    public static SeedBatch LoadBaseItems()
     {
         using var stream = OpenSeedStream();
         var payload = JsonSerializer.Deserialize<SeedPayload>(stream, JsonOptions)
             ?? throw new InvalidOperationException("Seed payload could not be deserialized.");
 
-        return payload.Items.Select(CreatePair).ToArray();
+        var entries = new List<DictionaryEntry>();
+        var translations = new List<EntryTranslation>();
+        var contexts = new List<EntryContext>();
+
+        var now = DateTimeOffset.UtcNow;
+
+        foreach (var item in payload.Items)
+        {
+            var enEntry = new DictionaryEntry
+            {
+                Id = Guid.CreateVersion7(),
+                Language = "en",
+                Text = item.English,
+                IsBaseForm = true,
+                GrammarLabel = item.GrammarLabel,
+                Difficulty = item.Difficulty,
+                IsPublic = true,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            };
+
+            var ruEntry = new DictionaryEntry
+            {
+                Id = Guid.CreateVersion7(),
+                Language = "ru",
+                Text = item.Russian,
+                IsBaseForm = true,
+                GrammarLabel = item.GrammarLabel,
+                Difficulty = item.Difficulty,
+                IsPublic = true,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            };
+
+            entries.Add(enEntry);
+            entries.Add(ruEntry);
+
+            translations.Add(new EntryTranslation
+            {
+                SourceEntryId = enEntry.Id,
+                TargetEntryId = ruEntry.Id,
+                CreatedAtUtc = now
+            });
+            translations.Add(new EntryTranslation
+            {
+                SourceEntryId = ruEntry.Id,
+                TargetEntryId = enEntry.Id,
+                CreatedAtUtc = now
+            });
+
+            var sentenceText = item.Cloze.Replace("____", item.English, StringComparison.Ordinal);
+            contexts.Add(new EntryContext
+            {
+                Id = Guid.CreateVersion7(),
+                DictionaryEntryId = enEntry.Id,
+                Text = sentenceText,
+                Cloze = item.Cloze,
+                Difficulty = item.Difficulty,
+                CreatedAtUtc = now
+            });
+
+            contexts.Add(new EntryContext
+            {
+                Id = Guid.CreateVersion7(),
+                DictionaryEntryId = ruEntry.Id,
+                Text = item.TranslationHint,
+                Cloze = item.TranslationHint,
+                Difficulty = item.Difficulty,
+                CreatedAtUtc = now
+            });
+        }
+
+        return new SeedBatch(entries, translations, contexts);
     }
 
-    private static JsonSerializerOptions CreateJsonOptions()
-    {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-        options.Converters.Add(new JsonStringEnumConverter());
-
-        return options;
-    }
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private static Stream OpenSeedStream()
     {
@@ -42,52 +103,18 @@ public static class SeedDataLoader
             ?? throw new InvalidOperationException("Seed resource stream could not be opened.");
     }
 
-    private static (DictionaryItem Item, ExampleSentence Sentence) CreatePair(SeedItem seedItem)
-    {
-        var itemId = Guid.NewGuid();
-        var createdAtUtc = DateTimeOffset.UtcNow;
-        var item = new DictionaryItem
-        {
-            Id = itemId,
-            SourceType = SourceType.Base,
-            EnglishText = seedItem.English,
-            RussianGlosses = [.. seedItem.Glosses],
-            ItemKind = Enum.Parse<ItemKind>(seedItem.Kind, ignoreCase: true),
-            PartOfSpeech = seedItem.PartOfSpeech,
-            Difficulty = seedItem.Difficulty,
-            Status = DictionaryItemStatus.Active,
-            CreatedByFlow = "seed",
-            Notes = "",
-            AcceptedVariants = seedItem.AcceptedVariants.Count == 0
-                ? [seedItem.English]
-                : [seedItem.English, .. seedItem.AcceptedVariants],
-            Distractors = ["make", "get", "use"],
-            CreatedAtUtc = createdAtUtc
-        };
-
-        var sentence = new ExampleSentence
-        {
-            Id = Guid.NewGuid(),
-            ItemId = itemId,
-            SentenceText = seedItem.Cloze.Replace("____", seedItem.English, StringComparison.Ordinal),
-            ClozeText = seedItem.Cloze,
-            TranslationHint = seedItem.TranslationHint,
-            Origin = ContentOrigin.Dataset,
-            QualityScore = ExampleQualityScores.SeedDataset
-        };
-
-        return (item, sentence);
-    }
-
     private sealed record SeedPayload(List<SeedItem> Items);
 
     private sealed record SeedItem(
         string English,
-        List<string> Glosses,
-        string Kind,
-        string PartOfSpeech,
+        string Russian,
         string Difficulty,
+        string GrammarLabel,
         string Cloze,
-        string TranslationHint,
-        List<string> AcceptedVariants);
+        string TranslationHint);
 }
+
+public sealed record SeedBatch(
+    IReadOnlyList<DictionaryEntry> Entries,
+    IReadOnlyList<EntryTranslation> Translations,
+    IReadOnlyList<EntryContext> Contexts);

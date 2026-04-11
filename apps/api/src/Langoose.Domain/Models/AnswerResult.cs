@@ -5,7 +5,6 @@ namespace Langoose.Domain.Models;
 public sealed record AnswerResult(
     StudyVerdict Verdict,
     string NormalizedAnswer,
-    string? AcceptedVariant,
     string ExpectedAnswer,
-    FeedbackCode FeedbackCode,
+    FeedbackCode? FeedbackCode,
     DateTimeOffset NextDueAtUtc);

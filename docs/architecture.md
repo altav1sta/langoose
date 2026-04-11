@@ -45,7 +45,7 @@ Dependencies point inward. Domain has no dependencies; everything else depends o
 │  Core (service implementations, providers)   │
 │  ┌──────────────────────────────────────┐    │
 │  │ DictionaryService, StudyService,     │    │
-│  │ ContentService, EnrichmentService,   │    │
+│  │ ContentService,                      │    │
 │  │ LocalEnrichmentProvider,             │    │
 │  │ GeminiEnrichmentProvider,            │    │
 │  │ TextNormalizer                       │    │
