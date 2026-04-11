@@ -5,7 +5,7 @@
 - Backend build:
   - `dotnet build apps/api/Langoose.sln /p:RestoreConfigFile=apps/api/NuGet.Config`
 - Backend unit tests:
-  - `dotnet test apps/api/tests/Langoose.Api.UnitTests/Langoose.Api.UnitTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config`
+  - `dotnet test apps/api/tests/Langoose.Core.UnitTests/Langoose.Core.UnitTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config`
 - Backend integration tests:
   - `dotnet test apps/api/tests/Langoose.Api.IntegrationTests/Langoose.Api.IntegrationTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config`
 - Run API:
@@ -60,12 +60,21 @@ See `.github/workflows/app-seed.yml` for the hosted workflow.
 ## Repo Reality Check
 
 - Startup and registration live in `apps/api/src/Langoose.Api/Program.cs`.
-- Shared models and abstractions live in `apps/api/src/Langoose.Domain`.
+- Domain models, enums, constants, and service interfaces live in `apps/api/src/Langoose.Domain`.
+- Service implementations and utilities live in `apps/api/src/Langoose.Core`.
 - App data persistence lives in `apps/api/src/Langoose.Data`.
 - Auth persistence lives in `apps/api/src/Langoose.Auth.Data`.
+- Background processing host lives in `apps/api/src/Langoose.Worker`.
 - Database tooling lives in `apps/api/src/Langoose.DbTool`.
 - API contract helpers live in `apps/web/src/api.ts`.
 - The current frontend is centered in `apps/web/src/App.tsx`.
+
+## CI Alignment
+
+GitHub Actions workflows under `.github/workflows/` reference project paths,
+Dockerfile paths, and test project names directly. When a change renames or
+moves a project, Dockerfile, or test assembly, update the affected workflow
+files in the same change to keep CI green.
 
 ## Practical Cautions
 

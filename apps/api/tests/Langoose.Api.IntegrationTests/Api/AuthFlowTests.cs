@@ -1,6 +1,6 @@
 using System.Net;
-using Langoose.Api.Models;
 using Langoose.Api.IntegrationTests.Infrastructure;
+using Langoose.Api.Models;
 using Xunit;
 
 namespace Langoose.Api.IntegrationTests.Api;

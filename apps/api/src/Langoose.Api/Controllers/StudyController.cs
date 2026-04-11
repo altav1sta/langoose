@@ -1,6 +1,6 @@
 using Langoose.Api.Models;
-using Langoose.Api.Services;
 using Langoose.Auth.Data.Models;
+using Langoose.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +11,7 @@ namespace Langoose.Api.Controllers;
 [Authorize]
 [Route("study")]
 public sealed class StudyController(
-    StudyService studyService,
+    IStudyService studyService,
     UserManager<AuthUser> userManager) : ControllerBase
 {
     [HttpGet("next")]
@@ -26,7 +26,19 @@ public sealed class StudyController(
 
         var card = await studyService.GetNextCardAsync(user.Id, cancellationToken);
 
-        return card is null ? NotFound() : Ok(card);
+        if (card is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(new StudyCardResponse(
+            card.ItemId,
+            card.Prompt,
+            card.TranslationHint,
+            card.Glosses,
+            card.ItemKind,
+            card.SourceType,
+            card.Difficulty));
     }
 
     [HttpPost("answer")]
@@ -41,9 +53,21 @@ public sealed class StudyController(
             return Unauthorized();
         }
 
-        var result = await studyService.SubmitAnswerAsync(user.Id, request, cancellationToken);
+        var result = await studyService.SubmitAnswerAsync(
+            user.Id, request.ItemId, request.SubmittedAnswer, cancellationToken);
 
-        return result is null ? NotFound() : Ok(result);
+        if (result is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(new StudyAnswerResult(
+            result.Verdict,
+            result.NormalizedAnswer,
+            result.AcceptedVariant,
+            result.ExpectedAnswer,
+            result.FeedbackCode,
+            result.NextDueAtUtc));
     }
 
     [HttpGet("dashboard")]
@@ -56,6 +80,14 @@ public sealed class StudyController(
             return Unauthorized();
         }
 
-        return Ok(await studyService.GetDashboardAsync(user.Id, cancellationToken));
+        var dashboard = await studyService.GetDashboardAsync(user.Id, cancellationToken);
+
+        return Ok(new ProgressDashboardResponse(
+            dashboard.TotalItems,
+            dashboard.DueNow,
+            dashboard.NewItems,
+            dashboard.BaseItems,
+            dashboard.CustomItems,
+            dashboard.StudiedToday));
     }
 }

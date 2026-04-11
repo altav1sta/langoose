@@ -27,7 +27,7 @@ Use this skill when the task is about architecture and project boundaries, not j
 
 - Build the affected solution or projects explicitly after changing project boundaries.
 - Run the current backend tests:
-  - `dotnet test apps/api/tests/Langoose.Api.UnitTests/Langoose.Api.UnitTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config`
+  - `dotnet test apps/api/tests/Langoose.Core.UnitTests/Langoose.Core.UnitTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config`
   - `dotnet test apps/api/tests/Langoose.Api.IntegrationTests/Langoose.Api.IntegrationTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config`
 - If Docker or startup wiring changed, verify the live startup path before declaring the architecture work complete.
 - If the refactor created new projects or moved many files, check for mixed line endings before finalizing.

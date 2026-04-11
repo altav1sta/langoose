@@ -1,8 +1,8 @@
-using Langoose.Api.Models;
-using Langoose.Api.Services;
+using Langoose.Core.Services;
+using Langoose.Domain.Models;
 using Xunit;
 
-namespace Langoose.Api.UnitTests.Services;
+namespace Langoose.Core.UnitTests.Services;
 
 public sealed class EnrichmentServiceTests
 {
@@ -12,7 +12,7 @@ public sealed class EnrichmentServiceTests
         var enrichmentService = new EnrichmentService();
 
         var response = enrichmentService.Enrich(
-            new EnrichmentRequest("mysterious word", ["english gloss"], "phrase"));
+            new EnrichmentInput("mysterious word", ["english gloss"], "phrase"));
 
         Assert.NotEmpty(response.ValidationWarnings);
     }

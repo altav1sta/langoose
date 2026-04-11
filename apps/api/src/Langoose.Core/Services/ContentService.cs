@@ -1,31 +1,31 @@
-using Langoose.Api.Models;
 using Langoose.Data;
 using Langoose.Domain.Enums;
 using Langoose.Domain.Models;
+using Langoose.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 
-namespace Langoose.Api.Services;
+namespace Langoose.Core.Services;
 
 public sealed class ContentService(
     AppDbContext dbContext,
-    EnrichmentService enrichmentService)
+    IEnrichmentService enrichmentService) : IContentService
 {
-    public EnrichmentResponse Enrich(EnrichmentRequest request) => enrichmentService.Enrich(request);
+    public EnrichmentResult Enrich(EnrichmentInput input) => enrichmentService.Enrich(input);
 
-    public async Task ReportIssueAsync(Guid userId, ReportIssueRequest request, CancellationToken cancellationToken)
+    public async Task ReportIssueAsync(Guid userId, ReportIssueInput input, CancellationToken cancellationToken)
     {
         dbContext.ContentFlags.Add(new ContentFlag
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            ItemId = request.ItemId,
-            Reason = request.Reason.Trim(),
-            Details = string.IsNullOrWhiteSpace(request.Details) ? null : request.Details.Trim(),
+            ItemId = input.ItemId,
+            Reason = input.Reason.Trim(),
+            Details = string.IsNullOrWhiteSpace(input.Details) ? null : input.Details.Trim(),
             CreatedAtUtc = DateTimeOffset.UtcNow
         });
 
         var item = await dbContext.DictionaryItems.FirstOrDefaultAsync(
-            x => x.Id == request.ItemId,
+            x => x.Id == input.ItemId,
             cancellationToken);
 
         if (item is not null)

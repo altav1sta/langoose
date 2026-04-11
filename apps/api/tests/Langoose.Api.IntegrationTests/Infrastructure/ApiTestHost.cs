@@ -1,10 +1,11 @@
 using Langoose.Api.Controllers;
 using Langoose.Api.Middleware;
-using Langoose.Api.Services;
 using Langoose.Auth.Data;
 using Langoose.Auth.Data.Models;
+using Langoose.Core.Services;
 using Langoose.Data;
 using Langoose.Data.Seeding;
+using Langoose.Domain.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -67,10 +68,10 @@ internal sealed class ApiTestHost(IHost host) : IAsyncDisposable
                         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
                     })
                     .AddEntityFrameworkStores<AuthDbContext>();
-                services.AddScoped<EnrichmentService>();
-                services.AddScoped<DictionaryService>();
-                services.AddScoped<StudyService>();
-                services.AddScoped<ContentService>();
+                services.AddScoped<IEnrichmentService, EnrichmentService>();
+                services.AddScoped<IDictionaryService, DictionaryService>();
+                services.AddScoped<IStudyService, StudyService>();
+                services.AddScoped<IContentService, ContentService>();
                 services.AddScoped<DatabaseSeeder>();
                 services.AddControllers()
                     .AddApplicationPart(typeof(DictionaryController).Assembly);

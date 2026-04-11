@@ -21,6 +21,17 @@ services:
       postgres:
         condition: service_healthy
 
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/src/Langoose.Worker/Dockerfile
+    container_name: langoose-worker
+    environment:
+      ConnectionStrings__AppDatabase: Host=postgres;Port=5432;Database=langoose_app;Username=langoose;Password=langoose
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   web:
     build:
       context: ./apps/web

@@ -1,9 +1,11 @@
-using Langoose.Api.Models;
+using Langoose.Core.Utilities;
 using Langoose.Domain.Constants;
+using Langoose.Domain.Models;
+using Langoose.Domain.Services;
 
-namespace Langoose.Api.Services;
+namespace Langoose.Core.Services;
 
-public sealed class EnrichmentService
+public sealed class EnrichmentService : IEnrichmentService
 {
     private static readonly Dictionary<string, LexiconEntry> Lexicon =
         new(StringComparer.OrdinalIgnoreCase)
@@ -40,11 +42,11 @@ public sealed class EnrichmentService
                 ["get better"])
         };
 
-    public EnrichmentResponse Enrich(EnrichmentRequest request)
+    public EnrichmentResult Enrich(EnrichmentInput input)
     {
-        var englishText = request.EnglishText.Trim();
-        var warnings = new List<string>();
-        var inputGlosses = request.RussianGlosses?
+        var englishText = input.EnglishText.Trim();
+        List<string> warnings = [];
+        var inputGlosses = input.RussianGlosses?
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -59,7 +61,7 @@ public sealed class EnrichmentService
         if (Lexicon.TryGetValue(englishText, out var entry))
         {
             glosses = inputGlosses.Count > 0 ? inputGlosses : entry.Glosses;
-            partOfSpeech = InferPartOfSpeech(request.ItemKind, entry.PartOfSpeech);
+            partOfSpeech = InferPartOfSpeech(input.ItemKind, entry.PartOfSpeech);
             difficulty = entry.Difficulty;
             examples = entry.Examples;
             acceptedVariants = [englishText, .. entry.Variants];
@@ -68,7 +70,7 @@ public sealed class EnrichmentService
         {
             glosses = inputGlosses;
             partOfSpeech = InferPartOfSpeech(
-                request.ItemKind,
+                input.ItemKind,
                 englishText.Contains(' ') ? "phrase" : "word");
             difficulty = englishText.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 1
                 ? "B1"
@@ -83,26 +85,25 @@ public sealed class EnrichmentService
             }
         }
 
-        var candidates = examples
+        List<ExampleCandidate> candidates = [.. examples
             .Select(sentence => new ExampleCandidate(
                 sentence,
                 sentence.Replace(englishText, "____", StringComparison.OrdinalIgnoreCase),
                 BuildTranslationHint(glosses),
                 ExampleQualityScores.EnrichmentFallback,
-                "ai-fallback"))
-            .ToList();
+                "ai-fallback"))];
 
         var validationWarnings = Validate(englishText, glosses, candidates);
         warnings.AddRange(validationWarnings);
 
-        return new EnrichmentResponse(
+        return new EnrichmentResult(
             englishText,
             glosses,
             difficulty,
             partOfSpeech,
             candidates,
-            warnings.Distinct().ToList(),
-            acceptedVariants.Distinct(StringComparer.OrdinalIgnoreCase).ToList());
+            [.. warnings.Distinct()],
+            [.. acceptedVariants.Distinct(StringComparer.OrdinalIgnoreCase)]);
     }
 
     public static IReadOnlyList<string> Validate(
@@ -110,7 +111,7 @@ public sealed class EnrichmentService
         List<string> glosses,
         List<ExampleCandidate> examples)
     {
-        var warnings = new List<string>();
+        List<string> warnings = [];
 
         if (string.IsNullOrWhiteSpace(englishText))
         {

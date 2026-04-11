@@ -1,7 +1,7 @@
 using Langoose.Api.Models;
-using Langoose.Api.Services;
 using Langoose.Auth.Data.Models;
 using Langoose.Domain.Models;
+using Langoose.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +12,7 @@ namespace Langoose.Api.Controllers;
 [Authorize]
 [Route("dictionary")]
 public sealed class DictionaryController(
-    DictionaryService dictionaryService,
+    IDictionaryService dictionaryService,
     UserManager<AuthUser> userManager) : ControllerBase
 {
     [HttpGet("items")]
@@ -40,7 +40,18 @@ public sealed class DictionaryController(
             return Unauthorized();
         }
 
-        return Ok(await dictionaryService.AddItemAsync(user.Id, request, cancellationToken));
+        var input = new AddItemInput(
+            request.EnglishText,
+            request.RussianGlosses,
+            request.ItemKind,
+            request.PartOfSpeech,
+            request.Difficulty,
+            request.Notes,
+            request.Tags,
+            request.CreatedByFlow,
+            request.GenerateExamples);
+
+        return Ok(await dictionaryService.AddItemAsync(user.Id, input, cancellationToken));
     }
 
     [HttpPatch("items/{itemId:guid}")]
@@ -56,7 +67,15 @@ public sealed class DictionaryController(
             return Unauthorized();
         }
 
-        var updated = await dictionaryService.PatchItemAsync(user.Id, itemId, request, cancellationToken);
+        var input = new PatchItemInput(
+            request.RussianGlosses,
+            request.PartOfSpeech,
+            request.Difficulty,
+            request.Notes,
+            request.Tags,
+            request.Status);
+
+        var updated = await dictionaryService.PatchItemAsync(user.Id, itemId, input, cancellationToken);
 
         return updated is null ? NotFound() : Ok(updated);
     }
@@ -75,7 +94,10 @@ public sealed class DictionaryController(
 
         try
         {
-            return Ok(await dictionaryService.ImportCsvAsync(user.Id, request, cancellationToken));
+            var result = await dictionaryService.ImportCsvAsync(
+                user.Id, request.CsvContent, request.FileName, cancellationToken);
+
+            return Ok(new ImportCsvResponse(result.TotalRows, result.ImportedRows, result.SkippedRows, result.Errors));
         }
         catch (ArgumentException exception)
         {

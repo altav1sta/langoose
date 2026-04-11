@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
-using Langoose.Api.Models;
 using Langoose.Api.IntegrationTests.Infrastructure;
+using Langoose.Api.Models;
 using Langoose.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

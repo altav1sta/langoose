@@ -122,10 +122,10 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore unit tests
-        run: dotnet restore apps/api/tests/Langoose.Api.UnitTests/Langoose.Api.UnitTests.csproj /p:RestoreConfigFile=${{ github.workspace }}/apps/api/NuGet.Config
+        run: dotnet restore apps/api/tests/Langoose.Core.UnitTests/Langoose.Core.UnitTests.csproj /p:RestoreConfigFile=${{ github.workspace }}/apps/api/NuGet.Config
 
       - name: Run backend unit tests
-        run: dotnet test apps/api/tests/Langoose.Api.UnitTests/Langoose.Api.UnitTests.csproj --configuration Release --no-restore /p:RestoreConfigFile=${{ github.workspace }}/apps/api/NuGet.Config
+        run: dotnet test apps/api/tests/Langoose.Core.UnitTests/Langoose.Core.UnitTests.csproj --configuration Release --no-restore /p:RestoreConfigFile=${{ github.workspace }}/apps/api/NuGet.Config
 
   backend-integration-tests:
     name: Backend Integration Tests

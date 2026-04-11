@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart TD
-  Unit["Langoose.Api.UnitTests"] --> Logic["Pure or infrastructure-light logic"]
+  Unit["Langoose.Core.UnitTests"] --> Logic["Pure or infrastructure-light logic"]
   Integration["Langoose.Api.IntegrationTests"] --> Host["Host, persistence, auth, and cross-component behavior"]
   Functional["Langoose.Api.FunctionalTests (optional)"] --> Http["End-to-end HTTP behavior"]
 ```
@@ -13,7 +13,7 @@ flowchart TD
 - Add a third test layer only when unit and integration tests are no longer enough.
 - Avoid rebuilding a catch-all suite that blurs these responsibilities.
 - `apps/api/src/Langoose.Api/Langoose.Api.csproj`
-- `apps/api/tests/Langoose.Api.UnitTests/Langoose.Api.UnitTests.csproj`
+- `apps/api/tests/Langoose.Core.UnitTests/Langoose.Core.UnitTests.csproj`
 - `apps/api/tests/Langoose.Api.IntegrationTests/Langoose.Api.IntegrationTests.csproj`
 
 ## Boundary Rules

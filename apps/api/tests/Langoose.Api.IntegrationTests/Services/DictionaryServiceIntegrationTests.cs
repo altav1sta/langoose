@@ -1,9 +1,9 @@
-using Langoose.Api.Models;
-using Langoose.Api.Services;
 using Langoose.Api.IntegrationTests.Infrastructure;
+using Langoose.Core.Utilities;
 using Langoose.Data;
 using Langoose.Data.Seeding;
 using Langoose.Domain.Enums;
+using Langoose.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -22,8 +22,8 @@ public sealed class DictionaryServiceIntegrationTests
         var seedItems = SeedDataLoader.LoadBaseItems();
 
         Assert.Contains(seedItems, pair => pair.Item.EnglishText == "book" &&
-            pair.Item.RussianGlosses.Contains("книга") &&
-            pair.Sentence.TranslationHint == "Я читаю книгу перед сном.");
+            pair.Item.RussianGlosses.Contains("\u043A\u043D\u0438\u0433\u0430") &&
+            pair.Sentence.TranslationHint == "\u042F \u0447\u0438\u0442\u0430\u044E \u043A\u043D\u0438\u0433\u0443 \u043F\u0435\u0440\u0435\u0434 \u0441\u043D\u043E\u043C.");
         Assert.DoesNotContain(seedItems, pair =>
             pair.Item.RussianGlosses.Any(gloss => gloss.Contains('?')) ||
             pair.Sentence.TranslationHint.Contains('?'));
@@ -73,7 +73,7 @@ public sealed class DictionaryServiceIntegrationTests
 
         var item = await dictionaryService.AddItemAsync(
             userId,
-            new DictionaryItemRequest(
+            new AddItemInput(
                 "look for",
                 ["iskat"],
                 "phrase",
@@ -99,7 +99,7 @@ public sealed class DictionaryServiceIntegrationTests
 
         await dictionaryService.AddItemAsync(
             userId,
-            new DictionaryItemRequest(
+            new AddItemInput(
                 "look for",
                 ["iskat"],
                 "phrase",
@@ -115,7 +115,7 @@ public sealed class DictionaryServiceIntegrationTests
 
         await dictionaryService.AddItemAsync(
             userId,
-            new DictionaryItemRequest(
+            new AddItemInput(
                 " look for ",
                 ["razyskivat"],
                 "phrase",
@@ -146,9 +146,7 @@ public sealed class DictionaryServiceIntegrationTests
         var userId = Guid.NewGuid();
 
         var import = await dictionaryService.ImportCsvAsync(
-            userId,
-            new ImportCsvRequest("words.csv", ValidCsv),
-            CancellationToken.None);
+            userId, ValidCsv, "words.csv", CancellationToken.None);
 
         Assert.Equal(2, import.ImportedRows);
 
@@ -166,14 +164,10 @@ public sealed class DictionaryServiceIntegrationTests
         var userId = Guid.NewGuid();
 
         await dictionaryService.ImportCsvAsync(
-            userId,
-            new ImportCsvRequest("seed.csv", ValidCsv),
-            CancellationToken.None);
+            userId, ValidCsv, "seed.csv", CancellationToken.None);
 
         var duplicateImport = await dictionaryService.ImportCsvAsync(
-            userId,
-            new ImportCsvRequest("duplicates.csv", ValidCsv),
-            CancellationToken.None);
+            userId, ValidCsv, "duplicates.csv", CancellationToken.None);
 
         Assert.Equal(0, duplicateImport.ImportedRows);
         Assert.Equal(2, duplicateImport.SkippedRows);
@@ -189,7 +183,7 @@ public sealed class DictionaryServiceIntegrationTests
 
         await dictionaryService.AddItemAsync(
             userId,
-            new DictionaryItemRequest(
+            new AddItemInput(
                 "improve",
                 ["uluchshat"],
                 "word",
@@ -206,9 +200,7 @@ public sealed class DictionaryServiceIntegrationTests
             " improve ,stanovitsya luchshe,,,";
 
         var duplicateImport = await dictionaryService.ImportCsvAsync(
-            userId,
-            new ImportCsvRequest("variants.csv", variantsCsv),
-            CancellationToken.None);
+            userId, variantsCsv, "variants.csv", CancellationToken.None);
 
         Assert.Equal(0, duplicateImport.ImportedRows);
 
@@ -231,9 +223,7 @@ public sealed class DictionaryServiceIntegrationTests
             "at least,po krayney mere,phrase,,common";
 
         var import = await dictionaryService.ImportCsvAsync(
-            userId,
-            new ImportCsvRequest("base-overlap.csv", csv),
-            CancellationToken.None);
+            userId, csv, "base-overlap.csv", CancellationToken.None);
 
         Assert.Equal(0, import.ImportedRows);
 
@@ -256,8 +246,7 @@ public sealed class DictionaryServiceIntegrationTests
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             dictionaryService.ImportCsvAsync(
-                userId,
-                new ImportCsvRequest("bad-header.csv", "Word,Translation,Kind\nhello,privet,word"),
+                userId, "Word,Translation,Kind\nhello,privet,word", "bad-header.csv",
                 CancellationToken.None));
     }
 
@@ -275,9 +264,7 @@ public sealed class DictionaryServiceIntegrationTests
             "bad row only two columns,missing";
 
         var result = await dictionaryService.ImportCsvAsync(
-            userId,
-            new ImportCsvRequest("malformed.csv", malformedCsv),
-            CancellationToken.None);
+            userId, malformedCsv, "malformed.csv", CancellationToken.None);
 
         Assert.Equal(0, result.ImportedRows);
         Assert.Single(result.Errors);
@@ -297,7 +284,7 @@ public sealed class DictionaryServiceIntegrationTests
 
         var item = await dictionaryService.AddItemAsync(
             userId,
-            new DictionaryItemRequest(
+            new AddItemInput(
                 "look for",
                 ["iskat"],
                 "phrase",
@@ -309,9 +296,7 @@ public sealed class DictionaryServiceIntegrationTests
             CancellationToken.None);
 
         await studyService.SubmitAnswerAsync(
-            userId,
-            new StudyAnswerRequest(item.Id, "look for"),
-            CancellationToken.None);
+            userId, item.Id, "look for", CancellationToken.None);
 
         await dictionaryService.ClearCustomDataAsync(userId, CancellationToken.None);
         await using var verifyDbContext = await dbContextFactory.CreateDbContextAsync();
