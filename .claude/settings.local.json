@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(bash scripts/sync-rules.sh to-codex)",
+      "Bash(bash scripts/sync-rules.sh to-claude)",
+      "Bash(bash scripts/sync-rules.sh status)",
+      "Bash(gh milestone:*)",
+      "Bash(gh api:*)",
+      "Bash(echo \"---EXIT:$?\")",
+      "Bash(gh label:*)",
+      "Bash(gh issue:*)",
+      "Bash(gh project:*)"
+    ]
+  }
+}

@@ -13,15 +13,17 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (git rev-parse --show-toplevel).Trim()
 Set-Location $repoRoot
 
-$agentsMarker = "## Skill Index"
-$claudeMarker = "## Guidance Index"
+$agentsSkillMarker = "## Skill Index"
+$guidanceMarker = "## Guidance Index"
+$claudeSpecificMarker = "## Claude-Specific Notes"
 $agentsPath = Join-Path $repoRoot "AGENTS.md"
 $claudePath = Join-Path $repoRoot "CLAUDE.md"
 
 function Trim-TrailingBlankLines {
     param([string]$Text)
 
-    return ($Text -replace "(\r?\n)+\z", "").TrimEnd()
+    $trimmed = ($Text -replace "(\r?\n)+\z", "").TrimEnd()
+    return ($trimmed -replace "`r`n", "`n")
 }
 
 function Get-AgentsShared {
@@ -30,7 +32,7 @@ function Get-AgentsShared {
     }
 
     $text = Get-Content $agentsPath -Raw
-    $parts = $text -split [regex]::Escape($agentsMarker), 2
+    $parts = $text -split [regex]::Escape($agentsSkillMarker), 2
     return (Trim-TrailingBlankLines $parts[0])
 }
 
@@ -40,7 +42,7 @@ function Get-AgentsSkillIndex {
     }
 
     $text = Get-Content $agentsPath -Raw
-    $index = $text.IndexOf($agentsMarker)
+    $index = $text.IndexOf($agentsSkillMarker)
 
     if ($index -lt 0) {
         return ""
@@ -55,23 +57,12 @@ function Get-ClaudeShared {
     }
 
     $text = Get-Content $claudePath -Raw
-    $parts = $text -split [regex]::Escape($claudeMarker), 2
-    return (Trim-TrailingBlankLines $parts[0])
-}
-
-function Get-ClaudeGuidanceIndex {
-    if (-not (Test-Path $claudePath)) {
-        return ""
-    }
-
-    $text = Get-Content $claudePath -Raw
-    $index = $text.IndexOf($claudeMarker)
-
+    $index = $text.IndexOf($claudeSpecificMarker)
     if ($index -lt 0) {
-        return ""
+        return (Trim-TrailingBlankLines $text)
     }
 
-    return (Trim-TrailingBlankLines $text.Substring($index))
+    return (Trim-TrailingBlankLines $text.Substring(0, $index))
 }
 
 function Write-Utf8NoBom {
@@ -105,16 +96,30 @@ function Sync-ToCodex {
     Audit
 }
 
+function Get-ClaudeSpecific {
+    if (-not (Test-Path $claudePath)) {
+        return ""
+    }
+
+    $text = Get-Content $claudePath -Raw
+    $index = $text.IndexOf($claudeSpecificMarker)
+
+    if ($index -lt 0) {
+        return ""
+    }
+
+    return (Trim-TrailingBlankLines $text.Substring($index))
+}
+
 function Sync-ToClaude {
     $shared = Get-AgentsShared
-    $guidanceIndex = Get-ClaudeGuidanceIndex
+    $claudeSpecific = Get-ClaudeSpecific
 
-    if ([string]::IsNullOrWhiteSpace($guidanceIndex)) {
-        Write-Warning "No Guidance Index found in CLAUDE.md, copying without it"
+    if ([string]::IsNullOrWhiteSpace($claudeSpecific)) {
         Write-Utf8NoBom -Path $claudePath -Content $shared
     }
     else {
-        Write-Utf8NoBom -Path $claudePath -Content ($shared + "`r`n`r`n" + $guidanceIndex)
+        Write-Utf8NoBom -Path $claudePath -Content ($shared + "`r`n`r`n" + $claudeSpecific)
     }
 
     Write-Output "Synced AGENTS.md -> CLAUDE.md"
@@ -202,8 +207,9 @@ function Test-IndexLinks {
 }
 
 function Audit {
-    Test-IndexLinks -Path $agentsPath -Marker $agentsMarker -Label "AGENTS Skill Index"
-    Test-IndexLinks -Path $claudePath -Marker $claudeMarker -Label "CLAUDE Guidance Index"
+    Test-IndexLinks -Path $agentsPath -Marker $guidanceMarker -Label "AGENTS Guidance Index"
+    Test-IndexLinks -Path $agentsPath -Marker $agentsSkillMarker -Label "AGENTS Skill Index"
+    Test-IndexLinks -Path $claudePath -Marker $guidanceMarker -Label "CLAUDE Guidance Index"
 }
 
 function Reconcile {

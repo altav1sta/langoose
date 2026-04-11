@@ -21,6 +21,11 @@
 - Export returns only the user's visible custom items in CSV format.
 - Clearing custom data keeps session tokens.
 
+## Enrichment and Visibility
+
+- Custom items require enrichment (AI-generated or user-provided context) before they appear in study cards.
+- See `docs/agent/enrichment-guidance.md` for enrichment states and the shared content layer model.
+
 ## Review Checklist
 
 - Did duplicate normalization still collapse visible entries correctly?
