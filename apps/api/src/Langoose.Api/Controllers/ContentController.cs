@@ -15,31 +15,6 @@ public sealed class ContentController(
     IContentService contentService,
     UserManager<AuthUser> userManager) : ControllerBase
 {
-    [HttpPost("enrich")]
-    public async Task<ActionResult<EnrichmentResponse>> Enrich(
-        [FromBody] EnrichmentRequest request)
-    {
-        var user = await userManager.GetUserAsync(User);
-
-        if (user is null)
-        {
-            return Unauthorized();
-        }
-
-        var input = new EnrichmentInput(request.EnglishText, request.RussianGlosses, request.ItemKind);
-        var result = contentService.Enrich(input);
-
-        return Ok(new EnrichmentResponse(
-            result.EnglishText,
-            result.RussianGlosses,
-            result.Difficulty,
-            result.PartOfSpeech,
-            [.. result.Examples.Select(e => new Models.ExampleCandidate(
-                e.SentenceText, e.ClozeText, e.TranslationHint, e.QualityScore, e.Origin))],
-            result.ValidationWarnings,
-            result.AcceptedVariants));
-    }
-
     [HttpPost("report-issue")]
     public async Task<IActionResult> ReportIssue(
         [FromBody] ReportIssueRequest request,
@@ -52,7 +27,7 @@ public sealed class ContentController(
             return Unauthorized();
         }
 
-        var input = new ReportIssueInput(request.ItemId, request.Reason, request.Details);
+        var input = new ReportIssueInput(request.DictionaryEntryId, request.Reason);
         await contentService.ReportIssueAsync(user.Id, input, cancellationToken);
 
         return Accepted();

@@ -1,9 +1,9 @@
 import {
   ApiError,
-  type AddDictionaryItemRequest,
+  type AddUserEntryRequest,
   type AuthResponse,
   type Dashboard,
-  type DictionaryItem,
+  type UserDictionaryEntry,
   type StudyAnswerResult,
   type StudyCard
 } from '../api';
@@ -11,7 +11,7 @@ import {
 export type SessionState = {
   auth?: AuthResponse;
   dashboard?: Dashboard;
-  dictionary: DictionaryItem[];
+  dictionary: UserDictionaryEntry[];
   card?: StudyCard;
   result?: StudyAnswerResult;
   error?: string;
@@ -20,7 +20,7 @@ export type SessionState = {
 };
 
 export type SessionSnapshot = {
-  dictionary: DictionaryItem[];
+  dictionary: UserDictionaryEntry[];
   dashboard: Dashboard;
   card?: StudyCard;
 };
@@ -99,29 +99,25 @@ export function formatTime(value?: string) {
 }
 
 export function buildRefreshNotice(previousCard: StudyCard | undefined, snapshot: SessionSnapshot) {
-  const cardChanged = previousCard?.itemId !== snapshot.card?.itemId;
+  const cardChanged = previousCard?.dictionaryEntryId !== snapshot.card?.dictionaryEntryId;
   const cardMessage = snapshot.card
     ? cardChanged
       ? 'Loaded a different due card.'
       : 'The same card is still next in line.'
     : 'You have no due cards right now.';
 
-  return `Session synced. ${cardMessage} Due now: ${snapshot.dashboard.dueNow}. Custom items: ${snapshot.dashboard.customItems}.`;
+  return `Session synced. ${cardMessage} Due now: ${snapshot.dashboard.dueNow}.`;
 }
 
-export function getCustomItemCount(items: DictionaryItem[]) {
-  return items.filter(x => x.ownerId).length;
+export function getCustomEntryCount(entries: UserDictionaryEntry[]) {
+  return entries.length;
 }
 
-export function buildQuickAddPayload(form: QuickAddFormState): AddDictionaryItemRequest {
+export function buildQuickAddPayload(form: QuickAddFormState): AddUserEntryRequest {
   return {
-    englishText: form.englishText,
-    russianGlosses: form.russianText
-      .split(',')
-      .map(x => x.trim())
-      .filter(Boolean),
-    itemKind: form.englishText.includes(' ') ? 'phrase' : 'word',
-    createdByFlow: 'quick-add'
+    userInputTerm: form.englishText,
+    sourceLanguage: 'ru',
+    targetLanguage: 'en'
   };
 }
 

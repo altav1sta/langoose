@@ -68,7 +68,6 @@ internal sealed class ApiTestHost(IHost host) : IAsyncDisposable
                         options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
                     })
                     .AddEntityFrameworkStores<AuthDbContext>();
-                services.AddScoped<IEnrichmentService, EnrichmentService>();
                 services.AddScoped<IDictionaryService, DictionaryService>();
                 services.AddScoped<IStudyService, StudyService>();
                 services.AddScoped<IContentService, ContentService>();

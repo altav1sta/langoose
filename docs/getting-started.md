@@ -96,7 +96,8 @@ App database:
 ```bash
 dotnet ef migrations add <MigrationName> \
   --project apps/api/src/Langoose.Data \
-  --startup-project apps/api/src/Langoose.Api
+  --startup-project apps/api/src/Langoose.DbTool \
+  --context AppDbContext
 ```
 
 Auth database:
@@ -104,7 +105,8 @@ Auth database:
 ```bash
 dotnet ef migrations add <MigrationName> \
   --project apps/api/src/Langoose.Auth.Data \
-  --startup-project apps/api/src/Langoose.Api
+  --startup-project apps/api/src/Langoose.DbTool \
+  --context AuthDbContext
 ```
 
 Migrations are auto-applied on startup locally. For staging/production, use

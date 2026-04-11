@@ -116,7 +116,6 @@ builder.Services.AddOpenIddict()
         options.UseAspNetCore();
     });
 
-builder.Services.AddScoped<IEnrichmentService, EnrichmentService>();
 builder.Services.AddScoped<IDictionaryService, DictionaryService>();
 builder.Services.AddScoped<IStudyService, StudyService>();
 builder.Services.AddScoped<IContentService, ContentService>();
@@ -215,10 +214,9 @@ app.MapGet("/", () => Results.Ok(new
         "GET /study/next",
         "POST /study/answer",
         "GET /study/dashboard",
-        "GET/POST/PATCH /dictionary/items",
+        "GET/POST /dictionary/entries",
         "POST /dictionary/import",
         "GET /dictionary/export",
-        "POST /content/enrich",
         "POST /content/report-issue"
     }
 }));

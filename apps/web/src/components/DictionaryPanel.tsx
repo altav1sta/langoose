@@ -1,15 +1,15 @@
-import type { AuthResponse, DictionaryItem } from '../api';
+import type { AuthResponse, UserDictionaryEntry } from '../api';
 
 type DictionaryPanelProps = {
   auth?: AuthResponse;
-  customItemCount: number;
-  dictionary: DictionaryItem[];
+  customEntryCount: number;
+  dictionary: UserDictionaryEntry[];
   onClearCustomData: () => void;
 };
 
 export function DictionaryPanel({
   auth,
-  customItemCount,
+  customEntryCount,
   dictionary,
   onClearCustomData
 }: DictionaryPanelProps) {
@@ -18,28 +18,26 @@ export function DictionaryPanel({
       <div className="section-header">
         <div>
           <h2>Dictionary</h2>
-          <span>{dictionary.length} visible items, {customItemCount} custom</span>
+          <span>{dictionary.length} entries, {customEntryCount} custom</span>
         </div>
         <button
           type="button"
           className="secondary danger"
           onClick={onClearCustomData}
-          disabled={!auth || customItemCount === 0}
+          disabled={!auth || customEntryCount === 0}
         >
           Clear my custom data
         </button>
       </div>
       <div className="dictionary-list">
-        {dictionary.map(item => (
-          <article key={item.id} className="dictionary-row">
+        {dictionary.map(entry => (
+          <article key={entry.id} className="dictionary-row">
             <div>
-              <strong>{item.englishText}</strong>
-              <p>{item.russianGlosses.join(', ')}</p>
+              <strong>{entry.userInputTerm}</strong>
             </div>
             <div className="pill-row">
-              <span>{item.sourceType}</span>
-              <span>{item.itemKind}</span>
-              <span>{item.difficulty}</span>
+              <span>{entry.enrichmentStatus}</span>
+              <span>{entry.type ?? 'word'}</span>
             </div>
           </article>
         ))}

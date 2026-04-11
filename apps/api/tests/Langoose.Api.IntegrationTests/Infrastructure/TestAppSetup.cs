@@ -21,7 +21,7 @@ internal static class TestAppSetup
     }
 
     public static DictionaryService CreateDictionaryService(AppDbContext dbContext)
-        => new(dbContext, new EnrichmentService());
+        => new(dbContext);
 
     public static StudyService CreateStudyService(AppDbContext dbContext)
         => new(dbContext);

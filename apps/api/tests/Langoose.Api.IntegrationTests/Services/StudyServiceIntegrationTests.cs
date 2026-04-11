@@ -9,79 +9,65 @@ namespace Langoose.Api.IntegrationTests.Services;
 public sealed class StudyServiceIntegrationTests
 {
     [Fact]
-    public async Task GetNextCardAsync_WhenBaseAndCustomCardsAreDue_ReturnsACard()
+    public async Task GetNextCardAsync_WhenProgressExists_ReturnsACard()
     {
         var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
-        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
         var studyService = TestAppSetup.CreateStudyService(dbContext);
         var userId = Guid.NewGuid();
 
-        var customItem = await dictionaryService.AddItemAsync(userId, new AddItemInput(
-            "look for",
-            ["iskat"],
-            "phrase",
-            null,
-            null,
-            null,
-            ["travel"],
-            "quick-add"), CancellationToken.None);
-
         var store = await TestDataSnapshot.LoadAsync(dbContext);
-        var baseItem = store.DictionaryItems.First(x => x.SourceType == SourceType.Base);
+        var entry = store.DictionaryEntries.First(e => e.Language == "en" && e.IsPublic);
 
-        var customState = store.ReviewStates.First(x => x.UserId == userId && x.ItemId == customItem.Id);
-        customState.DueAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5);
-
-        store.ReviewStates.Add(new ReviewState
+        dbContext.UserProgress.Add(new UserProgress
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.CreateVersion7(),
             UserId = userId,
-            ItemId = baseItem.Id,
-            Stability = ReviewDefaults.InitialStability,
-            DueAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10)
+            DictionaryEntryId = entry.Id,
+            DueAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5),
+            Stability = ProgressDefaults.InitialStability,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
         });
-
-        await dbContext.ReviewStates.AddAsync(store.ReviewStates.Last(), CancellationToken.None);
         await dbContext.SaveChangesAsync(CancellationToken.None);
 
         var card = await studyService.GetNextCardAsync(userId, CancellationToken.None);
 
         Assert.NotNull(card);
+        Assert.Equal(entry.Id, card.DictionaryEntryId);
     }
 
     [Fact]
-    public async Task GetDashboardAsync_CountsOnlyTodaysVisibleStudyEvents()
+    public async Task GetDashboardAsync_CountsOnlyTodaysStudyEvents()
     {
         var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         var studyService = TestAppSetup.CreateStudyService(dbContext);
         var userId = Guid.NewGuid();
-        var item = (await TestDataSnapshot.LoadAsync(dbContext)).DictionaryItems.First(x => x.SourceType == SourceType.Base);
+        var entry = (await TestDataSnapshot.LoadAsync(dbContext)).DictionaryEntries
+            .First(e => e.Language == "en" && e.IsPublic);
         var startOfTodayUtc = DateTimeOffset.UtcNow.UtcDateTime.Date;
 
         dbContext.StudyEvents.AddRange(
             new StudyEvent
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = userId,
-                ItemId = item.Id,
-                AnsweredAtUtc = startOfTodayUtc.AddHours(1),
-                SubmittedAnswer = "one",
-                NormalizedAnswer = "one",
+                DictionaryEntryId = entry.Id,
+                UserInput = "one",
                 Verdict = StudyVerdict.Correct,
-                FeedbackCode = FeedbackCode.ExactMatch
+                FeedbackCode = FeedbackCode.ExactMatch,
+                CreatedAtUtc = startOfTodayUtc.AddHours(1)
             },
             new StudyEvent
             {
-                Id = Guid.NewGuid(),
+                Id = Guid.CreateVersion7(),
                 UserId = userId,
-                ItemId = item.Id,
-                AnsweredAtUtc = startOfTodayUtc.AddDays(-1).AddHours(23),
-                SubmittedAnswer = "two",
-                NormalizedAnswer = "two",
+                DictionaryEntryId = entry.Id,
+                UserInput = "two",
                 Verdict = StudyVerdict.Correct,
-                FeedbackCode = FeedbackCode.ExactMatch
+                FeedbackCode = FeedbackCode.ExactMatch,
+                CreatedAtUtc = startOfTodayUtc.AddDays(-1).AddHours(23)
             });
 
         await dbContext.SaveChangesAsync(CancellationToken.None);

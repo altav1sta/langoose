@@ -1,5 +1,4 @@
 using Langoose.Data;
-using Langoose.Domain.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Langoose.Api.IntegrationTests.Infrastructure;
@@ -10,11 +9,13 @@ internal static class TestDataSnapshot
     {
         return new TestAppState
         {
-            DictionaryItems = await dbContext.DictionaryItems.ToListAsync(cancellationToken),
-            ExampleSentences = await dbContext.ExampleSentences.ToListAsync(cancellationToken),
-            ReviewStates = await dbContext.ReviewStates.ToListAsync(cancellationToken),
+            DictionaryEntries = await dbContext.DictionaryEntries.ToListAsync(cancellationToken),
+            EntryTranslations = await dbContext.EntryTranslations.ToListAsync(cancellationToken),
+            EntryContexts = await dbContext.EntryContexts.ToListAsync(cancellationToken),
+            UserDictionaryEntries = await dbContext.UserDictionaryEntries.ToListAsync(cancellationToken),
+            UserProgress = await dbContext.UserProgress.ToListAsync(cancellationToken),
             StudyEvents = await dbContext.StudyEvents.ToListAsync(cancellationToken),
-            Imports = await dbContext.ImportRecords.ToListAsync(cancellationToken),
+            ImportRecords = await dbContext.ImportRecords.ToListAsync(cancellationToken),
             ContentFlags = await dbContext.ContentFlags.ToListAsync(cancellationToken)
         };
     }

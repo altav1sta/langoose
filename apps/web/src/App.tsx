@@ -19,7 +19,7 @@ import {
   buildQuickAddPayload,
   buildRefreshNotice,
   describeError,
-  getCustomItemCount,
+  getCustomEntryCount,
   initialAuthForm,
   initialQuickAddForm,
   initialState,
@@ -183,19 +183,12 @@ export default function App() {
     }
 
     try {
-      const beforeCount = getCustomItemCount(state.dictionary);
-      const savedItem = await api.addDictionaryItem(buildQuickAddPayload(quickAddForm));
-      const snapshot = await hydrate(state.auth);
-      const afterCount = getCustomItemCount(snapshot.dictionary);
-      const merged = afterCount === beforeCount;
+      await api.addUserEntry(buildQuickAddPayload(quickAddForm));
+      await hydrate(state.auth);
 
       setState(current => ({
         ...current,
-        notice: savedItem.sourceType === 'base'
-          ? 'That term is already in the base dictionary, so we kept the existing entry.'
-          : merged
-            ? 'Updated your existing custom entry instead of creating a duplicate.'
-            : 'Saved to your dictionary and added to the study pool.'
+        notice: 'Added to your dictionary. It will be enriched shortly.'
       }));
     } catch (error) {
       if (isUnauthorized(error)) {
@@ -219,18 +212,13 @@ export default function App() {
       const content = await csvFile.text();
       const result = await api.importCsv(csvFile.name, content);
       setImportSummary(
-        `Imported ${result.importedRows} of ${result.totalRows} rows${result.skippedRows
-          ? ', skipped rows that were already in your custom or base dictionary'
-          : ''
-        }.`
+        `Imported ${result.rowCount} rows, ${result.pendingCount} pending enrichment.`
       );
       setCsvFile(null);
 
       await hydrate(
         state.auth,
-        result.skippedRows > 0
-          ? 'Import finished. Existing custom entries and base terms were skipped so the dictionary stays clean.'
-          : 'Import finished. New rows were added to your custom dictionary.'
+        'Import finished. Entries are queued for enrichment.'
       );
     } catch (error) {
       if (isUnauthorized(error)) {
@@ -251,7 +239,7 @@ export default function App() {
     }
 
     try {
-      const result = await api.submitAnswer(state.card.itemId, answer);
+      const result = await api.submitAnswer(state.card.dictionaryEntryId, answer);
       const studyState = await loadStudyState();
       setAnswer('');
 
@@ -345,7 +333,7 @@ export default function App() {
     }
 
     try {
-      await api.reportIssue(state.card.itemId, 'awkward sentence', 'Reported from study card UI');
+      await api.reportIssue(state.card.dictionaryEntryId, 'awkward sentence');
       setAnswer('');
       setImportSummary('');
       setState(current => ({ ...current, result: undefined }));
@@ -363,7 +351,7 @@ export default function App() {
     }
   }
 
-  const customItemCount = getCustomItemCount(state.dictionary);
+  const customEntryCount = getCustomEntryCount(state.dictionary);
 
   return (
     <main className="app-shell">
@@ -412,7 +400,7 @@ export default function App() {
 
       <DictionaryPanel
         auth={state.auth}
-        customItemCount={customItemCount}
+        customEntryCount={customEntryCount}
         dictionary={state.dictionary}
         onClearCustomData={() => void clearCustomData()}
       />

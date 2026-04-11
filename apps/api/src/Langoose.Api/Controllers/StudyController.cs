@@ -32,12 +32,9 @@ public sealed class StudyController(
         }
 
         return Ok(new StudyCardResponse(
-            card.ItemId,
+            card.DictionaryEntryId,
             card.Prompt,
             card.TranslationHint,
-            card.Glosses,
-            card.ItemKind,
-            card.SourceType,
             card.Difficulty));
     }
 
@@ -54,7 +51,7 @@ public sealed class StudyController(
         }
 
         var result = await studyService.SubmitAnswerAsync(
-            user.Id, request.ItemId, request.SubmittedAnswer, cancellationToken);
+            user.Id, request.EntryId, request.SubmittedAnswer, cancellationToken);
 
         if (result is null)
         {
@@ -64,7 +61,6 @@ public sealed class StudyController(
         return Ok(new StudyAnswerResult(
             result.Verdict,
             result.NormalizedAnswer,
-            result.AcceptedVariant,
             result.ExpectedAnswer,
             result.FeedbackCode,
             result.NextDueAtUtc));
@@ -83,11 +79,9 @@ public sealed class StudyController(
         var dashboard = await studyService.GetDashboardAsync(user.Id, cancellationToken);
 
         return Ok(new ProgressDashboardResponse(
-            dashboard.TotalItems,
+            dashboard.TotalEntries,
             dashboard.DueNow,
-            dashboard.NewItems,
-            dashboard.BaseItems,
-            dashboard.CustomItems,
+            dashboard.NewEntries,
             dashboard.StudiedToday));
     }
 }

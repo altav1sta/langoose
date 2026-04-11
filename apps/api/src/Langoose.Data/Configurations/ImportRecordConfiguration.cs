@@ -10,7 +10,8 @@ public sealed class ImportRecordConfiguration : IEntityTypeConfiguration<ImportR
     {
         builder.ToTable("import_records");
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.FileName).HasMaxLength(260);
+        builder.Property(x => x.FileHash).HasMaxLength(128);
+
         builder.HasIndex(x => x.UserId);
     }
 }

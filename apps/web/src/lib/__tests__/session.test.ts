@@ -3,17 +3,16 @@ import { ApiError } from '../../api';
 import { buildQuickAddPayload, describeError } from '../session';
 
 describe('buildQuickAddPayload', () => {
-  it('splits, trims, and filters glosses while detecting phrase items', () => {
+  it('builds a user entry request from form state', () => {
     const payload = buildQuickAddPayload({
       englishText: 'watch over',
       russianText: ' \u043f\u0440\u0438\u0441\u043c\u0430\u0442\u0440\u0438\u0432\u0430\u0442\u044c,  \u043e\u043f\u0435\u043a\u0430\u0442\u044c , '
     });
 
     expect(payload).toEqual({
-      englishText: 'watch over',
-      russianGlosses: ['\u043f\u0440\u0438\u0441\u043c\u0430\u0442\u0440\u0438\u0432\u0430\u0442\u044c', '\u043e\u043f\u0435\u043a\u0430\u0442\u044c'],
-      itemKind: 'phrase',
-      createdByFlow: 'quick-add'
+      userInputTerm: 'watch over',
+      sourceLanguage: 'ru',
+      targetLanguage: 'en'
     });
   });
 });

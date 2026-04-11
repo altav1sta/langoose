@@ -63,6 +63,9 @@
 - Prefer containerized whole-app validation when the change affects startup, persistence, auth, or cross-app behavior.
 - If a validation lane is blocked or fails, say so plainly and do not report it as passing by inference.
 - When a change renames or moves a project, Dockerfile, or test assembly, update the affected GitHub Actions workflows, contributor commands, and repo guidance docs in the same change.
+- When a change touches domain entities, DbContext, or EF configurations, generate or update the EF migration in the same change. In-memory tests do not validate migrations.
+- When a change alters API endpoints, request shapes, or response shapes, update the frontend API types and calls in the same change. Backend tests do not validate frontend contract alignment.
+- Validate every CI lane the change will trigger — not just the lanes that are convenient to run locally.
 
 ## Workflow
 

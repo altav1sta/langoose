@@ -25,8 +25,15 @@ public static class Program
             "apply-app-migrations" => await ApplyAppMigrationsAsync(commandArgs),
             "apply-auth-migrations" => await ApplyAuthMigrationsAsync(commandArgs),
             "seed-app" => await SeedAppAsync(commandArgs),
-            _ => throw new InvalidOperationException($"Unknown db tool command '{command}'.")
+            _ => RunHostForTooling(args)
         };
+    }
+
+    private static int RunHostForTooling(string[] args)
+    {
+        using var host = BuildHost(args);
+
+        return 0;
     }
 
     public static HostApplicationBuilder CreateApplicationBuilder(string[] args)

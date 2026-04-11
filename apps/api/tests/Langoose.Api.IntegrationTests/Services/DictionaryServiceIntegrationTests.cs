@@ -1,5 +1,4 @@
 using Langoose.Api.IntegrationTests.Infrastructure;
-using Langoose.Core.Utilities;
 using Langoose.Data;
 using Langoose.Data.Seeding;
 using Langoose.Domain.Enums;
@@ -17,223 +16,68 @@ public sealed class DictionaryServiceIntegrationTests
         "take off,snimat,phrase,,phrases";
 
     [Fact]
-    public void SeedData_WhenLoaded_PreservesRussianGlossesAndHints()
+    public void SeedData_WhenLoaded_ProducesEntriesTranslationsAndContexts()
     {
-        var seedItems = SeedDataLoader.LoadBaseItems();
+        var batch = SeedDataLoader.LoadBaseItems();
 
-        Assert.Contains(seedItems, pair => pair.Item.EnglishText == "book" &&
-            pair.Item.RussianGlosses.Contains("\u043A\u043D\u0438\u0433\u0430") &&
-            pair.Sentence.TranslationHint == "\u042F \u0447\u0438\u0442\u0430\u044E \u043A\u043D\u0438\u0433\u0443 \u043F\u0435\u0440\u0435\u0434 \u0441\u043D\u043E\u043C.");
-        Assert.DoesNotContain(seedItems, pair =>
-            pair.Item.RussianGlosses.Any(gloss => gloss.Contains('?')) ||
-            pair.Sentence.TranslationHint.Contains('?'));
+        Assert.True(batch.Entries.Count > 0);
+        Assert.True(batch.Translations.Count > 0);
+        Assert.True(batch.Contexts.Count > 0);
+        Assert.Contains(batch.Entries, e => e.Language == "en" && e.Text == "book");
+        Assert.Contains(batch.Entries, e => e.Language == "ru" && e.Text == "\u043A\u043D\u0438\u0433\u0430");
     }
 
     [Fact]
-    public async Task SeedData_WhenDataAlreadyExists_DoesNotRewriteExistingValues()
+    public async Task SeedData_WhenDataAlreadyExists_DoesNotDuplicate()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase($"langoose-seed-tests-{Guid.NewGuid():N}")
             .Options;
         var dbContextFactory = new TestDbContextFactory(options);
-        await using var seededDbContext = await dbContextFactory.CreateDbContextAsync();
-        var seeder = new DatabaseSeeder(seededDbContext);
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var seeder = new DatabaseSeeder(dbContext);
 
         await seeder.SeedAsync();
-
-        var store = await TestDataSnapshot.LoadAsync(seededDbContext);
-        var baseItem = Assert.Single(store.DictionaryItems, item =>
-            item.SourceType == SourceType.Base &&
-            item.EnglishText == "book");
-
-        baseItem.AcceptedVariants = ["book", "volume"];
-        baseItem.Distractors = ["alpha"];
-
-        await seededDbContext.SaveChangesAsync();
+        var countBefore = await dbContext.DictionaryEntries.CountAsync();
 
         await seeder.SeedAsync();
+        var countAfter = await dbContext.DictionaryEntries.CountAsync();
 
-        await using var unchangedDbContext = await dbContextFactory.CreateDbContextAsync();
-        var unchanged = await TestDataSnapshot.LoadAsync(unchangedDbContext);
-        var unchangedItem = Assert.Single(unchanged.DictionaryItems, item =>
-            item.SourceType == SourceType.Base &&
-            item.EnglishText == "book");
-
-        Assert.Equal(["book", "volume"], unchangedItem.AcceptedVariants);
-        Assert.Equal(["alpha"], unchangedItem.Distractors);
+        Assert.Equal(countBefore, countAfter);
     }
 
     [Fact]
-    public async Task AddItemAsync_WhenAddingPhrase_PersistsPhraseAndKnownVariants()
+    public async Task AddUserEntryAsync_CreatesEntryWithPendingStatus()
     {
         var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
         var userId = Guid.NewGuid();
 
-        var item = await dictionaryService.AddItemAsync(
+        var entry = await dictionaryService.AddUserEntryAsync(
             userId,
-            new AddItemInput(
-                "look for",
-                ["iskat"],
-                "phrase",
-                null,
-                null,
-                null,
-                ["travel"],
-                "quick-add"),
+            new AddUserEntryInput("look for", "ru", "en", Tags: ["travel"]),
             CancellationToken.None);
 
-        Assert.Equal(ItemKind.Phrase, item.ItemKind);
-        Assert.Contains("iskat", item.RussianGlosses);
-        Assert.Contains("search for", item.AcceptedVariants);
+        Assert.Equal(EnrichmentStatus.Pending, entry.EnrichmentStatus);
+        Assert.Equal("look for", entry.UserInputTerm);
+        Assert.Contains("travel", entry.Tags);
     }
 
     [Fact]
-    public async Task AddItemAsync_WhenAddingDuplicateQuickAdd_MergesIntoExistingCustomItem()
+    public async Task ImportCsvAsync_WhenRowsAreValid_CreatesUserEntries()
     {
         var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
         var userId = Guid.NewGuid();
 
-        await dictionaryService.AddItemAsync(
-            userId,
-            new AddItemInput(
-                "look for",
-                ["iskat"],
-                "phrase",
-                null,
-                null,
-                null,
-                ["travel"],
-                "quick-add"),
-            CancellationToken.None);
-
-        var before = await dictionaryService.GetItemsAsync(userId, CancellationToken.None);
-        var beforeCustomCount = before.Count(item => item.OwnerId == userId);
-
-        await dictionaryService.AddItemAsync(
-            userId,
-            new AddItemInput(
-                " look for ",
-                ["razyskivat"],
-                "phrase",
-                null,
-                null,
-                "extra note",
-                ["travel"],
-                "quick-add"),
-            CancellationToken.None);
-
-        var after = await dictionaryService.GetItemsAsync(userId, CancellationToken.None);
-        var afterCustomCount = after.Count(item => item.OwnerId == userId);
-        var merged = Assert.Single(after, item =>
-            item.OwnerId == userId &&
-            TextNormalizer.NormalizeForComparison(item.EnglishText) == "look for");
-
-        Assert.Equal(beforeCustomCount, afterCustomCount);
-        Assert.Contains("razyskivat", merged.RussianGlosses);
-        Assert.Contains("extra note", merged.Notes);
-    }
-
-    [Fact]
-    public async Task ImportAndExportCsv_WhenRowsAreValid_RoundTripsCustomEntries()
-    {
-        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
-        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
-        var userId = Guid.NewGuid();
-
-        var import = await dictionaryService.ImportCsvAsync(
+        var result = await dictionaryService.ImportCsvAsync(
             userId, ValidCsv, "words.csv", CancellationToken.None);
 
-        Assert.Equal(2, import.ImportedRows);
-
-        var exported = await dictionaryService.ExportCsvAsync(userId, CancellationToken.None);
-        Assert.Contains("improve", exported);
-        Assert.Contains("take off", exported);
-    }
-
-    [Fact]
-    public async Task ImportCsvAsync_WhenRowsAlreadyExist_SkipsDuplicates()
-    {
-        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
-        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
-        var userId = Guid.NewGuid();
-
-        await dictionaryService.ImportCsvAsync(
-            userId, ValidCsv, "seed.csv", CancellationToken.None);
-
-        var duplicateImport = await dictionaryService.ImportCsvAsync(
-            userId, ValidCsv, "duplicates.csv", CancellationToken.None);
-
-        Assert.Equal(0, duplicateImport.ImportedRows);
-        Assert.Equal(2, duplicateImport.SkippedRows);
-    }
-
-    [Fact]
-    public async Task ImportCsvAsync_WhenFormattingOnlyVariantsAreUsed_MergesInsteadOfCreatingDuplicates()
-    {
-        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
-        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
-        var userId = Guid.NewGuid();
-
-        await dictionaryService.AddItemAsync(
-            userId,
-            new AddItemInput(
-                "improve",
-                ["uluchshat"],
-                "word",
-                null,
-                null,
-                null,
-                ["verbs"],
-                "quick-add"),
-            CancellationToken.None);
-
-        var variantsCsv =
-            "English term,Russian translation(s),Type,Notes,Tags\n" +
-            "\uFEFF\"Improve\",uluchshat,word,,verbs\n" +
-            " improve ,stanovitsya luchshe,,,";
-
-        var duplicateImport = await dictionaryService.ImportCsvAsync(
-            userId, variantsCsv, "variants.csv", CancellationToken.None);
-
-        Assert.Equal(0, duplicateImport.ImportedRows);
-
-        var items = await dictionaryService.GetItemsAsync(userId, CancellationToken.None);
-        Assert.Single(items, item =>
-            item.OwnerId == userId &&
-            TextNormalizer.NormalizeForComparison(item.EnglishText) == "improve");
-    }
-
-    [Fact]
-    public async Task ImportCsvAsync_WhenTermsExistInBaseVocabulary_DoesNotCreateVisibleDuplicates()
-    {
-        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
-        var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
-        var userId = Guid.NewGuid();
-        var csv =
-            "English term,Russian translation(s),Type,Notes,Tags\n" +
-            "book,kniga,word,,reading\n" +
-            "at least,po krayney mere,phrase,,common";
-
-        var import = await dictionaryService.ImportCsvAsync(
-            userId, csv, "base-overlap.csv", CancellationToken.None);
-
-        Assert.Equal(0, import.ImportedRows);
-
-        var items = await dictionaryService.GetItemsAsync(userId, CancellationToken.None);
-        Assert.Single(
-            items,
-            item => TextNormalizer.NormalizeForComparison(item.EnglishText) == "book");
-        Assert.Single(
-            items,
-            item => TextNormalizer.NormalizeForComparison(item.EnglishText) == "at least");
+        Assert.Equal(2, result.RowCount);
+        Assert.Equal(2, result.PendingCount);
+        Assert.Empty(result.Errors);
     }
 
     [Fact]
@@ -257,7 +101,6 @@ public sealed class DictionaryServiceIntegrationTests
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
         var userId = Guid.NewGuid();
-        var before = await dictionaryService.GetItemsAsync(userId, CancellationToken.None);
         var malformedCsv =
             "English term,Russian translation(s),Type,Notes,Tags\n" +
             "new word,novoe slovo,word,,tag\n" +
@@ -266,44 +109,29 @@ public sealed class DictionaryServiceIntegrationTests
         var result = await dictionaryService.ImportCsvAsync(
             userId, malformedCsv, "malformed.csv", CancellationToken.None);
 
-        Assert.Equal(0, result.ImportedRows);
+        Assert.Equal(0, result.PendingCount);
         Assert.Single(result.Errors);
-
-        var after = await dictionaryService.GetItemsAsync(userId, CancellationToken.None);
-        Assert.Equal(before.Count, after.Count);
     }
 
     [Fact]
-    public async Task ClearCustomDataAsync_RemovesUserOwnedData()
+    public async Task ClearUserDataAsync_RemovesUserOwnedData()
     {
         var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
         await using var dbContext = await dbContextFactory.CreateDbContextAsync();
         var dictionaryService = TestAppSetup.CreateDictionaryService(dbContext);
-        var studyService = TestAppSetup.CreateStudyService(dbContext);
         var userId = Guid.NewGuid();
 
-        var item = await dictionaryService.AddItemAsync(
+        await dictionaryService.AddUserEntryAsync(
             userId,
-            new AddItemInput(
-                "look for",
-                ["iskat"],
-                "phrase",
-                null,
-                null,
-                null,
-                ["travel"],
-                "quick-add"),
+            new AddUserEntryInput("look for", "ru", "en"),
             CancellationToken.None);
 
-        await studyService.SubmitAnswerAsync(
-            userId, item.Id, "look for", CancellationToken.None);
-
-        await dictionaryService.ClearCustomDataAsync(userId, CancellationToken.None);
+        await dictionaryService.ClearUserDataAsync(userId, CancellationToken.None);
         await using var verifyDbContext = await dbContextFactory.CreateDbContextAsync();
         var store = await TestDataSnapshot.LoadAsync(verifyDbContext);
 
-        Assert.DoesNotContain(store.DictionaryItems, candidate => candidate.OwnerId == userId);
-        Assert.DoesNotContain(store.ReviewStates, candidate => candidate.UserId == userId);
-        Assert.DoesNotContain(store.Imports, candidate => candidate.UserId == userId);
+        Assert.DoesNotContain(store.UserDictionaryEntries, e => e.UserId == userId);
+        Assert.DoesNotContain(store.UserProgress, p => p.UserId == userId);
+        Assert.DoesNotContain(store.ImportRecords, r => r.UserId == userId);
     }
 }

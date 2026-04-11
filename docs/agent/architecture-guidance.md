@@ -35,13 +35,11 @@ flowchart LR
 
 Contains:
 - **Entities**: `DictionaryEntry`, `EntryContext`, `UserDictionaryEntry`,
-  `UserEntryContext`, `UserProgress`, `StudyEvent`, `ContentFlag`, `ImportRecord`
+  `UserProgress`, `StudyEvent`, `ContentFlag`, `ImportRecord`
 - **Mapping entities**: `EntryTranslation`, `ContextTranslation` (composite PKs)
-- **Enums**: `EnrichmentStatus`, `Source`, `UserEntryStatus`, `ContentOrigin`,
-  `StudyVerdict`, `FeedbackCode`
-- **Constants**: `ExampleQualityScores`, `ReviewDefaults`
-- **Service interfaces**: `IDictionaryService`, `IStudyService`, `IContentService`,
-  `IEnrichmentProvider`
+- **Enums**: `EnrichmentStatus`, `StudyVerdict`, `FeedbackCode`
+- **Constants**: `ProgressDefaults`
+- **Service interfaces**: `IDictionaryService`, `IStudyService`, `IContentService`
 
 Service interfaces use only domain model types — no DTOs.
 
@@ -60,7 +58,7 @@ Contains:
 `apps/api/src/Langoose.Core/` — depends on Domain and Data.
 
 Contains:
-- **Services**: `DictionaryService`, `StudyService`, `ContentService`, `EnrichmentService`
+- **Services**: `DictionaryService`, `StudyService`, `ContentService`
   — implement interfaces from Domain
 - **Providers**: `LocalEnrichmentProvider`, `GeminiEnrichmentProvider`
   — implement `IEnrichmentProvider` from Domain

@@ -4,15 +4,16 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Langoose.Data.Configurations;
 
-public sealed class ContentFlagConfiguration : IEntityTypeConfiguration<ContentFlag>
+public sealed class EntryContextConfiguration : IEntityTypeConfiguration<EntryContext>
 {
-    public void Configure(EntityTypeBuilder<ContentFlag> builder)
+    public void Configure(EntityTypeBuilder<EntryContext> builder)
     {
-        builder.ToTable("content_flags");
+        builder.ToTable("entry_contexts");
         builder.HasKey(x => x.Id);
+        builder.Property(x => x.Difficulty).HasMaxLength(20);
 
         builder.HasOne(x => x.DictionaryEntry)
-            .WithMany()
+            .WithMany(x => x.Contexts)
             .HasForeignKey(x => x.DictionaryEntryId)
             .OnDelete(DeleteBehavior.Cascade);
 

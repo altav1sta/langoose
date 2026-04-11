@@ -4,11 +4,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Langoose.Data.Configurations;
 
-public sealed class ContentFlagConfiguration : IEntityTypeConfiguration<ContentFlag>
+public sealed class UserProgressConfiguration : IEntityTypeConfiguration<UserProgress>
 {
-    public void Configure(EntityTypeBuilder<ContentFlag> builder)
+    public void Configure(EntityTypeBuilder<UserProgress> builder)
     {
-        builder.ToTable("content_flags");
+        builder.ToTable("user_progress");
         builder.HasKey(x => x.Id);
 
         builder.HasOne(x => x.DictionaryEntry)
@@ -16,6 +16,7 @@ public sealed class ContentFlagConfiguration : IEntityTypeConfiguration<ContentF
             .HasForeignKey(x => x.DictionaryEntryId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasIndex(x => x.DictionaryEntryId);
+        builder.HasIndex(x => new { x.UserId, x.DictionaryEntryId }).IsUnique();
+        builder.HasIndex(x => new { x.UserId, x.DueAtUtc });
     }
 }

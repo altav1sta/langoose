@@ -12,37 +12,38 @@ public sealed class StudyAnswerEvaluationTests
     private readonly StudyService studyService = CreateStudyService();
 
     [Fact]
-    public void EvaluateAnswer_WhenPhraseIsCloseVariant_ReturnsAlmostCorrect()
+    public void EvaluateAnswer_WhenExactMatch_ReturnsCorrect()
     {
-        var result = studyService.EvaluateAnswer(CreateItem("take care of", ItemKind.Phrase), "take care");
+        var result = studyService.EvaluateAnswer(CreateEntry("book"), "book");
 
-        Assert.Equal(StudyVerdict.AlmostCorrect, result.Verdict);
+        Assert.Equal(StudyVerdict.Correct, result.Verdict);
+        Assert.Equal(FeedbackCode.ExactMatch, result.FeedbackCode);
     }
 
     [Fact]
     public void EvaluateAnswer_WhenArticleIsAdded_ReturnsAlmostCorrect()
     {
-        var result = studyService.EvaluateAnswer(CreateItem("book", ItemKind.Word), "the book");
+        var result = studyService.EvaluateAnswer(CreateEntry("book"), "the book");
 
         Assert.Equal(StudyVerdict.AlmostCorrect, result.Verdict);
+        Assert.Equal(FeedbackCode.MissingArticle, result.FeedbackCode);
     }
 
     [Fact]
     public void EvaluateAnswer_WhenMinorTypoIsSubmitted_ClassifiesMinorTypo()
     {
-        var result = studyService.EvaluateAnswer(CreateItem("decision", ItemKind.Word), "decison");
+        var result = studyService.EvaluateAnswer(CreateEntry("decision"), "decison");
 
         Assert.Equal(FeedbackCode.MinorTypo, result.FeedbackCode);
     }
 
     [Fact]
-    public void EvaluateAnswer_WhenKnownVariantIsSubmitted_ClassifiesAcceptedVariant()
+    public void EvaluateAnswer_WhenCompletelyWrong_ReturnsIncorrect()
     {
-        var result = studyService.EvaluateAnswer(
-            CreateItem("take care of", ItemKind.Phrase, "look after"),
-            "look after");
+        var result = studyService.EvaluateAnswer(CreateEntry("book"), "car");
 
-        Assert.Equal(FeedbackCode.AcceptedVariant, result.FeedbackCode);
+        Assert.Equal(StudyVerdict.Incorrect, result.Verdict);
+        Assert.Equal(FeedbackCode.MeaningMismatch, result.FeedbackCode);
     }
 
     private static StudyService CreateStudyService()
@@ -54,21 +55,17 @@ public sealed class StudyAnswerEvaluationTests
         return new StudyService(new AppDbContext(options));
     }
 
-    private static DictionaryItem CreateItem(string englishText, ItemKind itemKind, params string[] acceptedVariants)
+    private static DictionaryEntry CreateEntry(string text)
     {
-        return new DictionaryItem
+        return new DictionaryEntry
         {
-            Id = Guid.NewGuid(),
-            SourceType = SourceType.Base,
-            EnglishText = englishText,
-            ItemKind = itemKind,
-            PartOfSpeech = itemKind == ItemKind.Phrase ? "phrase" : "noun",
-            Difficulty = "A1",
-            Status = DictionaryItemStatus.Active,
-            CreatedByFlow = "test",
-            Notes = "",
-            AcceptedVariants = [englishText, .. acceptedVariants],
-            CreatedAtUtc = DateTimeOffset.UtcNow
+            Id = Guid.CreateVersion7(),
+            Language = "en",
+            Text = text,
+            IsBaseForm = true,
+            IsPublic = true,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
         };
     }
 }

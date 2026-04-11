@@ -35,13 +35,13 @@ Both data projects use `Microsoft.EntityFrameworkCore.Design` and rely on
 App database (`AppDbContext` in `Langoose.Data`):
 
 ```
-dotnet ef migrations add <MigrationName> --project apps/api/src/Langoose.Data --startup-project apps/api/src/Langoose.Api
+dotnet ef migrations add <MigrationName> --project apps/api/src/Langoose.Data --startup-project apps/api/src/Langoose.DbTool --context AppDbContext
 ```
 
 Auth database (`AuthDbContext` in `Langoose.Auth.Data`):
 
 ```
-dotnet ef migrations add <MigrationName> --project apps/api/src/Langoose.Auth.Data --startup-project apps/api/src/Langoose.Api
+dotnet ef migrations add <MigrationName> --project apps/api/src/Langoose.Auth.Data --startup-project apps/api/src/Langoose.DbTool --context AuthDbContext
 ```
 
 ### Applying migrations

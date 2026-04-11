@@ -15,8 +15,8 @@ public sealed class DictionaryController(
     IDictionaryService dictionaryService,
     UserManager<AuthUser> userManager) : ControllerBase
 {
-    [HttpGet("items")]
-    public async Task<ActionResult<IReadOnlyList<DictionaryItem>>> GetItems(CancellationToken cancellationToken)
+    [HttpGet("entries")]
+    public async Task<ActionResult<IReadOnlyList<UserDictionaryEntry>>> GetEntries(CancellationToken cancellationToken)
     {
         var user = await userManager.GetUserAsync(User);
 
@@ -25,12 +25,12 @@ public sealed class DictionaryController(
             return Unauthorized();
         }
 
-        return Ok(await dictionaryService.GetItemsAsync(user.Id, cancellationToken));
+        return Ok(await dictionaryService.GetUserEntriesAsync(user.Id, cancellationToken));
     }
 
-    [HttpPost("items")]
-    public async Task<ActionResult<DictionaryItem>> AddItem(
-        [FromBody] DictionaryItemRequest request,
+    [HttpPost("entries")]
+    public async Task<ActionResult<UserDictionaryEntry>> AddEntry(
+        [FromBody] UserEntryRequest request,
         CancellationToken cancellationToken)
     {
         var user = await userManager.GetUserAsync(User);
@@ -40,44 +40,15 @@ public sealed class DictionaryController(
             return Unauthorized();
         }
 
-        var input = new AddItemInput(
-            request.EnglishText,
-            request.RussianGlosses,
-            request.ItemKind,
-            request.PartOfSpeech,
-            request.Difficulty,
+        var input = new AddUserEntryInput(
+            request.UserInputTerm,
+            request.SourceLanguage,
+            request.TargetLanguage,
             request.Notes,
             request.Tags,
-            request.CreatedByFlow,
-            request.GenerateExamples);
+            request.Type);
 
-        return Ok(await dictionaryService.AddItemAsync(user.Id, input, cancellationToken));
-    }
-
-    [HttpPatch("items/{itemId:guid}")]
-    public async Task<ActionResult<DictionaryItem>> PatchItem(
-        Guid itemId,
-        [FromBody] DictionaryItemPatchRequest request,
-        CancellationToken cancellationToken)
-    {
-        var user = await userManager.GetUserAsync(User);
-
-        if (user is null)
-        {
-            return Unauthorized();
-        }
-
-        var input = new PatchItemInput(
-            request.RussianGlosses,
-            request.PartOfSpeech,
-            request.Difficulty,
-            request.Notes,
-            request.Tags,
-            request.Status);
-
-        var updated = await dictionaryService.PatchItemAsync(user.Id, itemId, input, cancellationToken);
-
-        return updated is null ? NotFound() : Ok(updated);
+        return Ok(await dictionaryService.AddUserEntryAsync(user.Id, input, cancellationToken));
     }
 
     [HttpPost("import")]
@@ -97,7 +68,7 @@ public sealed class DictionaryController(
             var result = await dictionaryService.ImportCsvAsync(
                 user.Id, request.CsvContent, request.FileName, cancellationToken);
 
-            return Ok(new ImportCsvResponse(result.TotalRows, result.ImportedRows, result.SkippedRows, result.Errors));
+            return Ok(new ImportCsvResponse(result.RowCount, result.PendingCount, result.Errors));
         }
         catch (ArgumentException exception)
         {
@@ -135,7 +106,7 @@ public sealed class DictionaryController(
             return Unauthorized();
         }
 
-        await dictionaryService.ClearCustomDataAsync(user.Id, cancellationToken);
+        await dictionaryService.ClearUserDataAsync(user.Id, cancellationToken);
 
         return NoContent();
     }
