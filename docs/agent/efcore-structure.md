@@ -10,21 +10,21 @@
 ## Entities
 
 All entities use `Guid` primary keys generated with `Guid.CreateVersion7()` (time-ordered,
-better for B-tree indexing in PostgreSQL).
+better for B-tree indexing in PostgreSQL). Mapping tables use composite primary keys.
 
 ### App Database (AppDbContext)
 
 | Entity | Table | Key Relationships |
 |--------|-------|-------------------|
-| SharedItem | shared_items | Has many Glosses, ExampleSentences |
-| Gloss | glosses | FK → SharedItem. Has many GlossSurfaceForms |
-| GlossSurfaceForm | gloss_surface_forms | FK → Gloss |
-| ExampleSentence | example_sentences | FK → SharedItem |
-| UserItem | user_items | FK → SharedItem (nullable) |
-| UserCustomSentence | user_custom_sentences | FK → UserItem |
-| UserProgress | user_progress | FK → SharedItem. Unique (UserId, SharedItemId) |
-| StudyEvent | study_events | FK → SharedItem, FK → ExampleSentence (nullable) |
-| ContentFlag | content_flags | FK → SharedItem |
+| DictionaryEntry | dictionary_entries | Self-ref BaseEntryId, has many EntryContexts |
+| EntryTranslation | entry_translations | Composite PK (SourceEntryId, TargetEntryId) |
+| EntryContext | entry_contexts | FK → DictionaryEntry |
+| ContextTranslation | context_translations | Composite PK (SourceContextId, TargetContextId) |
+| UserDictionaryEntry | user_dictionary_entries | FK → DictionaryEntry (nullable) |
+| UserEntryContext | user_entry_contexts | FK → UserDictionaryEntry |
+| UserProgress | user_progress | FK → DictionaryEntry. Unique (UserId, DictionaryEntryId) |
+| StudyEvent | study_events | FK → DictionaryEntry, FK → EntryContext (nullable) |
+| ContentFlag | content_flags | FK → DictionaryEntry |
 | ImportRecord | import_records | No FKs to content tables |
 
 ### Auth Database (AuthDbContext)
@@ -37,17 +37,18 @@ Unchanged. Contains `AuthUser`, `AuthSession`, and OpenIddict tables.
 - Use `ApplyConfigurationsFromAssembly` in `AppDbContext.OnModelCreating`.
 - Enum fields stored as strings via `HasConversion<string>()`.
 - PostgreSQL arrays (`text[]`) for `List<string>` properties (Tags, etc.).
+- Composite PKs via `HasKey(x => new { x.A, x.B })` for mapping tables.
 - Services use `AppDbContext` directly — no repository-per-entity abstraction.
-- Keep EF-specific concerns out of controllers. Controllers call services.
+- Keep EF-specific concerns out of controllers.
 
 ## Key Indexes
 
-- `SharedItem`: index on `NormalizedText`.
-- `Gloss`: unique on `(SharedItemId, Language, CanonicalForm)`.
-- `GlossSurfaceForm`: unique on `(GlossId, SurfaceForm)`, index on `SurfaceForm` for fast lookup.
-- `UserItem`: index on `UserId`, index on `(EnrichmentStatus)` for worker polling.
-- `UserProgress`: unique on `(UserId, SharedItemId)`.
-- `ExampleSentence`: index on `SharedItemId`.
+- `DictionaryEntry`: index on `(Language, Text)`, index on `BaseEntryId`.
+- `EntryTranslation`: PK `(SourceEntryId, TargetEntryId)`.
+- `EntryContext`: index on `DictionaryEntryId`.
+- `ContextTranslation`: PK `(SourceContextId, TargetContextId)`.
+- `UserDictionaryEntry`: index on `UserId`, index on `EnrichmentStatus`.
+- `UserProgress`: unique on `(UserId, DictionaryEntryId)`.
 
 ## Migrations
 
@@ -60,18 +61,15 @@ Unchanged. Contains `AuthUser`, `AuthSession`, and OpenIddict tables.
 ## Seeding
 
 - `DatabaseSeeder` and `SeedDataLoader` in `Data/Seeding/`.
-- `base-store.json` contains SharedItems with Glosses and ExampleSentences.
-- ExampleSentences in seed data include `ExpectedAnswer`, `GrammarHint`,
-  `SentenceTranslation`, and `Difficulty`.
-- GlossSurfaceForm entries seeded with canonical forms for base items.
+- `base-store.json` contains DictionaryEntries (base forms + derived forms),
+  EntryTranslations, EntryContexts, and ContextTranslations.
 - Seeding is empty-database-only via `Langoose.DbTool seed-app`.
 
 ## Review Checklist
 
 - Are all Guid PKs using `Guid.CreateVersion7()`?
+- Are mapping tables using composite PKs?
 - Are entity configurations in separate files per entity?
 - Are enum fields stored as strings?
-- Are indexes appropriate for query patterns (especially GlossSurfaceForm lookup)?
+- Are indexes appropriate for query patterns?
 - Are migrations discoverable and runnable?
-- Is `Program.cs` still simple?
-- Did tests keep exercising business rules rather than EF internals?

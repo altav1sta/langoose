@@ -4,7 +4,7 @@
 
 Langoose separates backend tests into:
 
-- `apps/api/tests/Langoose.Api.UnitTests`
+- `apps/api/tests/Langoose.Core.UnitTests`
 - `apps/api/tests/Langoose.Api.IntegrationTests`
 
 This split is intentional.

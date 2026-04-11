@@ -12,10 +12,12 @@
 ## API Integration
 
 - Controllers return flat DTOs (not raw domain models). The frontend never needs to
-  understand the SharedItem/UserItem/Gloss split — the API flattens it.
+  understand the DictionaryEntry/UserDictionaryEntry/EntryTranslation split — the API
+  flattens it.
 - Dictionary item responses include `enrichmentStatus` for pending/enriched/failed display.
-- Study card responses include composite hint fields: `sentenceTranslation`, `glosses`
-  (array), `grammarHint`, `difficulty` (per-sentence).
+- Study card responses include: `cloze`, sentence translation (from paired context),
+  `translations` (word-level from EntryTranslation), `grammarHint` (from
+  DictionaryEntry.GrammarLabel), `difficulty` (from EntryContext).
 - When pending items exist, poll the dictionary endpoint on an interval to refresh status.
   Stop polling when no items are pending.
 

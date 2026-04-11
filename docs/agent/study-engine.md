@@ -9,85 +9,70 @@
 
 ## Study Unit
 
-The study unit is an **ExampleSentence with a gap**, not a word. Each sentence is a
-complete learning context with its own difficulty, expected answer form, grammar hint,
-and full translation.
+The study unit is an **EntryContext** — a sentence with a cloze gap linked to a
+specific DictionaryEntry form. The expected answer and grammar hint are derived
+from the linked entry, not stored on the context.
 
 ### Study Card Content
 
 ```
-ClozeText:           "I need to ____ a hotel for our trip."
-SentenceTranslation: "Мне нужно забронировать отель для нашей поездки."
-Glosses:             ["забронировать"]  (canonical forms from Gloss table)
-GrammarHint:         "infinitive"
-Difficulty:          "B1"               (per-sentence, from ExampleSentence)
+Cloze:              "She ____ the room yesterday."
+Sentence hint:      "Она забронировала комнату вчера."  (paired context via ContextTranslation)
+Translations:       ["забронировать"]                   (via EntryTranslation)
+Grammar hint:       "past simple"                       (from DictionaryEntry.GrammarLabel)
+Expected answer:    "booked"                            (from DictionaryEntry.Text)
+Difficulty:         "B1"                                (from EntryContext.Difficulty)
 ```
-
-The hint is composite:
-- `SentenceTranslation` — full sentence in the target language
-- Canonical glosses for the SharedItem in the user's language (from Gloss table)
-- `GrammarHint` — what grammatical form the gap expects
 
 ## Card Selection
 
 1. Build the studyable pool:
-   - All public SharedItems (base dictionary)
-   - SharedItems linked from the user's enriched UserItems (SharedItemId is not null)
-2. Pick a SharedItem using scheduling (UserProgress order by DueAtUtc, bias toward
-   custom items when not overrepresented).
-3. Pick an ExampleSentence for that SharedItem (rotate across multiple contexts).
-   Also include UserCustomSentences if the user has any.
-4. Build the study card from the selected sentence.
-
-### Enrichment Eligibility
-
-Items pending enrichment are excluded from the pool. Only SharedItems with enriched
-ExampleSentences participate in study. UserItems with `SharedItemId = null` (pending)
-or `EnrichmentStatus = Failed` are not studyable.
+   - All public DictionaryEntries (base forms)
+   - DictionaryEntries linked from the user's enriched UserDictionaryEntries
+2. Exclude entries with no EntryContexts, pending/failed UserDictionaryEntries.
+3. Join UserProgress for scheduling (lazy create for new encounters).
+4. Order by DueAtUtc, then SuccessCount. Bias toward custom items.
+5. Pick a base entry → pick an EntryContext for one of its forms (rotate contexts).
+6. Include UserEntryContexts if the user has added their own.
 
 ## Answer Evaluation
 
-Compare user input against `ExampleSentence.ExpectedAnswer`:
-- The sentence determines the correct form — "book", "books", "booked" depending on context.
-- Use Levenshtein similarity via TextNormalizer for typo tolerance.
-- Missing articles, inflection variants, and minor typos are tolerated as `AlmostCorrect`.
-- Record `ExampleSentenceId` in StudyEvent to track which context was tested.
+Compare user input against the linked DictionaryEntry.Text (the expected form):
+- Levenshtein similarity via TextNormalizer for typo tolerance
+- Missing articles, inflection variants tolerated as AlmostCorrect
+- Record EntryContextId in StudyEvent for per-context analytics
 
-### Verdict Categories
+### Verdicts
 
-- `Correct` — exact match or near-exact match with the ExpectedAnswer.
-- `AlmostCorrect` — minor typo (Levenshtein), missing article, inflection variant.
-- `Incorrect` — meaning mismatch or substantially wrong answer.
+- `Correct` — exact match or near-exact
+- `AlmostCorrect` — minor typo, missing article, inflection variant
+- `Incorrect` — meaning mismatch
 
 ## UserProgress
 
-Renamed from ReviewState. Tracks spaced repetition per (UserId, SharedItemId):
-- `Stability`, `DueAtUtc`, `LapseCount`, `SuccessCount`, `LastSeenAtUtc`
-- Created lazily when a SharedItem first appears in study for a user.
-- Unique constraint on (UserId, SharedItemId).
+Tracks spaced repetition per (UserId, DictionaryEntryId). Created lazily.
+Unique constraint on (UserId, DictionaryEntryId).
 
 ## Dashboard
 
-- **Total items**: public SharedItems + user's enriched UserItems.
-- **Due now**: count from UserProgress where DueAtUtc <= now.
-- **New items**: items in pool with no UserProgress row.
-- **Studied today**: StudyEvents in last 24 hours.
+- Total items: public base entries + user's enriched entries
+- Due now: UserProgress where DueAtUtc <= now
+- New items: entries in pool with no UserProgress row
+- Studied today: StudyEvents in last 24h
 
 ## Scheduling Direction
 
-- The current scheduler uses fixed stability increments and fixed intervals.
-- M3 plans adoption of FSRS (Free Spaced Repetition Scheduler) to replace it.
-- Error analytics should feed back into scheduling: frequently missed words surface
-  more often.
-- All scheduling algorithm decisions and parameters must be documented when changed.
+- Current scheduler uses fixed stability increments and intervals.
+- M3 plans FSRS adoption.
+- Error analytics should feed back into scheduling.
+- All scheduling parameter changes must be documented.
 
 ## Review Checklist
 
-- Did answer evaluation still compare against ExampleSentence.ExpectedAnswer?
+- Did answer evaluation still compare against DictionaryEntry.Text?
 - Did Levenshtein tolerance thresholds change?
 - Did verdict categories or feedback codes change?
 - Did scheduler intervals change?
 - Did card balancing between base and custom items change?
 - Did dashboard counts still match the visibility rules?
-- Did card eligibility still respect enrichment state?
-- Is ExampleSentenceId recorded in StudyEvent?
+- Is EntryContextId recorded in StudyEvent?

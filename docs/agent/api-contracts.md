@@ -34,12 +34,14 @@ controllers don't go through Core services.
 
 ## Key Response Shapes
 
-- **Dictionary items**: flat DTO combining SharedItem + UserItem + Gloss data. Includes
-  `enrichmentStatus` for pending/enriched/failed indication.
-- **Study cards**: includes `clozeText`, `sentenceTranslation`, `glosses` (array of
-  canonical forms), `grammarHint`, `difficulty` (per-sentence).
-- **Import response**: includes `pendingEnrichment` count alongside totals.
-- **Study answer result**: includes `exampleSentenceId` for context tracking.
+- **Dictionary items**: flat DTO combining DictionaryEntry + UserDictionaryEntry +
+  EntryTranslation data. Includes `enrichmentStatus`.
+- **Study cards**: includes `cloze` (from EntryContext), sentence translation
+  (from paired context via ContextTranslation), `translations` (from
+  EntryTranslation), `grammarHint` (from DictionaryEntry.GrammarLabel),
+  `difficulty` (from EntryContext).
+- **Import response**: includes `pendingEnrichment` count.
+- **Study answer result**: includes `entryContextId` for context tracking.
 
 ## Review Checklist
 

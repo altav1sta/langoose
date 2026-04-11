@@ -34,11 +34,11 @@ flowchart LR
 `apps/api/src/Langoose.Domain/` — no dependencies.
 
 Contains:
-- **Entities**: `SharedItem`, `Gloss`, `GlossSurfaceForm`, `ExampleSentence`,
-  `UserItem`, `UserCustomSentence`, `UserProgress`, `StudyEvent`, `ContentFlag`,
-  `ImportRecord`
-- **Enums**: `EnrichmentStatus`, `Source`, `UserItemStatus`, `ContentOrigin`,
-  `StudyVerdict`, `FeedbackCode`, `ItemKind`
+- **Entities**: `DictionaryEntry`, `EntryContext`, `UserDictionaryEntry`,
+  `UserEntryContext`, `UserProgress`, `StudyEvent`, `ContentFlag`, `ImportRecord`
+- **Mapping entities**: `EntryTranslation`, `ContextTranslation` (composite PKs)
+- **Enums**: `EnrichmentStatus`, `Source`, `UserEntryStatus`, `ContentOrigin`,
+  `StudyVerdict`, `FeedbackCode`
 - **Constants**: `ExampleQualityScores`, `ReviewDefaults`
 - **Service interfaces**: `IDictionaryService`, `IStudyService`, `IContentService`,
   `IEnrichmentProvider`
@@ -100,7 +100,6 @@ Runs as a separate process. Shares the same database.
 ### Auth.Data
 
 `apps/api/src/Langoose.Auth.Data/` — depends on Domain. Unchanged by this rework.
-Contains `AuthDbContext`, auth entity configs, auth migrations.
 
 ### DbTool
 

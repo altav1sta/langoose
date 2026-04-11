@@ -90,10 +90,10 @@ Keep this table in sync when adding or removing docs under `docs/agent/`.
 | Doc | Scope |
 |-----|-------|
 | `docs/agent/architecture-guidance.md` | Onion layers (Domain, Core, Data, Api, Worker), project boundaries, dependency direction |
-| `docs/agent/enrichment-guidance.md` | SharedItem, Gloss, GlossSurfaceForm, async enrichment pipeline, LLM provider, batch processing |
-| `docs/agent/dictionary-rules.md` | SharedItem/UserItem visibility, GlossSurfaceForm dedup, CSV import/export, duplicate merging |
+| `docs/agent/enrichment-guidance.md` | DictionaryEntry, EntryContext, async enrichment pipeline, LLM provider, batch processing |
+| `docs/agent/dictionary-rules.md` | DictionaryEntry/UserDictionaryEntry visibility, form-based dedup, CSV import/export |
 | `docs/agent/study-engine.md` | Sentence-based study cards, UserProgress, answer evaluation via Levenshtein, scheduling |
-| `docs/agent/efcore-structure.md` | Entities, Guid v7, DbContext, migrations, entity config, seeding |
+| `docs/agent/efcore-structure.md` | Entities, Guid v7, composite PKs, DbContext, migrations, entity config, seeding |
 | `docs/agent/api-contracts.md` | DTO mapping pattern, request/response models, controller payloads, frontend API types |
 | `docs/agent/frontend-guidance.md` | React components, state, effects, TypeScript config, API integration |
 | `docs/agent/auth-hosting.md` | Auth cookies, antiforgery, OpenIddict, forwarded headers, hosting |
