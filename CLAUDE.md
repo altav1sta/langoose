@@ -62,7 +62,7 @@
 - Run the smallest relevant build, test, and acceptance checks for the change.
 - Prefer containerized whole-app validation when the change affects startup, persistence, auth, or cross-app behavior.
 - If a validation lane is blocked or fails, say so plainly and do not report it as passing by inference.
-- When a change renames or moves a project, Dockerfile, or test assembly, update the affected GitHub Actions workflows in the same change.
+- When a change renames or moves a project, Dockerfile, or test assembly, update the affected GitHub Actions workflows, contributor commands, and repo guidance docs in the same change.
 
 ## Workflow
 

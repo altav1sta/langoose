@@ -38,7 +38,7 @@ Use this skill when the task is about EF Core structure rather than day-to-day f
 ## Validation
 
 - Run the current backend tests:
-  - `dotnet test apps/api/tests/Langoose.Api.UnitTests/Langoose.Api.UnitTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config`
+  - `dotnet test apps/api/tests/Langoose.Core.UnitTests/Langoose.Core.UnitTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config`
   - `dotnet test apps/api/tests/Langoose.Api.IntegrationTests/Langoose.Api.IntegrationTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config`
 - If project boundaries changed, also build the affected projects or solution explicitly.
 - If startup or migrations wiring changed, verify the live container or local startup path before declaring the structure work complete.
