@@ -38,12 +38,14 @@ Contains `AuthUser`, `AuthSession`, and OpenIddict tables. Unchanged by domain r
 
 ## Key Indexes
 
-- `DictionaryEntry`: index on `(Language, Text)`, index on `BaseEntryId`.
-- `dictionary_entry_dictionary_entry` (implicit M2M): convention-named join table.
+- `DictionaryEntry`: index on `(Language, Text)`, unique filtered index on
+  `(Language, Text) WHERE BaseEntryId IS NULL` (prevents duplicate base forms),
+  index on `BaseEntryId`.
 - `EntryContext`: index on `DictionaryEntryId`.
-- `entry_context_entry_context` (implicit M2M): convention-named join table.
-- `UserDictionaryEntry`: index on `UserId`, index on `EnrichmentStatus`.
+- `UserDictionaryEntry`: index on `(UserId, DictionaryEntryId)`,
+  index on `(EnrichmentStatus, CreatedAtUtc)` for worker polling.
 - `UserProgress`: unique on `(UserId, DictionaryEntryId)`.
+- `StudyEvent`: index on `(UserId, CreatedAtUtc)` for dashboard queries.
 
 ## Migrations
 

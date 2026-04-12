@@ -283,8 +283,10 @@ Tracks CSV import history.
 | Table | Index | Purpose |
 |-------|-------|---------|
 | DictionaryEntry | `(Language, Text)` | Fast lookup by word |
+| DictionaryEntry | Unique `(Language, Text)` filtered `WHERE BaseEntryId IS NULL` | Prevent duplicate base forms |
 | DictionaryEntry | `BaseEntryId` | Find all forms of a base entry |
 | EntryContext | `DictionaryEntryId` | Find contexts for an entry |
-| UserDictionaryEntry | `UserId` | User's dictionary |
-| UserDictionaryEntry | `EnrichmentStatus` | Worker polling |
+| UserDictionaryEntry | `(UserId, DictionaryEntryId)` | User's dictionary + dedup |
+| UserDictionaryEntry | `(EnrichmentStatus, CreatedAtUtc)` | Worker polling |
 | UserProgress | Unique `(UserId, DictionaryEntryId)` | One progress per user per entry |
+| StudyEvent | `(UserId, CreatedAtUtc)` | Dashboard daily count |

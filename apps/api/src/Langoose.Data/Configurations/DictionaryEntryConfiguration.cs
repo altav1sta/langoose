@@ -23,6 +23,9 @@ public sealed class DictionaryEntryConfiguration : IEntityTypeConfiguration<Dict
         builder.HasMany(x => x.Translations).WithMany();
 
         builder.HasIndex(x => new { x.Language, x.Text });
+        builder.HasIndex(x => new { x.Language, x.Text })
+            .HasFilter("base_entry_id IS NULL")
+            .IsUnique();
         builder.HasIndex(x => x.BaseEntryId);
     }
 }

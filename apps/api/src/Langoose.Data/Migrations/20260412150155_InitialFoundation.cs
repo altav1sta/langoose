@@ -246,7 +246,9 @@ namespace Langoose.Data.Migrations
             migrationBuilder.CreateIndex(
                 name: "ix_dictionary_entries_language_text",
                 table: "dictionary_entries",
-                columns: new[] { "language", "text" });
+                columns: new[] { "language", "text" },
+                unique: true,
+                filter: "base_entry_id IS NULL");
 
             migrationBuilder.CreateIndex(
                 name: "ix_dictionary_entry_dictionary_entry_translations_id",
@@ -279,9 +281,9 @@ namespace Langoose.Data.Migrations
                 column: "entry_context_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix_study_events_user_id",
+                name: "ix_study_events_user_id_created_at_utc",
                 table: "study_events",
-                column: "user_id");
+                columns: new[] { "user_id", "created_at_utc" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_user_dictionary_entries_dictionary_entry_id",
@@ -289,14 +291,9 @@ namespace Langoose.Data.Migrations
                 column: "dictionary_entry_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix_user_dictionary_entries_enrichment_status",
+                name: "ix_user_dictionary_entries_enrichment_status_created_at_utc",
                 table: "user_dictionary_entries",
-                column: "enrichment_status");
-
-            migrationBuilder.CreateIndex(
-                name: "ix_user_dictionary_entries_user_id",
-                table: "user_dictionary_entries",
-                column: "user_id");
+                columns: new[] { "enrichment_status", "created_at_utc" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_user_dictionary_entries_user_id_dictionary_entry_id",

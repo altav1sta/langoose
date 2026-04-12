@@ -23,7 +23,7 @@ public sealed class StudyEventConfiguration : IEntityTypeConfiguration<StudyEven
             .IsRequired(false)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasIndex(x => x.UserId);
+        builder.HasIndex(x => new { x.UserId, x.CreatedAtUtc });
         builder.HasIndex(x => x.DictionaryEntryId);
     }
 }

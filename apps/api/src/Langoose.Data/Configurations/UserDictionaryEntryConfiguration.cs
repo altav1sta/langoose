@@ -23,8 +23,7 @@ public sealed class UserDictionaryEntryConfiguration : IEntityTypeConfiguration<
             .IsRequired(false)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasIndex(x => x.UserId);
-        builder.HasIndex(x => x.EnrichmentStatus);
         builder.HasIndex(x => new { x.UserId, x.DictionaryEntryId });
+        builder.HasIndex(x => new { x.EnrichmentStatus, x.CreatedAtUtc });
     }
 }

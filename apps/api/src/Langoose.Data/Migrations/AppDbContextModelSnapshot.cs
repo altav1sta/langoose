@@ -155,7 +155,9 @@ namespace Langoose.Data.Migrations
                         .HasDatabaseName("ix_dictionary_entries_base_entry_id");
 
                     b.HasIndex("Language", "Text")
-                        .HasDatabaseName("ix_dictionary_entries_language_text");
+                        .IsUnique()
+                        .HasDatabaseName("ix_dictionary_entries_language_text")
+                        .HasFilter("base_entry_id IS NULL");
 
                     b.ToTable("dictionary_entries", (string)null);
                 });
@@ -277,8 +279,8 @@ namespace Langoose.Data.Migrations
                     b.HasIndex("EntryContextId")
                         .HasDatabaseName("ix_study_events_entry_context_id");
 
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_study_events_user_id");
+                    b.HasIndex("UserId", "CreatedAtUtc")
+                        .HasDatabaseName("ix_study_events_user_id_created_at_utc");
 
                     b.ToTable("study_events", (string)null);
                 });
@@ -362,11 +364,8 @@ namespace Langoose.Data.Migrations
                     b.HasIndex("DictionaryEntryId")
                         .HasDatabaseName("ix_user_dictionary_entries_dictionary_entry_id");
 
-                    b.HasIndex("EnrichmentStatus")
-                        .HasDatabaseName("ix_user_dictionary_entries_enrichment_status");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_user_dictionary_entries_user_id");
+                    b.HasIndex("EnrichmentStatus", "CreatedAtUtc")
+                        .HasDatabaseName("ix_user_dictionary_entries_enrichment_status_created_at_utc");
 
                     b.HasIndex("UserId", "DictionaryEntryId")
                         .HasDatabaseName("ix_user_dictionary_entries_user_id_dictionary_entry_id");
