@@ -16,7 +16,7 @@ User adds "book" + "книгу"
 │     ("книгу", ru)            │
 │  2. Follow BaseEntryId       │
 │     → ("книга", ru)          │
-│  3. Check EntryTranslation   │
+│  3. Check Translations nav   │
 │     → any linked en entry?   │
 └─────────┬────────────────────┘
           │
@@ -49,8 +49,8 @@ User adds "book" + "книгу"
                │
                ▼
       Create DictionaryEntries (base + forms)
-      Create EntryTranslations (bidirectional)
-      Create EntryContexts + ContextTranslations
+      Link Translations (bidirectional, implicit M2M)
+      Create EntryContexts + link Translations
       Link UserDictionaryEntry → DictionaryEntry
       Status → Enriched
 ```
@@ -117,10 +117,10 @@ the linked DictionaryEntry.
 3. **Enrich**: call `IEnrichmentProvider.EnrichBatchAsync()` with remaining items.
 4. **Persist**: for each successful result:
    - Create DictionaryEntry base forms + derived forms (both languages)
-   - Create EntryTranslation links (bidirectional)
+   - Link via Translations navigation (bidirectional)
    - Create EntryContext for each learning context (linked to the specific form)
    - Create paired EntryContext in the target language
-   - Create ContextTranslation links (bidirectional)
+   - Link via EntryContext.Translations navigation (bidirectional)
    - Set `UserDictionaryEntry.DictionaryEntryId`, status to Enriched
 5. **Handle failures**: increment `EnrichmentAttempts`. If over max retries, mark
    Failed. On rate-limit responses (HTTP 429), set `EnrichmentNotBefore` with
@@ -141,12 +141,12 @@ Over time, this builds a lookup index:
 DictionaryEntry("книгу", ru, base→"книга")
 DictionaryEntry("книге", ru, base→"книга")
 DictionaryEntry("книга", ru, base=null)
-  ← EntryTranslation →
+  ← Translations (M2M) →
 DictionaryEntry("book", en, base=null)
 ```
 
 When a second user adds "book" + "книге", the lookup finds the existing
-DictionaryEntry("книге", ru) → base → EntryTranslation → "book" (en).
+DictionaryEntry("книге", ru) → base → Translations → "book" (en).
 No LLM call needed.
 
 ## Rate Limiting

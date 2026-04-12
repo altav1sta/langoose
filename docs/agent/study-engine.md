@@ -17,8 +17,8 @@ from the linked entry, not stored on the context.
 
 ```
 Cloze:              "She ____ the room yesterday."
-Sentence hint:      "Она забронировала комнату вчера."  (paired context via ContextTranslation)
-Translations:       ["забронировать"]                   (via EntryTranslation)
+Sentence hint:      "Она забронировала комнату вчера."  (paired context via Translations)
+Translations:       ["забронировать"]                   (via Translations navigation)
 Grammar hint:       "past simple"                       (from DictionaryEntry.GrammarLabel)
 Expected answer:    "booked"                            (from DictionaryEntry.Text)
 Difficulty:         "B1"                                (from EntryContext.Difficulty)

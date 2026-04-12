@@ -30,8 +30,8 @@ Each card presents a complete learning context:
 | Field | Source | Description |
 |-------|--------|-------------|
 | Cloze | EntryContext.Cloze | Sentence with `____` gap |
-| Sentence translation | Paired EntryContext.Text (via ContextTranslation) | Full sentence in the user's language |
-| Translations | EntryTranslation → target language base entries | Word-level glosses |
+| Sentence translation | Paired EntryContext.Text (via Translations navigation) | Full sentence in the user's language |
+| Translations | DictionaryEntry.Translations → target language base entries | Word-level glosses |
 | Grammar hint | DictionaryEntry.GrammarLabel (linked from EntryContext) | Expected grammatical form |
 | Expected answer | DictionaryEntry.Text (linked from EntryContext) | The exact form to type |
 | Difficulty | EntryContext.Difficulty | Per-context difficulty (A1–B2) |

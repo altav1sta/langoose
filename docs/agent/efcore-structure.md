@@ -9,10 +9,8 @@ better for B-tree indexing in PostgreSQL). Mapping tables use composite primary 
 
 | Entity | Table | Key Relationships |
 |--------|-------|-------------------|
-| DictionaryEntry | dictionary_entries | Self-ref BaseEntryId, has many EntryContexts |
-| EntryTranslation | entry_translations | Composite PK (SourceEntryId, TargetEntryId) |
-| EntryContext | entry_contexts | FK -> DictionaryEntry |
-| ContextTranslation | context_translations | Composite PK (SourceContextId, TargetContextId) |
+| DictionaryEntry | dictionary_entries | Self-ref BaseEntryId, has many EntryContexts, M2M Translations |
+| EntryContext | entry_contexts | FK -> DictionaryEntry, M2M Translations |
 | UserDictionaryEntry | user_dictionary_entries | FK -> DictionaryEntry (nullable) |
 | UserEntryContext | user_entry_contexts | FK -> UserDictionaryEntry |
 | UserProgress | user_progress | FK -> DictionaryEntry. Unique (UserId, DictionaryEntryId) |
@@ -26,20 +24,24 @@ Contains `AuthUser`, `AuthSession`, and OpenIddict tables. Unchanged by domain r
 
 ## Conventions
 
+- `EFCore.NamingConventions` with `UseSnakeCaseNamingConvention()` in
+  `AppDbContext.OnConfiguring` — all table, column, index, and FK names are
+  auto-converted to snake_case. No manual `ToTable()` calls needed.
 - One `IEntityTypeConfiguration<T>` per entity in `Data/Configurations/`.
 - Use `ApplyConfigurationsFromAssembly` in `AppDbContext.OnModelCreating`.
 - Enum fields stored as strings via `HasConversion<string>()`.
 - PostgreSQL arrays (`text[]`) for `List<string>` properties (Tags, etc.).
-- Composite PKs via `HasKey(x => new { x.A, x.B })` for mapping tables.
+- Implicit many-to-many via `HasMany().WithMany().UsingEntity()` for translation
+  links. No explicit join entity classes — EF manages the join tables.
 - Services use `AppDbContext` directly — no repository-per-entity abstraction.
 - Keep EF-specific concerns out of controllers.
 
 ## Key Indexes
 
 - `DictionaryEntry`: index on `(Language, Text)`, index on `BaseEntryId`.
-- `EntryTranslation`: PK `(SourceEntryId, TargetEntryId)`.
+- `dictionary_entry_dictionary_entry` (implicit M2M): convention-named join table.
 - `EntryContext`: index on `DictionaryEntryId`.
-- `ContextTranslation`: PK `(SourceContextId, TargetContextId)`.
+- `entry_context_entry_context` (implicit M2M): convention-named join table.
 - `UserDictionaryEntry`: index on `UserId`, index on `EnrichmentStatus`.
 - `UserProgress`: unique on `(UserId, DictionaryEntryId)`.
 
@@ -54,8 +56,8 @@ Contains `AuthUser`, `AuthSession`, and OpenIddict tables. Unchanged by domain r
 ## Seeding
 
 - `DatabaseSeeder` and `SeedDataLoader` in `Data/Seeding/`.
-- `base-store.json` contains DictionaryEntries (base forms + derived forms),
-  EntryTranslations, EntryContexts, and ContextTranslations.
+- `base-store.json` contains DictionaryEntries (base forms + derived forms)
+  and EntryContexts. Translations use implicit M2M via navigation properties.
 - Seeding is empty-database-only via `Langoose.DbTool seed-app`.
 
 ## Review Checklist

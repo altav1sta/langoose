@@ -8,7 +8,6 @@ public sealed class EntryContextConfiguration : IEntityTypeConfiguration<EntryCo
 {
     public void Configure(EntityTypeBuilder<EntryContext> builder)
     {
-        builder.ToTable("entry_contexts");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Difficulty).HasMaxLength(20);
 
@@ -16,6 +15,8 @@ public sealed class EntryContextConfiguration : IEntityTypeConfiguration<EntryCo
             .WithMany(x => x.Contexts)
             .HasForeignKey(x => x.DictionaryEntryId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.Translations).WithMany();
 
         builder.HasIndex(x => x.DictionaryEntryId);
     }

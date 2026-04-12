@@ -12,9 +12,7 @@ public static class SeedDataLoader
             ?? throw new InvalidOperationException("Seed payload could not be deserialized.");
 
         var entries = new List<DictionaryEntry>();
-        var translations = new List<EntryTranslation>();
         var contexts = new List<EntryContext>();
-        var contextTranslations = new List<ContextTranslation>();
 
         var now = DateTimeOffset.UtcNow;
 
@@ -25,7 +23,6 @@ public static class SeedDataLoader
                 Id = Guid.CreateVersion7(),
                 Language = "en",
                 Text = item.English,
-                IsBaseForm = true,
                 GrammarLabel = item.GrammarLabel,
                 Difficulty = item.Difficulty,
                 IsPublic = true,
@@ -38,7 +35,6 @@ public static class SeedDataLoader
                 Id = Guid.CreateVersion7(),
                 Language = "ru",
                 Text = item.Russian,
-                IsBaseForm = true,
                 GrammarLabel = item.GrammarLabel,
                 Difficulty = item.Difficulty,
                 IsPublic = true,
@@ -46,21 +42,11 @@ public static class SeedDataLoader
                 UpdatedAtUtc = now
             };
 
+            enEntry.Translations.Add(ruEntry);
+            ruEntry.Translations.Add(enEntry);
+
             entries.Add(enEntry);
             entries.Add(ruEntry);
-
-            translations.Add(new EntryTranslation
-            {
-                SourceEntryId = enEntry.Id,
-                TargetEntryId = ruEntry.Id,
-                CreatedAtUtc = now
-            });
-            translations.Add(new EntryTranslation
-            {
-                SourceEntryId = ruEntry.Id,
-                TargetEntryId = enEntry.Id,
-                CreatedAtUtc = now
-            });
 
             var sentenceText = item.Cloze.Replace("____", item.English, StringComparison.Ordinal);
             var enContext = new EntryContext
@@ -83,24 +69,14 @@ public static class SeedDataLoader
                 CreatedAtUtc = now
             };
 
+            enContext.Translations.Add(ruContext);
+            ruContext.Translations.Add(enContext);
+
             contexts.Add(enContext);
             contexts.Add(ruContext);
-
-            contextTranslations.Add(new ContextTranslation
-            {
-                SourceContextId = enContext.Id,
-                TargetContextId = ruContext.Id,
-                CreatedAtUtc = now
-            });
-            contextTranslations.Add(new ContextTranslation
-            {
-                SourceContextId = ruContext.Id,
-                TargetContextId = enContext.Id,
-                CreatedAtUtc = now
-            });
         }
 
-        return new SeedBatch(entries, translations, contexts, contextTranslations);
+        return new SeedBatch(entries, contexts);
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -109,7 +85,7 @@ public static class SeedDataLoader
     {
         var assembly = typeof(SeedDataLoader).Assembly;
         var resourceName = assembly.GetManifestResourceNames()
-            .SingleOrDefault(name => name.EndsWith("Seeding.Json.base-store.json", StringComparison.Ordinal));
+            .SingleOrDefault(x => x.EndsWith("Seeding.Json.base-store.json", StringComparison.Ordinal));
 
         if (resourceName is null)
         {
@@ -133,6 +109,4 @@ public static class SeedDataLoader
 
 public sealed record SeedBatch(
     IReadOnlyList<DictionaryEntry> Entries,
-    IReadOnlyList<EntryTranslation> Translations,
-    IReadOnlyList<EntryContext> Contexts,
-    IReadOnlyList<ContextTranslation> ContextTranslations);
+    IReadOnlyList<EntryContext> Contexts);

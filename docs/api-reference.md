@@ -39,7 +39,7 @@ UserDictionaryEntry data. Each item includes:
 - `id` — the entry ID
 - `text` — the word or phrase
 - `translations` — array of canonical translations in the user's language
-  (from EntryTranslation → target language base entries)
+  (from Translations navigation → target language base entries)
 - `partOfSpeech`, `difficulty`
 - `isCustom` — whether this is a user-added item
 - `enrichmentStatus` — "pending", "enriched", or "failed"
@@ -60,7 +60,7 @@ Add a word. Request body:
 ```
 
 The system looks up the translation as a DictionaryEntry form, follows
-`BaseEntryId`, checks EntryTranslation links. If a match is found, the user
+`BaseEntryId`, checks Translations navigation. If a match is found, the user
 entry links to the existing DictionaryEntry immediately. Otherwise, a pending
 UserDictionaryEntry is created for background enrichment.
 
@@ -96,8 +96,8 @@ Returns the next due study card or 404 if nothing is due:
 
 Fields derived at query time:
 - `cloze` — from EntryContext.Cloze
-- `sentenceTranslation` — from the paired EntryContext via ContextTranslation
-- `translations` — from EntryTranslation (target language base entries)
+- `sentenceTranslation` — from the paired EntryContext via Translations navigation
+- `translations` — from DictionaryEntry.Translations (target language base entries)
 - `grammarHint` — from the linked DictionaryEntry.GrammarLabel
 - Expected answer — from the linked DictionaryEntry.Text (not sent to client)
 

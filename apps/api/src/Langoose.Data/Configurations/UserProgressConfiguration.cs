@@ -8,7 +8,6 @@ public sealed class UserProgressConfiguration : IEntityTypeConfiguration<UserPro
 {
     public void Configure(EntityTypeBuilder<UserProgress> builder)
     {
-        builder.ToTable("user_progress");
         builder.HasKey(x => x.Id);
 
         builder.HasOne(x => x.DictionaryEntry)

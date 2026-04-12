@@ -8,7 +8,6 @@ public sealed class UserDictionaryEntryConfiguration : IEntityTypeConfiguration<
 {
     public void Configure(EntityTypeBuilder<UserDictionaryEntry> builder)
     {
-        builder.ToTable("user_dictionary_entries");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.EnrichmentStatus).HasConversion<string>();
         builder.Property(x => x.SourceLanguage).HasMaxLength(10);
