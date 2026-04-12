@@ -38,9 +38,7 @@ Contains `AuthUser`, `AuthSession`, and OpenIddict tables. Unchanged by domain r
 
 ## Key Indexes
 
-- `DictionaryEntry`: index on `(Language, Text)`, unique filtered index on
-  `(Language, Text) WHERE BaseEntryId IS NULL` (prevents duplicate base forms),
-  index on `BaseEntryId`.
+- `DictionaryEntry`: index on `(Language, Text)`, index on `BaseEntryId`.
 - `EntryContext`: index on `DictionaryEntryId`.
 - `UserDictionaryEntry`: index on `(UserId, DictionaryEntryId)`,
   index on `(EnrichmentStatus, CreatedAtUtc)` for worker polling.

@@ -155,9 +155,7 @@ namespace Langoose.Data.Migrations
                         .HasDatabaseName("ix_dictionary_entries_base_entry_id");
 
                     b.HasIndex("Language", "Text")
-                        .IsUnique()
-                        .HasDatabaseName("ix_dictionary_entries_language_text")
-                        .HasFilter("base_entry_id IS NULL");
+                        .HasDatabaseName("ix_dictionary_entries_language_text");
 
                     b.ToTable("dictionary_entries", (string)null);
                 });

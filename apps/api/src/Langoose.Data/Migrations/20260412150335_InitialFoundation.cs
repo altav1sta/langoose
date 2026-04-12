@@ -246,9 +246,7 @@ namespace Langoose.Data.Migrations
             migrationBuilder.CreateIndex(
                 name: "ix_dictionary_entries_language_text",
                 table: "dictionary_entries",
-                columns: new[] { "language", "text" },
-                unique: true,
-                filter: "base_entry_id IS NULL");
+                columns: new[] { "language", "text" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_dictionary_entry_dictionary_entry_translations_id",

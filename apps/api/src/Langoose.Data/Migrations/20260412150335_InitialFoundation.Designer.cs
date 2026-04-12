@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Langoose.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260412150155_InitialFoundation")]
+    [Migration("20260412150335_InitialFoundation")]
     partial class InitialFoundation
     {
         /// <inheritdoc />
@@ -158,9 +158,7 @@ namespace Langoose.Data.Migrations
                         .HasDatabaseName("ix_dictionary_entries_base_entry_id");
 
                     b.HasIndex("Language", "Text")
-                        .IsUnique()
-                        .HasDatabaseName("ix_dictionary_entries_language_text")
-                        .HasFilter("base_entry_id IS NULL");
+                        .HasDatabaseName("ix_dictionary_entries_language_text");
 
                     b.ToTable("dictionary_entries", (string)null);
                 });
