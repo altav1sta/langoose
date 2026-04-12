@@ -20,6 +20,7 @@ namespace Langoose.Data.Migrations
                     language = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
                     text = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
                     base_entry_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    part_of_speech = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
                     grammar_label = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     difficulty = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
                     is_public = table.Column<bool>(type: "boolean", nullable: false),

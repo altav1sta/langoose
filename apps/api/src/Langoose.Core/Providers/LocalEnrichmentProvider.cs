@@ -23,6 +23,7 @@ public sealed class LocalEnrichmentProvider : IEnrichmentProvider
         var sourceEntry = new EnrichedEntry(
             Text: request.RawText.Trim(),
             BaseFormText: null,
+            PartOfSpeech: null,
             GrammarLabel: null,
             Difficulty: null);
 
@@ -36,6 +37,7 @@ public sealed class LocalEnrichmentProvider : IEnrichmentProvider
         var targetEntry = new EnrichedEntry(
             Text: translation,
             BaseFormText: null,
+            PartOfSpeech: null,
             GrammarLabel: null,
             Difficulty: null);
 

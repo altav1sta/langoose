@@ -6,6 +6,7 @@ public sealed class DictionaryEntry
     public required string Language { get; set; }
     public required string Text { get; set; }
     public Guid? BaseEntryId { get; set; }
+    public string? PartOfSpeech { get; set; }
     public string? GrammarLabel { get; set; }
     public string? Difficulty { get; set; }
     public required bool IsPublic { get; set; }

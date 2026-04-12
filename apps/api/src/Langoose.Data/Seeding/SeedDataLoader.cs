@@ -23,7 +23,7 @@ public static class SeedDataLoader
                 Id = Guid.CreateVersion7(),
                 Language = "en",
                 Text = item.English,
-                GrammarLabel = item.GrammarLabel,
+                PartOfSpeech = item.PartOfSpeech,
                 Difficulty = item.Difficulty,
                 IsPublic = true,
                 CreatedAtUtc = now,
@@ -35,7 +35,7 @@ public static class SeedDataLoader
                 Id = Guid.CreateVersion7(),
                 Language = "ru",
                 Text = item.Russian,
-                GrammarLabel = item.GrammarLabel,
+                PartOfSpeech = item.PartOfSpeech,
                 Difficulty = item.Difficulty,
                 IsPublic = true,
                 CreatedAtUtc = now,
@@ -102,7 +102,7 @@ public static class SeedDataLoader
         string English,
         string Russian,
         string Difficulty,
-        string GrammarLabel,
+        string PartOfSpeech,
         string Cloze,
         string TranslationHint);
 }

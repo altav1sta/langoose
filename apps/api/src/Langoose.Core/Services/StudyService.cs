@@ -83,7 +83,7 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
             context?.Cloze ?? "Use ____ in a sentence.",
             sentenceTranslation,
             translations,
-            entry.GrammarLabel,
+            entry.GrammarLabel ?? entry.PartOfSpeech,
             context?.Difficulty ?? entry.Difficulty);
     }
 

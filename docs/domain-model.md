@@ -25,6 +25,7 @@ erDiagram
         string Language
         string Text
         guid BaseEntryId FK "nullable, self-ref"
+        string PartOfSpeech "nullable"
         string GrammarLabel "nullable"
         string Difficulty
         bool IsPublic
@@ -123,7 +124,8 @@ Base forms have `BaseEntryId = null`.
 | Language | string | Language code (e.g., "en", "ru") |
 | Text | string | The word or form (e.g., "book", "booked", "книга", "книгу") |
 | BaseEntryId | Guid? | FK to self. Null for base forms, points to lemma for derived forms. |
-| GrammarLabel | string? | Grammar description of this form: "past simple", "plural", "accusative". Null for base forms. |
+| PartOfSpeech | string? | "noun", "verb", "phrase", etc. Meaningful on base forms. |
+| GrammarLabel | string? | Inflection info for derived forms: "past simple", "plural", "accusative". Null for base forms. |
 | Difficulty | string? | General difficulty (A1–B2) |
 | IsPublic | bool | `true` for curated base items, `false` for user-contributed until validated |
 | CreatedAtUtc | DateTimeOffset | |

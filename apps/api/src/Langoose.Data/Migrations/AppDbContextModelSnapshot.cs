@@ -133,6 +133,11 @@ namespace Langoose.Data.Migrations
                         .HasColumnType("character varying(10)")
                         .HasColumnName("language");
 
+                    b.Property<string>("PartOfSpeech")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("part_of_speech");
+
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasMaxLength(300)

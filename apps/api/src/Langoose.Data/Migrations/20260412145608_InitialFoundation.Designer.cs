@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Langoose.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260412143632_InitialFoundation")]
+    [Migration("20260412145608_InitialFoundation")]
     partial class InitialFoundation
     {
         /// <inheritdoc />
@@ -135,6 +135,11 @@ namespace Langoose.Data.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
                         .HasColumnName("language");
+
+                    b.Property<string>("PartOfSpeech")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("part_of_speech");
 
                     b.Property<string>("Text")
                         .IsRequired()

@@ -4,7 +4,7 @@
       "english": "book",
       "russian": "книга",
       "difficulty": "A1",
-      "grammarLabel": "noun",
+      "partOfSpeech": "noun",
       "cloze": "I read a ____ before bed.",
       "translationHint": "Я читаю книгу перед сном."
     },
@@ -12,7 +12,7 @@
       "english": "go",
       "russian": "идти",
       "difficulty": "A1",
-      "grammarLabel": "verb",
+      "partOfSpeech": "verb",
       "cloze": "We usually ____ to school by bus.",
       "translationHint": "Мы обычно ездим в школу на автобусе."
     },
@@ -20,7 +20,7 @@
       "english": "take care of",
       "russian": "заботиться о",
       "difficulty": "B1",
-      "grammarLabel": "phrase",
+      "partOfSpeech": "phrase",
       "cloze": "They ____ their grandmother every weekend.",
       "translationHint": "Они заботятся о своей бабушке каждые выходные."
     },
@@ -28,7 +28,7 @@
       "english": "decision",
       "russian": "решение",
       "difficulty": "B1",
-      "grammarLabel": "noun",
+      "partOfSpeech": "noun",
       "cloze": "It was a difficult ____ to make.",
       "translationHint": "Это было трудное решение."
     },
@@ -36,7 +36,7 @@
       "english": "at least",
       "russian": "по крайней мере",
       "difficulty": "A2",
-      "grammarLabel": "phrase",
+      "partOfSpeech": "phrase",
       "cloze": "Call me once a week, ____.",
       "translationHint": "Позвони мне хотя бы раз в неделю."
     }

@@ -11,6 +11,7 @@ public sealed class DictionaryEntryConfiguration : IEntityTypeConfiguration<Dict
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Language).HasMaxLength(10);
         builder.Property(x => x.Text).HasMaxLength(300);
+        builder.Property(x => x.PartOfSpeech).HasMaxLength(50);
         builder.Property(x => x.GrammarLabel).HasMaxLength(100);
         builder.Property(x => x.Difficulty).HasMaxLength(20);
         builder.HasOne(x => x.BaseEntry)
