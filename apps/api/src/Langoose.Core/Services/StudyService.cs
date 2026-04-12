@@ -61,15 +61,34 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
             .ThenBy(p => p.SuccessCount)
             .First();
 
+        var entry = await dbContext.DictionaryEntries
+            .FirstAsync(e => e.Id == next.DictionaryEntryId, cancellationToken);
+
         var context = await dbContext.EntryContexts
             .FirstOrDefaultAsync(c => c.DictionaryEntryId == next.DictionaryEntryId, cancellationToken);
 
-        // TODO: #71 — get translation hint from EntryTranslation
+        var translations = await dbContext.EntryTranslations
+            .Where(t => t.SourceEntryId == next.DictionaryEntryId)
+            .Select(t => t.TargetEntry.Text)
+            .ToListAsync(cancellationToken);
+
+        var sentenceTranslation = "";
+        if (context is not null)
+        {
+            sentenceTranslation = await dbContext.ContextTranslations
+                .Where(ct => ct.SourceContextId == context.Id)
+                .Select(ct => ct.TargetContext.Text)
+                .FirstOrDefaultAsync(cancellationToken) ?? "";
+        }
+
         return new StudyCard(
             next.DictionaryEntryId,
+            context?.Id,
             context?.Cloze ?? "Use ____ in a sentence.",
-            "",
-            next.DictionaryEntry?.Difficulty);
+            sentenceTranslation,
+            translations,
+            entry.GrammarLabel,
+            context?.Difficulty ?? entry.Difficulty);
     }
 
     private async Task<List<Guid>> GetStudyableEntryIdsAsync(Guid userId, CancellationToken cancellationToken)
@@ -98,6 +117,7 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
     public async Task<AnswerResult?> SubmitAnswerAsync(
         Guid userId,
         Guid entryId,
+        Guid? entryContextId,
         string submittedAnswer,
         CancellationToken cancellationToken)
     {
@@ -137,6 +157,7 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
             Id = Guid.CreateVersion7(),
             UserId = userId,
             DictionaryEntryId = entryId,
+            EntryContextId = entryContextId,
             UserInput = submittedAnswer,
             Verdict = evaluation.Verdict,
             FeedbackCode = evaluation.FeedbackCode,

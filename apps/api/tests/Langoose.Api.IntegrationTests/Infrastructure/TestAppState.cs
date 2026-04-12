@@ -11,5 +11,6 @@ internal sealed class TestAppState
     public List<UserProgress> UserProgress { get; init; } = [];
     public List<StudyEvent> StudyEvents { get; init; } = [];
     public List<ImportRecord> ImportRecords { get; init; } = [];
+    public List<ContextTranslation> ContextTranslations { get; init; } = [];
     public List<ContentFlag> ContentFlags { get; init; } = [];
 }

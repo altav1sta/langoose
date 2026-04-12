@@ -14,6 +14,7 @@ public static class SeedDataLoader
         var entries = new List<DictionaryEntry>();
         var translations = new List<EntryTranslation>();
         var contexts = new List<EntryContext>();
+        var contextTranslations = new List<ContextTranslation>();
 
         var now = DateTimeOffset.UtcNow;
 
@@ -62,7 +63,7 @@ public static class SeedDataLoader
             });
 
             var sentenceText = item.Cloze.Replace("____", item.English, StringComparison.Ordinal);
-            contexts.Add(new EntryContext
+            var enContext = new EntryContext
             {
                 Id = Guid.CreateVersion7(),
                 DictionaryEntryId = enEntry.Id,
@@ -70,9 +71,9 @@ public static class SeedDataLoader
                 Cloze = item.Cloze,
                 Difficulty = item.Difficulty,
                 CreatedAtUtc = now
-            });
+            };
 
-            contexts.Add(new EntryContext
+            var ruContext = new EntryContext
             {
                 Id = Guid.CreateVersion7(),
                 DictionaryEntryId = ruEntry.Id,
@@ -80,10 +81,26 @@ public static class SeedDataLoader
                 Cloze = item.TranslationHint,
                 Difficulty = item.Difficulty,
                 CreatedAtUtc = now
+            };
+
+            contexts.Add(enContext);
+            contexts.Add(ruContext);
+
+            contextTranslations.Add(new ContextTranslation
+            {
+                SourceContextId = enContext.Id,
+                TargetContextId = ruContext.Id,
+                CreatedAtUtc = now
+            });
+            contextTranslations.Add(new ContextTranslation
+            {
+                SourceContextId = ruContext.Id,
+                TargetContextId = enContext.Id,
+                CreatedAtUtc = now
             });
         }
 
-        return new SeedBatch(entries, translations, contexts);
+        return new SeedBatch(entries, translations, contexts, contextTranslations);
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -117,4 +134,5 @@ public static class SeedDataLoader
 public sealed record SeedBatch(
     IReadOnlyList<DictionaryEntry> Entries,
     IReadOnlyList<EntryTranslation> Translations,
-    IReadOnlyList<EntryContext> Contexts);
+    IReadOnlyList<EntryContext> Contexts,
+    IReadOnlyList<ContextTranslation> ContextTranslations);

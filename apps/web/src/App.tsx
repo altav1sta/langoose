@@ -239,7 +239,7 @@ export default function App() {
     }
 
     try {
-      const result = await api.submitAnswer(state.card.dictionaryEntryId, answer);
+      const result = await api.submitAnswer(state.card.dictionaryEntryId, answer, state.card.entryContextId);
       const studyState = await loadStudyState();
       setAnswer('');
 
