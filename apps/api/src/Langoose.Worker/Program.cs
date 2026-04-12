@@ -5,8 +5,8 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("AppDb")
-    ?? throw new InvalidOperationException("Connection string 'AppDb' is not configured.");
+var connectionString = builder.Configuration.GetConnectionString("AppDatabase")
+    ?? throw new InvalidOperationException("Connection string 'AppDatabase' is not configured.");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
