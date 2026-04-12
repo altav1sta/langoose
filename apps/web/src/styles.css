@@ -251,6 +251,32 @@ form {
   letter-spacing: 0.08em;
 }
 
+.pill-row .pill-pending {
+  background: rgba(193, 107, 0, 0.12);
+  color: var(--warn);
+}
+
+.pill-row .pill-enriched {
+  background: rgba(47, 143, 91, 0.12);
+  color: var(--good);
+}
+
+.pill-row .pill-failed {
+  background: rgba(199, 73, 73, 0.12);
+  color: var(--bad);
+}
+
+.difficulty-badge {
+  display: inline-block;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(31, 42, 47, 0.08);
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
 .error-banner,
 .notice-banner {
   padding: 14px 18px;

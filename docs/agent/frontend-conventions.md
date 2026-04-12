@@ -1,25 +1,15 @@
-# Langoose Frontend Guidance
+# Frontend Conventions
 
 ## Defaults
 
 - The app uses `React.StrictMode` in `apps/web/src/main.tsx`.
-- Avoid state in `apps/web/src/App.tsx` that merely mirrors other known values.
+- Keep React components pure during render.
+- Prefer derived state over duplicated state — avoid state that merely mirrors other known values.
+- Prefer event handlers for user-driven logic; use effects only for real external synchronization.
 - Prefer named request and response shapes in `apps/web/src/api.ts`.
 - Update `apps/web/src/api.ts` first when backend contracts evolve.
 - Prefer the current lightweight frontend style: plain React state plus plain CSS
   unless the change clearly needs more.
-
-## API Integration
-
-- Controllers return flat DTOs (not raw domain models). The frontend never needs to
-  understand the DictionaryEntry/UserDictionaryEntry/EntryTranslation split — the API
-  flattens it.
-- Dictionary item responses include `enrichmentStatus` for pending/enriched/failed display.
-- Study card responses include: `cloze`, sentence translation (from paired context),
-  `translations` (word-level from EntryTranslation), `grammarHint` (from
-  DictionaryEntry.GrammarLabel), `difficulty` (from EntryContext).
-- When pending items exist, poll the dictionary endpoint on an interval to refresh status.
-  Stop polling when no items are pending.
 
 ## TypeScript
 

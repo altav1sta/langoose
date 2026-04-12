@@ -31,17 +31,22 @@ controllers don't go through Core services.
 - The frontend mirrors API enums as string unions.
 - The frontend request helper treats `202` and `204` as no-body responses and handles
   CSV as `text/csv`.
+- Controllers return flat DTOs (not raw domain models). The frontend never needs to
+  understand the DictionaryEntry/UserDictionaryEntry/EntryTranslation split — the API
+  flattens it.
 
 ## Key Response Shapes
 
 - **Dictionary items**: flat DTO combining DictionaryEntry + UserDictionaryEntry +
-  EntryTranslation data. Includes `enrichmentStatus`.
+  EntryTranslation data. Includes `enrichmentStatus` for pending/enriched/failed display.
 - **Study cards**: includes `cloze` (from EntryContext), sentence translation
   (from paired context via ContextTranslation), `translations` (from
   EntryTranslation), `grammarHint` (from DictionaryEntry.GrammarLabel),
   `difficulty` (from EntryContext).
-- **Import response**: includes `pendingEnrichment` count.
+- **Import response**: includes `pendingCount`.
 - **Study answer result**: includes `entryContextId` for context tracking.
+- When pending items exist, poll the dictionary endpoint on an interval to refresh
+  status. Stop polling when no items are pending.
 
 ## Review Checklist
 
