@@ -5,6 +5,7 @@ using Langoose.Api.Configuration;
 using Langoose.Api.Middleware;
 using Langoose.Auth.Data;
 using Langoose.Auth.Data.Models;
+using Langoose.Core.Providers;
 using Langoose.Core.Services;
 using Langoose.Data;
 using Langoose.Data.Seeding;
@@ -119,6 +120,7 @@ builder.Services.AddOpenIddict()
 builder.Services.AddScoped<IDictionaryService, DictionaryService>();
 builder.Services.AddScoped<IStudyService, StudyService>();
 builder.Services.AddScoped<IContentService, ContentService>();
+builder.Services.AddScoped<IEnrichmentProvider, LocalEnrichmentProvider>();
 builder.Services.AddScoped<DatabaseSeeder>();
 
 builder.Services.AddControllers()

@@ -8,6 +8,7 @@
 - Keep namespaces aligned with the project and folder structure.
 - Keep public and protected members before private helpers.
 - Prefer names that are clear in local scope without adding unnecessary noise.
+- Prefer arrays for immutable collection properties and return values unless a more generic interface provides a concrete benefit.
 - Avoid redundant materialization, qualification, imports, and DI registrations.
 - Replace non-obvious magic numbers with named constants or configuration.
 
