@@ -83,7 +83,7 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
             context?.Cloze ?? "Use ____ in a sentence.",
             sentenceTranslation,
             translations,
-            entry.GrammarLabel,
+            BuildGrammarHint(entry),
             context?.Difficulty ?? entry.Difficulty);
     }
 
@@ -266,6 +266,17 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
                 progress.DueAtUtc = DateTimeOffset.UtcNow.AddMinutes(IncorrectDueDelayMinutes);
                 break;
         }
+    }
+
+    private static string? BuildGrammarHint(DictionaryEntry entry)
+    {
+        return (entry.PartOfSpeech, entry.GrammarLabel) switch
+        {
+            (not null, not null) => $"{entry.PartOfSpeech}, {entry.GrammarLabel}",
+            (not null, null) => entry.PartOfSpeech,
+            (null, not null) => entry.GrammarLabel,
+            _ => null
+        };
     }
 
     private static AnswerResult CreateAlmostCorrectResult(
