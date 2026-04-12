@@ -29,7 +29,11 @@ export function StudyPanel({
           }}
         >
           <p className="prompt">{card.prompt}</p>
-          <p className="hint">{card.translationHint}</p>
+          {card.sentenceTranslation ? <p className="hint">{card.sentenceTranslation}</p> : null}
+          {card.translations.length > 0 ? (
+            <p className="translations">{card.translations.join(', ')}</p>
+          ) : null}
+          {card.grammarHint ? <p className="grammar-hint">{card.grammarHint}</p> : null}
           <input
             value={answer}
             onChange={event => onAnswerChange(event.target.value)}

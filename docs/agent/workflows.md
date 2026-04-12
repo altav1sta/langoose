@@ -28,7 +28,7 @@ Run frontend commands from `apps/web`.
 ## Migrations
 
 Both data projects use `Microsoft.EntityFrameworkCore.Design` and rely on
-`Langoose.Api` as the startup project for design-time context resolution.
+`Langoose.DbTool` as the startup project for design-time context resolution.
 
 ### Creating a migration
 
@@ -75,6 +75,12 @@ GitHub Actions workflows under `.github/workflows/` reference project paths,
 Dockerfile paths, and test project names directly. When a change renames or
 moves a project, Dockerfile, or test assembly, update the affected workflow
 files in the same change to keep CI green.
+
+## Issue and Epic Lifecycle
+
+- Move an issue to "In Progress" on the project board when starting work on it.
+- Move an issue to "In Review" when its PR is created.
+- Move an epic to "In Progress" when any of its sub-issues is being worked on.
 
 ## Practical Cautions
 

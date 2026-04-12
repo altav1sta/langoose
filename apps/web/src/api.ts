@@ -28,8 +28,11 @@ export type DictionaryListItem = {
 
 export type StudyCard = {
   dictionaryEntryId: string;
+  entryContextId?: string | null;
   prompt: string;
-  translationHint: string;
+  sentenceTranslation: string;
+  translations: string[];
+  grammarHint?: string | null;
   difficulty?: string | null;
 };
 
@@ -88,6 +91,7 @@ export type ImportCsvResult = {
 
 export type SubmitAnswerRequest = {
   entryId: string;
+  entryContextId?: string | null;
   submittedAnswer: string;
 };
 
@@ -256,8 +260,8 @@ export const api = {
   getNextCard() {
     return request<StudyCard>('/study/next');
   },
-  submitAnswer(entryId: string, submittedAnswer: string) {
-    const payload: SubmitAnswerRequest = { entryId, submittedAnswer };
+  submitAnswer(entryId: string, submittedAnswer: string, entryContextId?: string | null) {
+    const payload: SubmitAnswerRequest = { entryId, entryContextId, submittedAnswer };
     return request<StudyAnswerResult>('/study/answer', {
       method: 'POST',
       body: JSON.stringify(payload)

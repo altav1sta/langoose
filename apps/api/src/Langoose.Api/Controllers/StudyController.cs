@@ -33,8 +33,11 @@ public sealed class StudyController(
 
         return Ok(new StudyCardResponse(
             card.DictionaryEntryId,
+            card.EntryContextId,
             card.Prompt,
-            card.TranslationHint,
+            card.SentenceTranslation,
+            card.Translations,
+            card.GrammarHint,
             card.Difficulty));
     }
 
@@ -51,7 +54,7 @@ public sealed class StudyController(
         }
 
         var result = await studyService.SubmitAnswerAsync(
-            user.Id, request.EntryId, request.SubmittedAnswer, cancellationToken);
+            user.Id, request.EntryId, request.EntryContextId, request.SubmittedAnswer, cancellationToken);
 
         if (result is null)
         {

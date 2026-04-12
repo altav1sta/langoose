@@ -16,6 +16,7 @@ public sealed class DatabaseSeeder(AppDbContext dbContext)
         dbContext.DictionaryEntries.AddRange(batch.Entries);
         dbContext.EntryTranslations.AddRange(batch.Translations);
         dbContext.EntryContexts.AddRange(batch.Contexts);
+        dbContext.ContextTranslations.AddRange(batch.ContextTranslations);
 
         await dbContext.SaveChangesAsync(cancellationToken);
     }
