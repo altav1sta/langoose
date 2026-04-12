@@ -170,7 +170,7 @@ study card rotation.
 
 **Derived fields** (not stored, computed at query time):
 - `ExpectedAnswer` = linked DictionaryEntry.Text
-- `GrammarHint` = linked DictionaryEntry.GrammarLabel
+- `GrammarHint` = combined from DictionaryEntry.PartOfSpeech and GrammarLabel
 
 ### UserDictionaryEntry
 

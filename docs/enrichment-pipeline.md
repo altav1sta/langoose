@@ -100,9 +100,9 @@ Each learning context includes a bilingual sentence pair:
 | Target form | "книгу" (links to the specific DictionaryEntry form) |
 | Difficulty | "A1" |
 
-The expected answer is the source form's Text. The grammar hint is the source
-form's GrammarLabel. Neither is stored on the context — both are derived from
-the linked DictionaryEntry.
+The expected answer is the source form's Text. The grammar hint combines the
+entry's PartOfSpeech and GrammarLabel (e.g., "verb, past simple"). Neither is
+stored on the context — both are derived from the linked DictionaryEntry.
 
 ## Background Worker
 

@@ -41,7 +41,7 @@ controllers don't go through Core services.
   translation data. Includes `enrichmentStatus` for pending/enriched/failed display.
 - **Study cards**: includes `cloze` (from EntryContext), sentence translation
   (from paired context via Translations), `translations` (from
-  Translations navigation), `grammarHint` (from DictionaryEntry.GrammarLabel),
+  Translations navigation), `grammarHint` (from PartOfSpeech + GrammarLabel),
   `difficulty` (from EntryContext).
 - **Import response**: includes `pendingCount`.
 - **Study answer result**: includes `entryContextId` for context tracking.

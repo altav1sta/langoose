@@ -98,7 +98,7 @@ Fields derived at query time:
 - `cloze` — from EntryContext.Cloze
 - `sentenceTranslation` — from the paired EntryContext via Translations navigation
 - `translations` — from DictionaryEntry.Translations (target language base entries)
-- `grammarHint` — from the linked DictionaryEntry.GrammarLabel
+- `grammarHint` — combined from DictionaryEntry.PartOfSpeech and GrammarLabel (e.g., "verb, past simple")
 - Expected answer — from the linked DictionaryEntry.Text (not sent to client)
 
 ### POST /study/answer
