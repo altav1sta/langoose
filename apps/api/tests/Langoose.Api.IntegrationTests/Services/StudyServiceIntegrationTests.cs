@@ -65,7 +65,7 @@ public sealed class StudyServiceIntegrationTests
         Assert.NotNull(card);
         Assert.NotNull(card.EntryContextId);
         Assert.NotEmpty(card.Translations);
-        Assert.NotNull(card.GrammarHint);
+        Assert.Null(card.GrammarHint);
         Assert.NotEmpty(card.SentenceTranslation);
     }
 
