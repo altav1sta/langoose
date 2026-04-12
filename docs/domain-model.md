@@ -282,7 +282,7 @@ Tracks CSV import history.
 
 | Table | Index | Purpose |
 |-------|-------|---------|
-| DictionaryEntry | `(Language, Text)` | Fast lookup by word |
+| DictionaryEntry | `(Language, Text, PartOfSpeech)` | Fast lookup by word and POS |
 | DictionaryEntry | `BaseEntryId` | Find all forms of a base entry |
 | EntryContext | `DictionaryEntryId` | Find contexts for an entry |
 | UserDictionaryEntry | `(UserId, DictionaryEntryId)` | User's dictionary + dedup |

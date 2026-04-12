@@ -244,9 +244,9 @@ namespace Langoose.Data.Migrations
                 column: "base_entry_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix_dictionary_entries_language_text",
+                name: "ix_dictionary_entries_language_text_part_of_speech",
                 table: "dictionary_entries",
-                columns: new[] { "language", "text" });
+                columns: new[] { "language", "text", "part_of_speech" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_dictionary_entry_dictionary_entry_translations_id",
