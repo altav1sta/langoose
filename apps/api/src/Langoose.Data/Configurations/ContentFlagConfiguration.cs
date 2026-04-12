@@ -8,7 +8,6 @@ public sealed class ContentFlagConfiguration : IEntityTypeConfiguration<ContentF
 {
     public void Configure(EntityTypeBuilder<ContentFlag> builder)
     {
-        builder.ToTable("content_flags");
         builder.HasKey(x => x.Id);
 
         builder.HasOne(x => x.DictionaryEntry)

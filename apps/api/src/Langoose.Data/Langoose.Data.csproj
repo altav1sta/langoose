@@ -8,6 +8,7 @@
     <ProjectReference Include="..\Langoose.Domain\Langoose.Domain.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="EFCore.NamingConventions" Version="10.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>compile; build; analyzers; buildtransitive</IncludeAssets>

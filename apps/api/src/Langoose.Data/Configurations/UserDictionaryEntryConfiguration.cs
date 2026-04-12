@@ -8,7 +8,6 @@ public sealed class UserDictionaryEntryConfiguration : IEntityTypeConfiguration<
 {
     public void Configure(EntityTypeBuilder<UserDictionaryEntry> builder)
     {
-        builder.ToTable("user_dictionary_entries");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.EnrichmentStatus).HasConversion<string>();
         builder.Property(x => x.SourceLanguage).HasMaxLength(10);
@@ -24,8 +23,7 @@ public sealed class UserDictionaryEntryConfiguration : IEntityTypeConfiguration<
             .IsRequired(false)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasIndex(x => x.UserId);
-        builder.HasIndex(x => x.EnrichmentStatus);
         builder.HasIndex(x => new { x.UserId, x.DictionaryEntryId });
+        builder.HasIndex(x => new { x.EnrichmentStatus, x.CreatedAtUtc });
     }
 }

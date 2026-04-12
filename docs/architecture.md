@@ -87,13 +87,14 @@ independent of API contract details.
 
 ## Data Model
 
-The content model has 4 main tables plus 2 mapping tables:
+The content model has 2 main entity tables with implicit M2M join tables:
 
 - **DictionaryEntry** — a word or form in any language (base forms and derived forms
-  in the same table, linked by `BaseEntryId`)
-- **EntryTranslation** — links base forms across languages (bidirectional)
-- **EntryContext** — a learning context (sentence + cloze gap) linked to a specific form
-- **ContextTranslation** — links paired contexts across languages (bidirectional)
+  in the same table, linked by `BaseEntryId`). `Translations` navigation links
+  base forms across languages (bidirectional, implicit M2M).
+- **EntryContext** — a learning context (sentence + cloze gap) linked to a specific
+  form. `Translations` navigation links paired contexts across languages
+  (bidirectional, implicit M2M).
 
 User-specific tables: **UserDictionaryEntry** (per-user entries with enrichment
 lifecycle), **UserEntryContext** (private learning contexts), **UserProgress**

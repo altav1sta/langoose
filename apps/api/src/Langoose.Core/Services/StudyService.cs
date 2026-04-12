@@ -32,8 +32,8 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
         }
 
         var existingProgress = await dbContext.UserProgress
-            .Where(p => p.UserId == userId && studyableEntryIds.Contains(p.DictionaryEntryId))
-            .ToDictionaryAsync(p => p.DictionaryEntryId, cancellationToken);
+            .Where(x => x.UserId == userId && studyableEntryIds.Contains(x.DictionaryEntryId))
+            .ToDictionaryAsync(x => x.DictionaryEntryId, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
 
@@ -57,29 +57,25 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var next = existingProgress.Values
-            .OrderBy(p => p.DueAtUtc)
-            .ThenBy(p => p.SuccessCount)
+            .OrderBy(x => x.DueAtUtc)
+            .ThenBy(x => x.SuccessCount)
             .First();
 
         var entry = await dbContext.DictionaryEntries
-            .FirstAsync(e => e.Id == next.DictionaryEntryId, cancellationToken);
+            .Include(x => x.Translations)
+            .FirstAsync(x => x.Id == next.DictionaryEntryId, cancellationToken);
 
         var context = await dbContext.EntryContexts
-            .FirstOrDefaultAsync(c => c.DictionaryEntryId == next.DictionaryEntryId, cancellationToken);
+            .Include(x => x.Translations)
+            .FirstOrDefaultAsync(x => x.DictionaryEntryId == next.DictionaryEntryId, cancellationToken);
 
-        var translations = await dbContext.EntryTranslations
-            .Where(t => t.SourceEntryId == next.DictionaryEntryId)
-            .Select(t => t.TargetEntry.Text)
-            .ToListAsync(cancellationToken);
+        var translations = entry.Translations
+            .Select(x => x.Text)
+            .ToList();
 
-        var sentenceTranslation = "";
-        if (context is not null)
-        {
-            sentenceTranslation = await dbContext.ContextTranslations
-                .Where(ct => ct.SourceContextId == context.Id)
-                .Select(ct => ct.TargetContext.Text)
-                .FirstOrDefaultAsync(cancellationToken) ?? "";
-        }
+        var sentenceTranslation = context?.Translations
+            .Select(x => x.Text)
+            .FirstOrDefault() ?? "";
 
         return new StudyCard(
             next.DictionaryEntryId,
@@ -87,25 +83,25 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
             context?.Cloze ?? "Use ____ in a sentence.",
             sentenceTranslation,
             translations,
-            entry.GrammarLabel,
+            BuildGrammarHint(entry),
             context?.Difficulty ?? entry.Difficulty);
     }
 
     private async Task<List<Guid>> GetStudyableEntryIdsAsync(Guid userId, CancellationToken cancellationToken)
     {
         var publicEntryIds = await dbContext.DictionaryEntries
-            .Where(e => e.IsPublic && e.IsBaseForm)
-            .Select(e => e.Id)
+            .Where(x => x.IsPublic && x.BaseEntryId == null)
+            .Select(x => x.Id)
             .ToListAsync(cancellationToken);
 
         var enrichedEntryIds = await dbContext.UserDictionaryEntries
-            .Where(ude => ude.UserId == userId && ude.DictionaryEntryId != null)
-            .Select(ude => ude.DictionaryEntryId!.Value)
+            .Where(x => x.UserId == userId && x.DictionaryEntryId != null)
+            .Select(x => x.DictionaryEntryId!.Value)
             .ToListAsync(cancellationToken);
 
         var flaggedEntryIds = await dbContext.ContentFlags
-            .Where(f => f.ReportedByUserId == userId && !f.IsResolved)
-            .Select(f => f.DictionaryEntryId)
+            .Where(x => x.ReportedByUserId == userId && !x.IsResolved)
+            .Select(x => x.DictionaryEntryId)
             .ToListAsync(cancellationToken);
         var flaggedSet = flaggedEntryIds.ToHashSet();
 
@@ -122,7 +118,7 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
         CancellationToken cancellationToken)
     {
         var entry = await dbContext.DictionaryEntries
-            .FirstOrDefaultAsync(e => e.Id == entryId, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == entryId, cancellationToken);
 
         if (entry is null)
         {
@@ -130,7 +126,7 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
         }
 
         var progress = await dbContext.UserProgress
-            .FirstOrDefaultAsync(p => p.UserId == userId && p.DictionaryEntryId == entryId, cancellationToken);
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.DictionaryEntryId == entryId, cancellationToken);
         var isNew = progress is null;
 
         progress ??= new UserProgress
@@ -154,8 +150,8 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
 
         var validatedContextId = entryContextId.HasValue
             ? await dbContext.EntryContexts
-                .Where(c => c.Id == entryContextId.Value && c.DictionaryEntryId == entryId)
-                .Select(c => (Guid?)c.Id)
+                .Where(x => x.Id == entryContextId.Value && x.DictionaryEntryId == entryId)
+                .Select(x => (Guid?)x.Id)
                 .FirstOrDefaultAsync(cancellationToken)
             : null;
 
@@ -223,22 +219,22 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
         var studyableIdSet = studyableEntryIds.ToHashSet();
 
         var progressItems = await dbContext.UserProgress
-            .Where(p => p.UserId == userId && studyableIdSet.Contains(p.DictionaryEntryId))
+            .Where(x => x.UserId == userId && studyableIdSet.Contains(x.DictionaryEntryId))
             .ToListAsync(cancellationToken);
-        var progressEntryIds = progressItems.Select(p => p.DictionaryEntryId).ToHashSet();
+        var progressEntryIds = progressItems.Select(x => x.DictionaryEntryId).ToHashSet();
 
         var newEntries = studyableEntryIds.Count(id => !progressEntryIds.Contains(id));
 
         var startOfTodayUtc = DateTimeOffset.UtcNow.UtcDateTime.Date;
         var endOfTodayUtc = startOfTodayUtc.AddDays(1);
-        var studiedToday = await dbContext.StudyEvents.CountAsync(e =>
-            e.UserId == userId &&
-            e.CreatedAtUtc >= startOfTodayUtc &&
-            e.CreatedAtUtc < endOfTodayUtc, cancellationToken);
+        var studiedToday = await dbContext.StudyEvents.CountAsync(x =>
+            x.UserId == userId &&
+            x.CreatedAtUtc >= startOfTodayUtc &&
+            x.CreatedAtUtc < endOfTodayUtc, cancellationToken);
 
         return new ProgressDashboard(
             studyableEntryIds.Count,
-            progressItems.Count(p => p.DueAtUtc <= DateTimeOffset.UtcNow) + newEntries,
+            progressItems.Count(x => x.DueAtUtc <= DateTimeOffset.UtcNow) + newEntries,
             newEntries,
             studiedToday);
     }
@@ -270,6 +266,17 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
                 progress.DueAtUtc = DateTimeOffset.UtcNow.AddMinutes(IncorrectDueDelayMinutes);
                 break;
         }
+    }
+
+    private static string? BuildGrammarHint(DictionaryEntry entry)
+    {
+        return (entry.PartOfSpeech, entry.GrammarLabel) switch
+        {
+            (not null, not null) => $"{entry.PartOfSpeech}, {entry.GrammarLabel}",
+            (not null, null) => entry.PartOfSpeech,
+            (null, not null) => entry.GrammarLabel,
+            _ => null
+        };
     }
 
     private static AnswerResult CreateAlmostCorrectResult(

@@ -15,7 +15,7 @@ The dictionary uses a two-layer model:
 - **DictionaryEntry** — a word or form in any language. Base forms (lemmas) and
   derived forms (inflections, cases) in the same table, linked by `BaseEntryId`.
   Only validated/enriched content. `IsPublic` controls visibility.
-- **EntryTranslation** — links base forms across languages (bidirectional).
+- **Translations** (implicit M2M) — links base forms across languages (bidirectional).
 - **UserDictionaryEntry** — per-user custom entries referencing a DictionaryEntry.
   `DictionaryEntryId` is nullable (null while pending enrichment).
 
@@ -31,8 +31,8 @@ The dictionary uses a two-layer model:
 ## Quick Add Flow
 
 1. Look up the user's translation text as a DictionaryEntry form.
-2. If found → follow BaseEntryId → check EntryTranslation for linked entry in
-   the learning language → create UserDictionaryEntry linked to it (Enriched).
+2. If found → follow BaseEntryId → check Translations navigation for linked entry
+   in the learning language → create UserDictionaryEntry linked to it (Enriched).
 3. If not found → create UserDictionaryEntry with `DictionaryEntryId = null`,
    `EnrichmentStatus = Pending`. Worker enriches it later.
 4. Phrase vs word determined automatically from input.
@@ -40,7 +40,7 @@ The dictionary uses a two-layer model:
 ## Duplicate Handling
 
 - Dedup uses DictionaryEntry form lookup: user types "книгу" → find entry →
-  follow BaseEntryId → "книга" → EntryTranslation → linked base entries.
+  follow BaseEntryId → "книга" → Translations → linked base entries.
 - If a user already has a UserDictionaryEntry for a given DictionaryEntry,
   the existing entry is updated (merged) rather than creating a duplicate.
 - Base vocabulary overlap: if the user adds a word that matches an existing
@@ -58,7 +58,7 @@ The dictionary uses a two-layer model:
 ## CSV Export
 
 - Returns the user's UserDictionaryEntries joined with DictionaryEntry and
-  EntryTranslation data.
+  translation data (via Translations navigation).
 - Only enriched items with DictionaryEntryId are exported.
 
 ## Clear Custom Data

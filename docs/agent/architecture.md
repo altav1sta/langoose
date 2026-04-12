@@ -36,7 +36,6 @@ flowchart LR
 Contains:
 - **Entities**: `DictionaryEntry`, `EntryContext`, `UserDictionaryEntry`,
   `UserProgress`, `StudyEvent`, `ContentFlag`, `ImportRecord`
-- **Mapping entities**: `EntryTranslation`, `ContextTranslation` (composite PKs)
 - **Enums**: `EnrichmentStatus`, `StudyVerdict`, `FeedbackCode`
 - **Constants**: `ProgressDefaults`
 - **Service interfaces**: `IDictionaryService`, `IStudyService`, `IContentService`

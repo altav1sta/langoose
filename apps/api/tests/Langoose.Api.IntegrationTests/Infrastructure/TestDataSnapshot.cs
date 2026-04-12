@@ -10,9 +10,7 @@ internal static class TestDataSnapshot
         return new TestAppState
         {
             DictionaryEntries = await dbContext.DictionaryEntries.ToListAsync(cancellationToken),
-            EntryTranslations = await dbContext.EntryTranslations.ToListAsync(cancellationToken),
             EntryContexts = await dbContext.EntryContexts.ToListAsync(cancellationToken),
-            ContextTranslations = await dbContext.ContextTranslations.ToListAsync(cancellationToken),
             UserDictionaryEntries = await dbContext.UserDictionaryEntries.ToListAsync(cancellationToken),
             UserProgress = await dbContext.UserProgress.ToListAsync(cancellationToken),
             StudyEvents = await dbContext.StudyEvents.ToListAsync(cancellationToken),

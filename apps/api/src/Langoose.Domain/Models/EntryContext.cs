@@ -10,6 +10,5 @@ public sealed class EntryContext
     public required DateTimeOffset CreatedAtUtc { get; init; }
 
     public DictionaryEntry DictionaryEntry { get; set; } = null!;
-    public ICollection<ContextTranslation> SourceContextTranslations { get; set; } = [];
-    public ICollection<ContextTranslation> TargetContextTranslations { get; set; } = [];
+    public ICollection<EntryContext> Translations { get; set; } = [];
 }

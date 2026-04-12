@@ -19,6 +19,14 @@
 - Do not add persistence-only tests unless they prove something the broader
   integration tests do not already prove.
 
+## Test Libraries
+
+- xUnit for test framework.
+- FluentAssertions for readable assertions.
+- Moq for mocking interfaces (e.g., `IEnrichmentProvider` in failure path tests).
+- AutoFixture + AutoFixture.Xunit2 for auto-generating test data.
+- Microsoft.EntityFrameworkCore.InMemory for in-memory DbContext.
+
 ## Organization
 
 - Group tests by feature or application area.

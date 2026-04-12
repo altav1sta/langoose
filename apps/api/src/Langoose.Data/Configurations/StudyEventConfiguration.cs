@@ -8,7 +8,6 @@ public sealed class StudyEventConfiguration : IEntityTypeConfiguration<StudyEven
 {
     public void Configure(EntityTypeBuilder<StudyEvent> builder)
     {
-        builder.ToTable("study_events");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Verdict).HasConversion<string>();
         builder.Property(x => x.FeedbackCode).HasConversion<string>();
@@ -24,7 +23,7 @@ public sealed class StudyEventConfiguration : IEntityTypeConfiguration<StudyEven
             .IsRequired(false)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasIndex(x => x.UserId);
+        builder.HasIndex(x => new { x.UserId, x.CreatedAtUtc });
         builder.HasIndex(x => x.DictionaryEntryId);
     }
 }

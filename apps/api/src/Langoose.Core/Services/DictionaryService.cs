@@ -18,40 +18,40 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         CancellationToken cancellationToken)
     {
         var publicEntries = await dbContext.DictionaryEntries
-            .Where(e => e.IsPublic && e.IsBaseForm)
-            .OrderBy(e => e.Text)
-            .Select(e => new DictionaryListItem(
-                e.Id, e.Text, e.Language, e.Difficulty, true,
+            .Where(x => x.IsPublic && x.BaseEntryId == null)
+            .OrderBy(x => x.Text)
+            .Select(x => new DictionaryListItem(
+                x.Id, x.Text, x.Language, x.Difficulty, true,
                 null, null, null, null, new List<string>()))
             .ToListAsync(cancellationToken);
 
         var userEntries = await dbContext.UserDictionaryEntries
-            .Where(e => e.UserId == userId)
-            .Include(e => e.DictionaryEntry)
-            .OrderBy(e => e.CreatedAtUtc)
+            .Where(x => x.UserId == userId)
+            .Include(x => x.DictionaryEntry)
+            .OrderBy(x => x.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
-        var userItems = userEntries.Select(e => new DictionaryListItem(
-            e.DictionaryEntryId ?? e.Id,
-            e.DictionaryEntry?.Text ?? e.UserInputTranslation ?? e.UserInputTerm,
-            e.TargetLanguage,
-            e.DictionaryEntry?.Difficulty,
+        var userItems = userEntries.Select(x => new DictionaryListItem(
+            x.DictionaryEntryId ?? x.Id,
+            x.DictionaryEntry?.Text ?? x.UserInputTranslation ?? x.UserInputTerm,
+            x.TargetLanguage,
+            x.DictionaryEntry?.Difficulty,
             false,
-            e.Id,
-            e.EnrichmentStatus,
-            e.Type,
-            e.Notes,
-            e.Tags));
+            x.Id,
+            x.EnrichmentStatus,
+            x.Type,
+            x.Notes,
+            x.Tags));
 
         // User entries linked to a public base entry replace the public row
         var userLinkedEntryIds = userEntries
-            .Where(e => e.DictionaryEntryId is not null)
-            .Select(e => e.DictionaryEntryId!.Value)
+            .Where(x => x.DictionaryEntryId is not null)
+            .Select(x => x.DictionaryEntryId!.Value)
             .ToHashSet();
 
-        var baseOnly = publicEntries.Where(e => !userLinkedEntryIds.Contains(e.DictionaryEntryId));
+        var baseOnly = publicEntries.Where(x => !userLinkedEntryIds.Contains(x.DictionaryEntryId));
 
-        return [.. baseOnly.Concat(userItems).OrderBy(e => e.Text)];
+        return [.. baseOnly.Concat(userItems).OrderBy(x => x.Text)];
     }
 
     public async Task<UserDictionaryEntry> AddUserEntryAsync(
@@ -59,8 +59,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         AddUserEntryInput input,
         CancellationToken cancellationToken)
     {
-        var (userEntries, allBaseEntries, allTranslations) =
-            await LoadUpsertStateAsync(userId, cancellationToken);
+        var (userEntries, allBaseEntries) = await LoadUpsertStateAsync(userId, cancellationToken);
 
         var (entry, _) = UpsertUserEntry(
             dbContext,
@@ -73,8 +72,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             input.Tags ?? [],
             input.Type,
             userEntries,
-            allBaseEntries,
-            allTranslations);
+            allBaseEntries);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -132,8 +130,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             return new ImportResult(Math.Max(0, rows.Length - 1), 0, errors);
         }
 
-        var (userEntries, allBaseEntries, allTranslations) =
-            await LoadUpsertStateAsync(userId, cancellationToken);
+        var (userEntries, allBaseEntries) = await LoadUpsertStateAsync(userId, cancellationToken);
 
         var pendingCount = 0;
 
@@ -150,8 +147,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
                 tags,
                 type,
                 userEntries,
-                allBaseEntries,
-                allTranslations);
+                allBaseEntries);
 
             if (created)
             {
@@ -176,28 +172,20 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
     public async Task<string> ExportCsvAsync(Guid userId, CancellationToken cancellationToken)
     {
         var entries = await dbContext.UserDictionaryEntries
-            .Where(e => e.UserId == userId)
-            .Include(e => e.DictionaryEntry)
-            .OrderBy(e => e.UserInputTerm)
+            .Where(x => x.UserId == userId)
+            .Include(x => x.DictionaryEntry)
+            .OrderBy(x => x.UserInputTerm)
             .ToListAsync(cancellationToken);
 
         var enrichedEntryIds = entries
-            .Where(e => e.DictionaryEntryId is not null)
-            .Select(e => e.DictionaryEntryId!.Value)
+            .Where(x => x.DictionaryEntryId is not null)
+            .Select(x => x.DictionaryEntryId!.Value)
             .ToHashSet();
 
-        var translations = await dbContext.EntryTranslations
-            .Where(t => enrichedEntryIds.Contains(t.SourceEntryId))
-            .ToListAsync(cancellationToken);
-
-        var targetEntryIds = translations.Select(t => t.TargetEntryId).ToHashSet();
-        var targetEntries = await dbContext.DictionaryEntries
-            .Where(e => targetEntryIds.Contains(e.Id))
-            .ToDictionaryAsync(e => e.Id, cancellationToken);
-
-        var translationsBySource = translations
-            .GroupBy(t => t.SourceEntryId)
-            .ToDictionary(g => g.Key, g => g.ToList());
+        var translationsBySource = await dbContext.DictionaryEntries
+            .Where(x => enrichedEntryIds.Contains(x.Id))
+            .Include(x => x.Translations)
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
 
         List<string> rows = ["English term,Russian translation(s),Type,Notes,Tags"];
 
@@ -206,7 +194,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             var englishText = entry.DictionaryEntry?.Text
                 ?? entry.UserInputTranslation
                 ?? entry.UserInputTerm;
-            var russianText = ResolveTranslation(entry, translationsBySource, targetEntries, "ru");
+            var russianText = ResolveTranslation(entry, translationsBySource, "ru");
 
             if (string.IsNullOrWhiteSpace(russianText))
             {
@@ -227,16 +215,15 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
 
     private static string ResolveTranslation(
         UserDictionaryEntry entry,
-        Dictionary<Guid, List<EntryTranslation>> translationsBySource,
-        Dictionary<Guid, DictionaryEntry> targetEntries,
+        Dictionary<Guid, DictionaryEntry> sourceEntries,
         string targetLanguage)
     {
         if (entry.DictionaryEntryId is not null &&
-            translationsBySource.TryGetValue(entry.DictionaryEntryId.Value, out var links))
+            sourceEntries.TryGetValue(entry.DictionaryEntryId.Value, out var sourceEntry))
         {
-            var translatedTexts = links
-                .Where(t => targetEntries.TryGetValue(t.TargetEntryId, out var te) && te.Language == targetLanguage)
-                .Select(t => targetEntries[t.TargetEntryId].Text)
+            var translatedTexts = sourceEntry.Translations
+                .Where(x => x.Language == targetLanguage)
+                .Select(x => x.Text)
                 .ToList();
 
             if (translatedTexts.Count > 0)
@@ -251,35 +238,35 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
     public async Task ClearUserDataAsync(Guid userId, CancellationToken cancellationToken)
     {
         var userEntries = await dbContext.UserDictionaryEntries
-            .Where(e => e.UserId == userId)
+            .Where(x => x.UserId == userId)
             .ToListAsync(cancellationToken);
 
         var publicEntryIds = await dbContext.DictionaryEntries
-            .Where(e => e.IsPublic)
-            .Select(e => e.Id)
+            .Where(x => x.IsPublic)
+            .Select(x => x.Id)
             .ToListAsync(cancellationToken);
         var publicEntryIdSet = publicEntryIds.ToHashSet();
 
         var userProgress = await dbContext.UserProgress
-            .Where(p => p.UserId == userId)
+            .Where(x => x.UserId == userId)
             .ToListAsync(cancellationToken);
         var customProgress = userProgress
-            .Where(p => !publicEntryIdSet.Contains(p.DictionaryEntryId))
+            .Where(x => !publicEntryIdSet.Contains(x.DictionaryEntryId))
             .ToList();
 
         var studyEvents = await dbContext.StudyEvents
-            .Where(e => e.UserId == userId)
+            .Where(x => x.UserId == userId)
             .ToListAsync(cancellationToken);
         var customStudyEvents = studyEvents
-            .Where(e => !publicEntryIdSet.Contains(e.DictionaryEntryId))
+            .Where(x => !publicEntryIdSet.Contains(x.DictionaryEntryId))
             .ToList();
 
         var imports = await dbContext.ImportRecords
-            .Where(r => r.UserId == userId)
+            .Where(x => x.UserId == userId)
             .ToListAsync(cancellationToken);
 
         var userFlags = await dbContext.ContentFlags
-            .Where(f => f.ReportedByUserId == userId)
+            .Where(x => x.ReportedByUserId == userId)
             .ToListAsync(cancellationToken);
 
         dbContext.UserDictionaryEntries.RemoveRange(userEntries);
@@ -302,8 +289,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         List<string> tags,
         string? type,
         List<UserDictionaryEntry> userEntries,
-        List<DictionaryEntry> allBaseEntries,
-        List<EntryTranslation> allTranslations)
+        List<DictionaryEntry> allBaseEntries)
     {
         var cleanedTerm = TextNormalizer.CleanInput(rawTerm);
         var normalizedTerm = TextNormalizer.NormalizeForComparison(cleanedTerm);
@@ -313,9 +299,9 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         var displayTerm = cleanedTranslation ?? cleanedTerm;
         var resolvedType = type ?? (displayTerm.Contains(' ') ? "phrase" : "word");
 
-        // 1. Check if user already has a UserDictionaryEntry for this term → merge
-        var existingUserEntry = userEntries.FirstOrDefault(e =>
-            TextNormalizer.NormalizeForComparison(e.UserInputTerm) == normalizedTerm);
+        // 1. Check if user already has a UserDictionaryEntry for this term -> merge
+        var existingUserEntry = userEntries.FirstOrDefault(x =>
+            TextNormalizer.NormalizeForComparison(x.UserInputTerm) == normalizedTerm);
 
         if (existingUserEntry is not null)
         {
@@ -324,32 +310,25 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             return (existingUserEntry, false);
         }
 
-        // 2. Documented dedup path: source-language term → DictionaryEntry form →
-        //    BaseEntryId → EntryTranslation → linked target-language base entry
+        // 2. Documented dedup path: source-language term -> DictionaryEntry form ->
+        //    BaseEntryId -> Translations nav -> linked target-language base entry
         DictionaryEntry? linkedEntry = null;
 
         // Look up the source-language term (userInputTerm) as a DictionaryEntry form
-        var sourceForm = allBaseEntries.FirstOrDefault(e =>
-            e.Language == sourceLanguage &&
-            TextNormalizer.NormalizeForComparison(e.Text) == normalizedTerm);
+        var sourceForm = allBaseEntries.FirstOrDefault(x =>
+            x.Language == sourceLanguage &&
+            TextNormalizer.NormalizeForComparison(x.Text) == normalizedTerm);
 
         // Follow BaseEntryId to the base form if this is a derived form
-        var sourceBase = sourceForm is not null && !sourceForm.IsBaseForm
-            ? allBaseEntries.FirstOrDefault(e => e.Id == sourceForm.BaseEntryId)
+        var sourceBase = sourceForm is not null && sourceForm.BaseEntryId is not null
+            ? allBaseEntries.FirstOrDefault(x => x.Id == sourceForm.BaseEntryId)
             : sourceForm;
 
-        // Check EntryTranslation for a linked target-language entry
+        // Check Translations navigation for a linked target-language entry
         if (sourceBase is not null)
         {
-            var translationLink = allTranslations.FirstOrDefault(t =>
-                t.SourceEntryId == sourceBase.Id);
-
-            if (translationLink is not null)
-            {
-                linkedEntry = allBaseEntries.FirstOrDefault(e =>
-                    e.Id == translationLink.TargetEntryId &&
-                    e.Language == targetLanguage);
-            }
+            linkedEntry = sourceBase.Translations
+                .FirstOrDefault(x => x.Language == targetLanguage);
         }
 
         // 3. Fallback: direct match on the target-language translation text
@@ -357,10 +336,10 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         {
             var normalizedTranslation = TextNormalizer.NormalizeForComparison(cleanedTranslation);
 
-            linkedEntry = allBaseEntries.FirstOrDefault(e =>
-                e.Language == targetLanguage &&
-                e.IsBaseForm &&
-                TextNormalizer.NormalizeForComparison(e.Text) == normalizedTranslation);
+            linkedEntry = allBaseEntries.FirstOrDefault(x =>
+                x.Language == targetLanguage &&
+                x.BaseEntryId is null &&
+                TextNormalizer.NormalizeForComparison(x.Text) == normalizedTranslation);
         }
 
         var entry = new UserDictionaryEntry
@@ -397,7 +376,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         {
             existing.Tags = [.. existing.Tags
                 .Concat(tags)
-                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Select(TextNormalizer.CleanInput)
                 .Distinct(StringComparer.OrdinalIgnoreCase)];
         }
@@ -413,25 +392,24 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         existing.UpdatedAtUtc = DateTimeOffset.UtcNow;
     }
 
-    private async Task<(List<UserDictionaryEntry> UserEntries, List<DictionaryEntry> BaseEntries, List<EntryTranslation> Translations)>
+    private async Task<(List<UserDictionaryEntry> UserEntries, List<DictionaryEntry> BaseEntries)>
         LoadUpsertStateAsync(Guid userId, CancellationToken cancellationToken)
     {
         var userEntries = await dbContext.UserDictionaryEntries
-            .Where(e => e.UserId == userId)
+            .Where(x => x.UserId == userId)
             .ToListAsync(cancellationToken);
         var allBaseEntries = await dbContext.DictionaryEntries
-            .Where(e => e.IsPublic)
-            .ToListAsync(cancellationToken);
-        var allTranslations = await dbContext.EntryTranslations
+            .Where(x => x.IsPublic)
+            .Include(x => x.Translations)
             .ToListAsync(cancellationToken);
 
-        return (userEntries, allBaseEntries, allTranslations);
+        return (userEntries, allBaseEntries);
     }
 
     private static void ValidateCsvHeader(string headerRow)
     {
         List<string> headers = [.. ParseCsvRow(headerRow)
-            .Select(header => TextNormalizer.NormalizeForComparison(header))];
+            .Select(x => TextNormalizer.NormalizeForComparison(x))];
 
         if (headers.Count < 3 || headers.Count > 5)
         {
@@ -503,6 +481,6 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         return [.. value
             .Split('|', StringSplitOptions.RemoveEmptyEntries)
             .Select(TextNormalizer.CleanInput)
-            .Where(candidate => !string.IsNullOrWhiteSpace(candidate))];
+            .Where(x => !string.IsNullOrWhiteSpace(x))];
     }
 }

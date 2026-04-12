@@ -16,15 +16,17 @@ public sealed class DictionaryServiceIntegrationTests
         "take off,snimat,phrase,,phrases";
 
     [Fact]
-    public void SeedData_WhenLoaded_ProducesEntriesTranslationsAndContexts()
+    public void SeedData_WhenLoaded_ProducesEntriesAndContexts()
     {
         var batch = SeedDataLoader.LoadBaseItems();
 
         Assert.True(batch.Entries.Count > 0);
-        Assert.True(batch.Translations.Count > 0);
         Assert.True(batch.Contexts.Count > 0);
-        Assert.Contains(batch.Entries, e => e.Language == "en" && e.Text == "book");
-        Assert.Contains(batch.Entries, e => e.Language == "ru" && e.Text == "\u043A\u043D\u0438\u0433\u0430");
+        Assert.Contains(batch.Entries, x => x.Language == "en" && x.Text == "book");
+        Assert.Contains(batch.Entries, x => x.Language == "ru" && x.Text == "\u043A\u043D\u0438\u0433\u0430");
+
+        var enBook = batch.Entries.First(x => x.Language == "en" && x.Text == "book");
+        Assert.NotEmpty(enBook.Translations);
     }
 
     [Fact]
