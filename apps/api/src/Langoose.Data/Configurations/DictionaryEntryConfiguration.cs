@@ -22,7 +22,7 @@ public sealed class DictionaryEntryConfiguration : IEntityTypeConfiguration<Dict
 
         builder.HasMany(x => x.Translations).WithMany();
 
-        builder.HasIndex(x => new { x.Language, x.Text, x.PartOfSpeech });
+        builder.HasIndex(x => new { x.Language, x.Text });
         builder.HasIndex(x => x.BaseEntryId);
     }
 }
