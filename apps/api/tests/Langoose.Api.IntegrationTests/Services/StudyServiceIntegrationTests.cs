@@ -92,6 +92,28 @@ public sealed class StudyServiceIntegrationTests
     }
 
     [Fact]
+    public async Task SubmitAnswerAsync_IgnoresMismatchedEntryContextId()
+    {
+        var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync();
+        var studyService = TestAppSetup.CreateStudyService(dbContext);
+        var userId = Guid.NewGuid();
+
+        var store = await TestDataSnapshot.LoadAsync(dbContext);
+        var entry = store.DictionaryEntries.First(e => e.Language == "en" && e.IsPublic);
+        var otherEntry = store.DictionaryEntries.First(e => e.Language == "ru" && e.IsPublic);
+        var wrongContext = store.EntryContexts.First(c => c.DictionaryEntryId == otherEntry.Id);
+
+        var result = await studyService.SubmitAnswerAsync(
+            userId, entry.Id, wrongContext.Id, entry.Text, CancellationToken.None);
+
+        Assert.NotNull(result);
+
+        var studyEvent = dbContext.StudyEvents.First(e => e.UserId == userId);
+        Assert.Null(studyEvent.EntryContextId);
+    }
+
+    [Fact]
     public async Task GetDashboardAsync_CountsOnlyTodaysStudyEvents()
     {
         var dbContextFactory = await TestAppSetup.CreateSeededDbContextFactoryAsync();

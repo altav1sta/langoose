@@ -152,12 +152,19 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
         var evaluation = EvaluateAnswer(entry, submittedAnswer);
         ApplyScheduler(progress, evaluation.Verdict);
 
+        var validatedContextId = entryContextId.HasValue
+            ? await dbContext.EntryContexts
+                .Where(c => c.Id == entryContextId.Value && c.DictionaryEntryId == entryId)
+                .Select(c => (Guid?)c.Id)
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+
         dbContext.StudyEvents.Add(new StudyEvent
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
             DictionaryEntryId = entryId,
-            EntryContextId = entryContextId,
+            EntryContextId = validatedContextId,
             UserInput = submittedAnswer,
             Verdict = evaluation.Verdict,
             FeedbackCode = evaluation.FeedbackCode,
