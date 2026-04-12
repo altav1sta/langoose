@@ -37,8 +37,8 @@ to commits or PRs.
 
 ## Git Hygiene
 
-- Always use `git add -A` when staging. Never cherry-pick files by name — all
-  changed files are part of the commit, including `.claude/settings.local.json`.
+- Review `git status` before committing to avoid pulling in unrelated or
+  machine-specific files from a dirty worktree.
 - Before creating a PR, check `gh pr list --head <branch>` first. The branch
   may already have a PR from a previous session.
 - When creating a PR, set assignee, labels, and milestone to match the linked

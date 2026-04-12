@@ -71,11 +71,7 @@ done
 declare -A primary_owner_by_doc
 while IFS= read -r skill_file; do
   skill_dir=$(basename "$(dirname "${skill_file}")")
-  primary_doc=$(awk '
-    /^## Primary Doc$/ { in_primary=1; next }
-    /^## / && in_primary { exit }
-    in_primary && match($0, /\]\(([^)]+)\)/, m) { print m[1] }
-  ' "${skill_file}")
+  primary_doc=$(sed -n '/^## Primary Doc$/,/^## /{ /\](/{s/.*](\([^)]*\)).*/\1/p;}; }' "${skill_file}" | head -1)
 
   [[ -n "${primary_doc}" ]] || fail "${skill_file} is missing a primary doc."
   resolved_primary_doc=$(resolve_from_file "${skill_file}" "${primary_doc}")
