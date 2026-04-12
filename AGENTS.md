@@ -15,6 +15,8 @@
 
 ## Core Rules
 
+- Before writing code for a GitHub issue, follow the full issue lifecycle in `docs/agent/git-conventions.md`.
+- Before writing code, read the relevant `docs/agent/` guides for the areas being changed.
 - Prefer small changes that fit the current architecture before introducing new layers or abstractions.
 - Keep business rules on the backend when they affect grading, dictionary visibility, imports, scheduling, auth, or persistence.
 - Prefer first-class integrations for hosted reads and metadata when they are available and reliable. Use local `git` for workspace branch management.
