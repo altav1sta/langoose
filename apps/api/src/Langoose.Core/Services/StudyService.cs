@@ -270,8 +270,13 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
 
     private static string? BuildGrammarHint(DictionaryEntry entry)
     {
-        var hint = string.Join(", ", new[] { entry.PartOfSpeech, entry.GrammarLabel }.Where(x => x is not null));
-        return hint.Length > 0 ? hint : null;
+        return (entry.PartOfSpeech, entry.GrammarLabel) switch
+        {
+            (not null, not null) => $"{entry.PartOfSpeech}, {entry.GrammarLabel}",
+            (not null, null) => entry.PartOfSpeech,
+            (null, not null) => entry.GrammarLabel,
+            _ => null
+        };
     }
 
     private static AnswerResult CreateAlmostCorrectResult(
