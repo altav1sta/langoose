@@ -210,6 +210,7 @@ function Audit {
     Test-IndexLinks -Path $agentsPath -Marker $guidanceMarker -Label "AGENTS Guidance Index"
     Test-IndexLinks -Path $agentsPath -Marker $agentsSkillMarker -Label "AGENTS Skill Index"
     Test-IndexLinks -Path $claudePath -Marker $guidanceMarker -Label "CLAUDE Guidance Index"
+    & (Join-Path $repoRoot "scripts/validate-skill-doc-map.ps1")
 }
 
 function Reconcile {

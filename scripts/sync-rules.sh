@@ -15,7 +15,7 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-AGENTS_SKILL_MARKER="## Skill Index"
+AGENTS_SKILL_MARKER="## Skill Mapping"
 GUIDANCE_MARKER="## Guidance Index"
 CLAUDE_SPECIFIC_MARKER="## Claude-Specific Notes"
 
@@ -176,8 +176,10 @@ audit_index_links() {
 
 audit() {
   audit_index_links AGENTS.md "${GUIDANCE_MARKER}" "AGENTS Guidance Index"
-  audit_index_links AGENTS.md "${AGENTS_SKILL_MARKER}" "AGENTS Skill Index"
+  audit_index_links AGENTS.md "${AGENTS_SKILL_MARKER}" "AGENTS Skill Mapping"
+  audit_index_links AGENTS.md "## Skill Index" "AGENTS Skill Index"
   audit_index_links CLAUDE.md "${GUIDANCE_MARKER}" "CLAUDE Guidance Index"
+  scripts/validate-skill-doc-map.sh
 }
 
 reconcile() {

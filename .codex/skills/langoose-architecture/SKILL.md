@@ -7,18 +7,28 @@ description: Design or refactor Langoose project boundaries and dependency direc
 
 Read [AGENTS.md](../../../AGENTS.md) first.
 
-Use this skill when the task is about architecture and project boundaries, not just file moves.
+Use this skill when the task is about project boundaries, dependency direction, or structural refactors.
 
-## Main Direction
+## Use When
 
-- Keep the dependency graph simple and explicit.
-- Introduce new projects only when they solve a real ownership or growth problem.
-- Prefer lightweight onion boundaries over ceremony-heavy clean architecture.
+- You are changing project boundaries or references.
+- You are deciding whether a concern belongs in Api, Core, Data, Domain, or Worker.
+- The task is larger than a local file move.
 
-## Workflow
+## Primary Doc
+
+- [architecture.md](../../../docs/agent/architecture.md)
+
+## Related Docs
+
+- [workflows.md](../../../docs/agent/workflows.md)
+
+## Critical Reminders
 
 - Identify the ownership problem first: growth, dependency cycle, tooling confusion, or mixed responsibilities.
 - Choose the smallest project split that fixes that problem.
+- Keep the dependency graph simple and explicit.
+- Prefer lightweight onion boundaries over ceremony-heavy clean architecture.
 - Update solution files, project references, Docker build context, and test references together.
 - Update CI/workflow paths together with the structure change whenever build, test, Docker, or restore commands depend on moved files.
 - Update repo guidance and relevant skills when the architecture decision changes the expected project layout.
@@ -31,9 +41,3 @@ Use this skill when the task is about architecture and project boundaries, not j
   - `dotnet test apps/api/tests/Langoose.Api.IntegrationTests/Langoose.Api.IntegrationTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config`
 - If Docker or startup wiring changed, verify the live startup path before declaring the architecture work complete.
 - If the refactor created new projects or moved many files, check for mixed line endings before finalizing.
-
-## Load Additional Detail Only When Needed
-
-- For EF Core-specific `API + Data` structure guidance, use [langoose-efcore-structure](../langoose-efcore-structure/SKILL.md).
-- For repo-wide implementation and finish discipline, use [langoose-dev](../langoose-dev/SKILL.md).
-- For the lightweight onion-style recommendations in this repo, read [architecture-guidance.md](../../../docs/agent/architecture-guidance.md).

@@ -1,11 +1,4 @@
-# Langoose EF Core Structure Guidance
-
-## Layout
-
-- `apps/api/src/Langoose.Domain` — entity classes, enums, constants.
-- `apps/api/src/Langoose.Data` — `AppDbContext`, entity configurations, migrations, seeding.
-- `apps/api/src/Langoose.Auth.Data` — auth `DbContext`, auth configuration, auth migrations.
-- `apps/api/src/Langoose.Core` — services that use `AppDbContext` directly.
+# EF Core Structure
 
 ## Entities
 
@@ -18,18 +11,18 @@ better for B-tree indexing in PostgreSQL). Mapping tables use composite primary 
 |--------|-------|-------------------|
 | DictionaryEntry | dictionary_entries | Self-ref BaseEntryId, has many EntryContexts |
 | EntryTranslation | entry_translations | Composite PK (SourceEntryId, TargetEntryId) |
-| EntryContext | entry_contexts | FK → DictionaryEntry |
+| EntryContext | entry_contexts | FK -> DictionaryEntry |
 | ContextTranslation | context_translations | Composite PK (SourceContextId, TargetContextId) |
-| UserDictionaryEntry | user_dictionary_entries | FK → DictionaryEntry (nullable) |
-| UserEntryContext | user_entry_contexts | FK → UserDictionaryEntry |
-| UserProgress | user_progress | FK → DictionaryEntry. Unique (UserId, DictionaryEntryId) |
-| StudyEvent | study_events | FK → DictionaryEntry, FK → EntryContext (nullable) |
-| ContentFlag | content_flags | FK → DictionaryEntry |
+| UserDictionaryEntry | user_dictionary_entries | FK -> DictionaryEntry (nullable) |
+| UserEntryContext | user_entry_contexts | FK -> UserDictionaryEntry |
+| UserProgress | user_progress | FK -> DictionaryEntry. Unique (UserId, DictionaryEntryId) |
+| StudyEvent | study_events | FK -> DictionaryEntry, FK -> EntryContext (nullable) |
+| ContentFlag | content_flags | FK -> DictionaryEntry |
 | ImportRecord | import_records | No FKs to content tables |
 
 ### Auth Database (AuthDbContext)
 
-Unchanged. Contains `AuthUser`, `AuthSession`, and OpenIddict tables.
+Contains `AuthUser`, `AuthSession`, and OpenIddict tables. Unchanged by domain reworks.
 
 ## Conventions
 

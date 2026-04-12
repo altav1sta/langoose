@@ -34,6 +34,7 @@ export function StudyPanel({
             <p className="translations">{card.translations.join(', ')}</p>
           ) : null}
           {card.grammarHint ? <p className="grammar-hint">{card.grammarHint}</p> : null}
+          {card.difficulty ? <span className="difficulty-badge">{card.difficulty}</span> : null}
           <input
             value={answer}
             onChange={event => onAnswerChange(event.target.value)}

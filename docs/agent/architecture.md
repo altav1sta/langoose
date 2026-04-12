@@ -1,4 +1,4 @@
-# Langoose Architecture Guidance
+# Langoose Architecture
 
 ## Principle
 

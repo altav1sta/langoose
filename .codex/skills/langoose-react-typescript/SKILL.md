@@ -9,16 +9,28 @@ Read [AGENTS.md](../../../AGENTS.md) first.
 
 Use this skill when the task is primarily in `apps/web` or when frontend API types and UI behavior need to stay aligned.
 
-## Preferred Frontend Style
+## Use When
+
+- The task is mainly in `apps/web`.
+- The task changes component state, effects, event handling, or TS API types.
+- The task changes frontend behavior that depends on backend contract shape.
+
+## Primary Doc
+
+- [frontend-conventions.md](../../../docs/agent/frontend-conventions.md)
+
+## Related Docs
+
+- [api-contracts.md](../../../docs/agent/api-contracts.md)
+
+## Critical Reminders
 
 - Keep components pure during render.
 - Prefer deriving values during render instead of storing redundant state.
 - Prefer event handlers for user-driven work.
 - Use effects only when synchronizing with external systems such as browser APIs, network lifecycle edges, or subscriptions.
 - Keep API contracts explicit in TypeScript rather than pushing shape uncertainty into component code.
-
-## Langoose-Specific Guidance
-
+- This skill owns frontend implementation and type usage, not backend/frontend contract ownership.
 - The current app is centered in [App.tsx](../../../apps/web/src/App.tsx). Preserve simplicity, but split code when a feature or model becomes hard to follow.
 - Keep the typed API surface in [api.ts](../../../apps/web/src/api.ts) aligned with backend contract changes.
 - Prefer narrow request payload types over `Record<string, unknown>` where the payload shape is known.
@@ -31,7 +43,3 @@ Use this skill when the task is primarily in `apps/web` or when frontend API typ
 - Prefer explicit unions and domain types over stringly typed helpers when practical.
 - Prefer `unknown` plus narrowing over `any`.
 - Add stricter TSConfig options only when the repo is ready to absorb the resulting fixes.
-
-## Load Additional Detail Only When Needed
-
-- For React principles, TypeScript options, and repo-specific frontend recommendations, read [frontend-guidance.md](../../../docs/agent/frontend-guidance.md).

@@ -37,14 +37,16 @@ Difficulty:         "B1"                                (from EntryContext.Diffi
 
 ## Answer Evaluation
 
-Compare user input against the linked DictionaryEntry.Text (the expected form):
+Grading is intentionally tolerant. Compare user input against the linked
+DictionaryEntry.Text (the expected form):
 - Levenshtein similarity via TextNormalizer for typo tolerance
 - Missing articles, inflection variants tolerated as AlmostCorrect
+- Accepted known variants (e.g. "colour" vs "color") as Correct
 - Record EntryContextId in StudyEvent for per-context analytics
 
 ### Verdicts
 
-- `Correct` — exact match or near-exact
+- `Correct` — exact match, near-exact, or accepted variant
 - `AlmostCorrect` — minor typo, missing article, inflection variant
 - `Incorrect` — meaning mismatch
 

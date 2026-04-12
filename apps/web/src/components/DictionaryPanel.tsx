@@ -1,5 +1,13 @@
 import type { AuthResponse, DictionaryListItem } from '../api';
 
+function statusPillClass(entry: DictionaryListItem): string {
+  if (entry.isPublic) return '';
+  if (entry.enrichmentStatus === 'pending') return 'pill-pending';
+  if (entry.enrichmentStatus === 'failed') return 'pill-failed';
+  if (entry.enrichmentStatus === 'enriched') return 'pill-enriched';
+  return '';
+}
+
 type DictionaryPanelProps = {
   auth?: AuthResponse;
   customEntryCount: number;
@@ -36,7 +44,7 @@ export function DictionaryPanel({
               <strong>{entry.text}</strong>
             </div>
             <div className="pill-row">
-              <span>{entry.isPublic ? 'base' : entry.enrichmentStatus ?? 'custom'}</span>
+              <span className={statusPillClass(entry)}>{entry.isPublic ? 'base' : entry.enrichmentStatus ?? 'custom'}</span>
               <span>{entry.type ?? 'word'}</span>
               {entry.difficulty ? <span>{entry.difficulty}</span> : null}
             </div>

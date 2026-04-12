@@ -9,17 +9,25 @@ Read [AGENTS.md](../../../AGENTS.md) first.
 
 Use this skill for any change that crosses the backend/frontend boundary.
 
-## Main Rule
+## Use When
+
+- The task changes controller request or response models.
+- The task changes endpoint behavior that the frontend depends on.
+- The task changes frontend API types, enum serialization, or error shapes.
+
+## Primary Doc
+
+- [api-contracts.md](../../../docs/agent/api-contracts.md)
+
+## Related Docs
+
+- [frontend-conventions.md](../../../docs/agent/frontend-conventions.md)
+
+## Critical Reminders
 
 - Change contract definitions and consumers together.
-
-## Contract Workflow
-
 - Inspect the C# models in `apps/api/src/Langoose.Api/Models`.
 - Inspect the controller actions that expose those models.
 - Inspect the frontend contract layer in `apps/web/src/api.ts`.
+- This skill owns cross-boundary payload and endpoint shape, not general frontend component design or state structure.
 - Update all three when the payload shape or behavior changes.
-
-## Load Additional Detail Only When Needed
-
-- For concrete repo rules and review points, read [api-contracts.md](../../../docs/agent/api-contracts.md).
