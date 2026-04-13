@@ -87,6 +87,8 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             UserInputTranslation = cleanedTranslation,
             PartOfSpeech = input.PartOfSpeech,
             EnrichmentStatus = EnrichmentStatus.Pending,
+            Notes = input.Notes,
+            Tags = [.. input.Tags ?? []],
             CreatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };
