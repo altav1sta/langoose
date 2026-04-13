@@ -14,15 +14,20 @@ public sealed class DictionaryEntryConfiguration : IEntityTypeConfiguration<Dict
         builder.Property(x => x.PartOfSpeech).HasMaxLength(50);
         builder.Property(x => x.GrammarLabel).HasMaxLength(100);
         builder.Property(x => x.Difficulty).HasMaxLength(20);
+
         builder.HasOne(x => x.BaseEntry)
             .WithMany(x => x.DerivedForms)
             .HasForeignKey(x => x.BaseEntryId)
             .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasMany(x => x.Translations).WithMany();
+        builder.HasMany(x => x.Translations)
+            .WithMany()
+            .UsingEntity("dictionary_entries_translations",
+                x => x.HasOne(typeof(DictionaryEntry)).WithMany().HasForeignKey("target_id"),
+                x => x.HasOne(typeof(DictionaryEntry)).WithMany().HasForeignKey("source_id"));
 
-        builder.HasIndex(x => new { x.Language, x.Text });
+        builder.HasIndex(x => new { x.Language, x.Text, x.PartOfSpeech });
         builder.HasIndex(x => x.BaseEntryId);
     }
 }

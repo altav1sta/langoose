@@ -5,6 +5,6 @@ public sealed record UserEntryRequest(
     string? UserInputTranslation = null,
     string SourceLanguage = "ru",
     string TargetLanguage = "en",
+    string PartOfSpeech = "noun",
     string? Notes = null,
-    List<string>? Tags = null,
-    string? Type = null);
+    List<string>? Tags = null);

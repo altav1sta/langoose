@@ -20,7 +20,7 @@ namespace Langoose.Data.Migrations
                     language = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
                     text = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
                     base_entry_id = table.Column<Guid>(type: "uuid", nullable: true),
-                    part_of_speech = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    part_of_speech = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     grammar_label = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     difficulty = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
                     is_public = table.Column<bool>(type: "boolean", nullable: false),
@@ -76,24 +76,24 @@ namespace Langoose.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "dictionary_entry_dictionary_entry",
+                name: "dictionary_entries_translations",
                 columns: table => new
                 {
-                    dictionary_entry_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    translations_id = table.Column<Guid>(type: "uuid", nullable: false)
+                    source_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    target_id = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("pk_dictionary_entry_dictionary_entry", x => new { x.dictionary_entry_id, x.translations_id });
+                    table.PrimaryKey("pk_dictionary_entries_translations", x => new { x.source_id, x.target_id });
                     table.ForeignKey(
-                        name: "fk_dictionary_entry_dictionary_entry_dictionary_entries_dictio",
-                        column: x => x.dictionary_entry_id,
+                        name: "fk_dictionary_entries_translations_dictionary_entries_source_id",
+                        column: x => x.source_id,
                         principalTable: "dictionary_entries",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "fk_dictionary_entry_dictionary_entry_dictionary_entries_transl",
-                        column: x => x.translations_id,
+                        name: "fk_dictionary_entries_translations_dictionary_entries_target_id",
+                        column: x => x.target_id,
                         principalTable: "dictionary_entries",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
@@ -127,17 +127,18 @@ namespace Langoose.Data.Migrations
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     user_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    dictionary_entry_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    source_entry_id = table.Column<Guid>(type: "uuid", nullable: true),
+                    target_entry_id = table.Column<Guid>(type: "uuid", nullable: true),
                     source_language = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
                     target_language = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
                     user_input_term = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
                     user_input_translation = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
+                    part_of_speech = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     enrichment_status = table.Column<string>(type: "text", nullable: false),
                     enrichment_attempts = table.Column<int>(type: "integer", nullable: false),
                     enrichment_not_before = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     notes = table.Column<string>(type: "text", nullable: true),
                     tags = table.Column<List<string>>(type: "text[]", nullable: false),
-                    type = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
                     created_at_utc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     updated_at_utc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
                 },
@@ -145,8 +146,14 @@ namespace Langoose.Data.Migrations
                 {
                     table.PrimaryKey("pk_user_dictionary_entries", x => x.id);
                     table.ForeignKey(
-                        name: "fk_user_dictionary_entries_dictionary_entries_dictionary_entry",
-                        column: x => x.dictionary_entry_id,
+                        name: "fk_user_dictionary_entries_dictionary_entries_source_entry_id",
+                        column: x => x.source_entry_id,
+                        principalTable: "dictionary_entries",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "fk_user_dictionary_entries_dictionary_entries_target_entry_id",
+                        column: x => x.target_entry_id,
                         principalTable: "dictionary_entries",
                         principalColumn: "id",
                         onDelete: ReferentialAction.SetNull);
@@ -180,24 +187,24 @@ namespace Langoose.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "entry_context_entry_context",
+                name: "entry_contexts_translations",
                 columns: table => new
                 {
-                    entry_context_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    translations_id = table.Column<Guid>(type: "uuid", nullable: false)
+                    source_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    target_id = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("pk_entry_context_entry_context", x => new { x.entry_context_id, x.translations_id });
+                    table.PrimaryKey("pk_entry_contexts_translations", x => new { x.source_id, x.target_id });
                     table.ForeignKey(
-                        name: "fk_entry_context_entry_context_entry_contexts_entry_context_id",
-                        column: x => x.entry_context_id,
+                        name: "fk_entry_contexts_translations_entry_contexts_source_id",
+                        column: x => x.source_id,
                         principalTable: "entry_contexts",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "fk_entry_context_entry_context_entry_contexts_translations_id",
-                        column: x => x.translations_id,
+                        name: "fk_entry_contexts_translations_entry_contexts_target_id",
+                        column: x => x.target_id,
                         principalTable: "entry_contexts",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
@@ -244,24 +251,24 @@ namespace Langoose.Data.Migrations
                 column: "base_entry_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix_dictionary_entries_language_text",
+                name: "ix_dictionary_entries_language_text_part_of_speech",
                 table: "dictionary_entries",
-                columns: new[] { "language", "text" });
+                columns: new[] { "language", "text", "part_of_speech" });
 
             migrationBuilder.CreateIndex(
-                name: "ix_dictionary_entry_dictionary_entry_translations_id",
-                table: "dictionary_entry_dictionary_entry",
-                column: "translations_id");
-
-            migrationBuilder.CreateIndex(
-                name: "ix_entry_context_entry_context_translations_id",
-                table: "entry_context_entry_context",
-                column: "translations_id");
+                name: "ix_dictionary_entries_translations_target_id",
+                table: "dictionary_entries_translations",
+                column: "target_id");
 
             migrationBuilder.CreateIndex(
                 name: "ix_entry_contexts_dictionary_entry_id",
                 table: "entry_contexts",
                 column: "dictionary_entry_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_entry_contexts_translations_target_id",
+                table: "entry_contexts_translations",
+                column: "target_id");
 
             migrationBuilder.CreateIndex(
                 name: "ix_import_records_user_id",
@@ -284,19 +291,24 @@ namespace Langoose.Data.Migrations
                 columns: new[] { "user_id", "created_at_utc" });
 
             migrationBuilder.CreateIndex(
-                name: "ix_user_dictionary_entries_dictionary_entry_id",
-                table: "user_dictionary_entries",
-                column: "dictionary_entry_id");
-
-            migrationBuilder.CreateIndex(
                 name: "ix_user_dictionary_entries_enrichment_status_created_at_utc",
                 table: "user_dictionary_entries",
                 columns: new[] { "enrichment_status", "created_at_utc" });
 
             migrationBuilder.CreateIndex(
-                name: "ix_user_dictionary_entries_user_id_dictionary_entry_id",
+                name: "ix_user_dictionary_entries_source_entry_id",
                 table: "user_dictionary_entries",
-                columns: new[] { "user_id", "dictionary_entry_id" });
+                column: "source_entry_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_user_dictionary_entries_target_entry_id",
+                table: "user_dictionary_entries",
+                column: "target_entry_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_user_dictionary_entries_user_id",
+                table: "user_dictionary_entries",
+                column: "user_id");
 
             migrationBuilder.CreateIndex(
                 name: "ix_user_progress_dictionary_entry_id",
@@ -322,10 +334,10 @@ namespace Langoose.Data.Migrations
                 name: "content_flags");
 
             migrationBuilder.DropTable(
-                name: "dictionary_entry_dictionary_entry");
+                name: "dictionary_entries_translations");
 
             migrationBuilder.DropTable(
-                name: "entry_context_entry_context");
+                name: "entry_contexts_translations");
 
             migrationBuilder.DropTable(
                 name: "import_records");

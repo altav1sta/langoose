@@ -16,7 +16,11 @@ public sealed class EntryContextConfiguration : IEntityTypeConfiguration<EntryCo
             .HasForeignKey(x => x.DictionaryEntryId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasMany(x => x.Translations).WithMany();
+        builder.HasMany(x => x.Translations)
+            .WithMany()
+            .UsingEntity("entry_contexts_translations",
+                x => x.HasOne(typeof(EntryContext)).WithMany().HasForeignKey("target_id"),
+                x => x.HasOne(typeof(EntryContext)).WithMany().HasForeignKey("source_id"));
 
         builder.HasIndex(x => x.DictionaryEntryId);
     }

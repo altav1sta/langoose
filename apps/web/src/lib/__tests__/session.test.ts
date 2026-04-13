@@ -6,14 +6,16 @@ describe('buildQuickAddPayload', () => {
   it('builds a user entry request from form state', () => {
     const payload = buildQuickAddPayload({
       englishText: 'watch over',
-      russianText: ' \u043f\u0440\u0438\u0441\u043c\u0430\u0442\u0440\u0438\u0432\u0430\u0442\u044c,  \u043e\u043f\u0435\u043a\u0430\u0442\u044c , '
+      russianText: ' \u043f\u0440\u0438\u0441\u043c\u0430\u0442\u0440\u0438\u0432\u0430\u0442\u044c,  \u043e\u043f\u0435\u043a\u0430\u0442\u044c , ',
+      partOfSpeech: 'verb'
     });
 
     expect(payload).toEqual({
       userInputTerm: '\u043f\u0440\u0438\u0441\u043c\u0430\u0442\u0440\u0438\u0432\u0430\u0442\u044c, \u043e\u043f\u0435\u043a\u0430\u0442\u044c',
       userInputTranslation: 'watch over',
       sourceLanguage: 'ru',
-      targetLanguage: 'en'
+      targetLanguage: 'en',
+      partOfSpeech: 'verb'
     });
   });
 });

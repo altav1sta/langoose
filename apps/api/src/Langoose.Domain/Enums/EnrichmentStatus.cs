@@ -4,5 +4,8 @@ public enum EnrichmentStatus
 {
     Pending,
     Enriched,
-    Failed
+    InvalidSource,
+    InvalidTarget,
+    InvalidLink,
+    ProviderError
 }

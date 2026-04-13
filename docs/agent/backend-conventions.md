@@ -16,6 +16,8 @@
 - Use `AsNoTracking()` for read-only queries that do not need change tracking.
 - Prefer batch queries over per-item loops to minimize database round-trips.
 - Do not split a statement across lines when it fits on one line and reads clearly. Only break for genuinely long lines.
+- When a call or initializer is broken across lines, put each argument or member on its own line — do not mix columnar and inline styles.
+- Add a blank line before `if`, `for`, `foreach`, `while`, `try`, `return`, and `await` statements, unless they are the first statement in a block.
 
 ## Related Canonical Docs
 

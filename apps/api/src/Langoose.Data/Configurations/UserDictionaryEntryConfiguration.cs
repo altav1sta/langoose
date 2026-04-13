@@ -14,16 +14,22 @@ public sealed class UserDictionaryEntryConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.TargetLanguage).HasMaxLength(10);
         builder.Property(x => x.UserInputTerm).HasMaxLength(300);
         builder.Property(x => x.UserInputTranslation).HasMaxLength(300);
-        builder.Property(x => x.Type).HasMaxLength(20);
+        builder.Property(x => x.PartOfSpeech).HasMaxLength(50);
         builder.Property(x => x.Tags).HasColumnType("text[]");
 
-        builder.HasOne(x => x.DictionaryEntry)
+        builder.HasOne(x => x.SourceEntry)
             .WithMany()
-            .HasForeignKey(x => x.DictionaryEntryId)
+            .HasForeignKey(x => x.SourceEntryId)
             .IsRequired(false)
             .OnDelete(DeleteBehavior.SetNull);
 
-        builder.HasIndex(x => new { x.UserId, x.DictionaryEntryId });
+        builder.HasOne(x => x.TargetEntry)
+            .WithMany()
+            .HasForeignKey(x => x.TargetEntryId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(x => x.UserId);
         builder.HasIndex(x => new { x.EnrichmentStatus, x.CreatedAtUtc });
     }
 }

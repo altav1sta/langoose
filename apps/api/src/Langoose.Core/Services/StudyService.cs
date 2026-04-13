@@ -89,25 +89,19 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
 
     private async Task<List<Guid>> GetStudyableEntryIdsAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var publicEntryIds = await dbContext.DictionaryEntries
-            .Where(x => x.IsPublic && x.BaseEntryId == null)
+        return await dbContext.DictionaryEntries
+            .Where(x => x.BaseEntryId == null)
+            .Where(x => x.IsPublic
+                || dbContext.UserDictionaryEntries.Any(u =>
+                    u.UserId == userId
+                    && u.SourceEntryId == x.Id
+                    && u.EnrichmentStatus == EnrichmentStatus.Enriched))
+            .Where(x => !dbContext.ContentFlags.Any(f =>
+                f.DictionaryEntryId == x.Id
+                && f.ReportedByUserId == userId
+                && !f.IsResolved))
             .Select(x => x.Id)
             .ToListAsync(cancellationToken);
-
-        var enrichedEntryIds = await dbContext.UserDictionaryEntries
-            .Where(x => x.UserId == userId && x.DictionaryEntryId != null)
-            .Select(x => x.DictionaryEntryId!.Value)
-            .ToListAsync(cancellationToken);
-
-        var flaggedEntryIds = await dbContext.ContentFlags
-            .Where(x => x.ReportedByUserId == userId && !x.IsResolved)
-            .Select(x => x.DictionaryEntryId)
-            .ToListAsync(cancellationToken);
-        var flaggedSet = flaggedEntryIds.ToHashSet();
-
-        return publicEntryIds.Union(enrichedEntryIds)
-            .Where(id => !flaggedSet.Contains(id))
-            .ToList();
     }
 
     public async Task<AnswerResult?> SubmitAnswerAsync(

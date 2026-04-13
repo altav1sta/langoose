@@ -20,8 +20,8 @@ export type DictionaryListItem = {
   difficulty?: string | null;
   isPublic: boolean;
   userDictionaryEntryId?: string | null;
-  enrichmentStatus?: 'pending' | 'enriched' | 'failed' | null;
-  type?: string | null;
+  enrichmentStatus?: 'pending' | 'enriched' | 'invalidSource' | 'invalidTarget' | 'invalidLink' | 'providerError' | null;
+  partOfSpeech?: string | null;
   notes?: string | null;
   tags: string[];
 };
@@ -73,9 +73,9 @@ export type AddUserEntryRequest = {
   userInputTranslation?: string | null;
   sourceLanguage: string;
   targetLanguage: string;
+  partOfSpeech: string;
   notes?: string | null;
   tags?: string[];
-  type?: string | null;
 };
 
 export type ImportCsvRequest = {
