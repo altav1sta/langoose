@@ -5,6 +5,6 @@ public sealed record AddUserEntryInput(
     string? UserInputTranslation,
     string SourceLanguage,
     string TargetLanguage,
+    string PartOfSpeech,
     string? Notes = null,
-    List<string>? Tags = null,
-    string? Type = null);
+    List<string>? Tags = null);

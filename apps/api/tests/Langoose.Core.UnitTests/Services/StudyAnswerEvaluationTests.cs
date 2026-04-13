@@ -62,6 +62,7 @@ public sealed class StudyAnswerEvaluationTests
             Id = Guid.CreateVersion7(),
             Language = "en",
             Text = text,
+            PartOfSpeech = "noun",
             IsPublic = true,
             CreatedAtUtc = DateTimeOffset.UtcNow,
             UpdatedAtUtc = DateTimeOffset.UtcNow

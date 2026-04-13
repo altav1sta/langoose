@@ -10,6 +10,6 @@ public sealed record DictionaryListItem(
     bool IsPublic,
     Guid? UserDictionaryEntryId,
     EnrichmentStatus? EnrichmentStatus,
-    string? Type,
+    string? PartOfSpeech,
     string? Notes,
     List<string> Tags);

@@ -1,21 +1,20 @@
 # Enrichment Pipeline
 
-The enrichment pipeline generates study content for dictionary entries: learning
-contexts with cloze gaps, sentence translations, grammar labels, difficulty ratings,
-and morphological form data.
+The enrichment pipeline validates user input, generates dictionary entry forms
+(base + derived), and links source ↔ target translations.
 
 ## How It Works
 
 ```
-User adds "book" + "книгу"
+User adds "book" (noun) + "книга"
          │
          ▼
 ┌──────────────────────────────┐
 │  DictionaryService           │
 │  1. Find DictionaryEntry     │
-│     ("книгу", ru)            │
+│     ("книга", ru, noun)      │
 │  2. Follow BaseEntryId       │
-│     → ("книга", ru)          │
+│     → ("книга", ru, base)    │
 │  3. Check Translations nav   │
 │     → any linked en entry?   │
 └─────────┬────────────────────┘
@@ -26,9 +25,10 @@ User adds "book" + "книгу"
     yes   │   no
      │    │    │
      ▼    │    ▼
- Link to  │  Create UserDictionaryEntry
- existing │  (Pending, DictionaryEntryId = null)
- entry    │        │
+ Set      │  Create UserDictionaryEntry
+ Source +  │  (Pending, SourceEntry = null)
+ Target    │        │
+ Entry     │        │
      │         │
      ▼         ▼
   Done     Worker picks it up
@@ -49,105 +49,86 @@ User adds "book" + "книгу"
                │
                ▼
       Create DictionaryEntries (base + forms)
-      Link Translations (bidirectional, implicit M2M)
-      Create EntryContexts + link Translations
-      Link UserDictionaryEntry → DictionaryEntry
+      Link source → target via Translations nav
+      Set SourceEntry + TargetEntry navigations
       Status → Enriched
 ```
 
 ## Provider Architecture
 
-`IEnrichmentProvider` is defined in Domain with a batch-oriented interface:
+`IEnrichmentProvider` is defined in Domain:
 
 ```
 Task<EnrichmentResult[]> EnrichBatchAsync(
-    EnrichmentRequest[] batch,
+    UserDictionaryEntry[] batch,
     CancellationToken cancellationToken)
 ```
 
+The provider receives tracked `UserDictionaryEntry` items directly. It checks
+`SourceEntry`/`TargetEntry` navigation nullability to determine what to generate.
+POS comes from `UserDictionaryEntry.PartOfSpeech`.
+
 Two implementations in Core:
 
-- **LocalEnrichmentProvider** — static lexicon with a handful of entries. Used as
-  fallback when AI enrichment is disabled or fails.
-- **GeminiEnrichmentProvider** — calls Gemini Flash REST API. Sends one batched
-  prompt with multiple terms, receives a structured JSON array response.
+- **LocalEnrichmentProvider** — returns base-form entries, always valid. Used as
+  fallback when AI enrichment is disabled.
+- **GeminiEnrichmentProvider** — calls Gemini Flash REST API (future). Validates
+  terms, generates derived forms, and validates semantic links.
 
-The Worker resolves `IEnrichmentProvider` from DI. When `Features.EnableAiEnrichment`
-is true and the Gemini API key is configured, it uses Gemini; otherwise Local.
+## What the Provider Returns
 
-## What the LLM Produces
+Each `EnrichmentResult` contains:
+- `UserEntryId` — for matching result to item
+- `Status` — Enriched, InvalidSource, InvalidTarget, or InvalidLink
+- `SourceEntries?` — base + derived forms for source language
+- `TargetEntries?` — base + derived forms for target language
 
-For each term in a batch, the LLM returns:
-
-| Field | Example |
-|-------|---------|
-| Base form (target language) | "книга" |
-| Derived forms | ["книги", "книгу", "книге", "книгой"] with grammar labels |
-| Base form (source language) | "book" |
-| Derived forms (source) | ["booked", "books", "booking"] with grammar labels |
-| Part of speech | "noun" |
-| General difficulty | "A1" |
-| Learning contexts (1–3) | See below |
-
-Each learning context includes a bilingual sentence pair:
-
-| Field | Example |
-|-------|---------|
-| Source sentence | "She bought a new book yesterday." |
-| Source cloze | "She bought a new ____ yesterday." |
-| Source form | "book" (links to the specific DictionaryEntry form) |
-| Target sentence | "Она купила новую книгу вчера." |
-| Target form | "книгу" (links to the specific DictionaryEntry form) |
-| Difficulty | "A1" |
-
-The expected answer is the source form's Text. The grammar hint combines the
-entry's PartOfSpeech and GrammarLabel (e.g., "verb, past simple"). Neither is
-stored on the context — both are derived from the linked DictionaryEntry.
+Each `EnrichedEntry` contains: Text, IsBaseForm, GrammarLabel?, Difficulty?.
+POS is not on the entry — it comes from the user entry.
 
 ## Background Worker
 
-`EnrichmentBackgroundService` runs in the Worker project:
+`EnrichmentBackgroundService` runs in the Worker project as a thin polling shell.
+`EnrichmentProcessor` in Core contains all batch processing logic.
 
-1. **Poll**: query UserDictionaryEntries where `EnrichmentStatus = Pending` and
-   `EnrichmentNotBefore` is null or in the past. Order by `CreatedAtUtc`.
-   Limit to batch size (configurable, default 10).
-2. **Deduplicate**: for each item, check if a matching DictionaryEntry already
-   exists by looking up the raw translation text as a form. If found, skip
-   enrichment and link directly.
-3. **Enrich**: call `IEnrichmentProvider.EnrichBatchAsync()` with remaining items.
-4. **Persist**: for each successful result:
-   - Create DictionaryEntry base forms + derived forms (both languages)
-   - Link via Translations navigation (bidirectional)
-   - Create EntryContext for each learning context (linked to the specific form)
-   - Create paired EntryContext in the target language
-   - Link via EntryContext.Translations navigation (bidirectional)
-   - Set `UserDictionaryEntry.DictionaryEntryId`, status to Enriched
-5. **Handle failures**: increment `EnrichmentAttempts`. If over max retries, mark
-   Failed. On rate-limit responses (HTTP 429), set `EnrichmentNotBefore` with
-   exponential backoff.
-6. **Sleep**: wait for the configured poll interval (default 5 seconds), then repeat.
+1. **Poll**: query UserDictionaryEntries where status is Pending or ProviderError
+   (with attempts < max) and `EnrichmentNotBefore` is null or past.
+   Include SourceEntry (with Translations) and TargetEntry.
+2. **Resolve**: for items missing navigations, batch-lookup existing entries by
+   `EntryKey(Language, Text, PartOfSpeech)`. Set SourceEntry/TargetEntry from
+   lookup. Items with both entries and a translation link → set Enriched, skip.
+3. **Enrich**: pass remaining items to `IEnrichmentProvider.EnrichBatchAsync()`.
+4. **Materialize**: for each successful result:
+   - Create base entry + derived entries for missing source side
+   - Create base entry + derived entries for missing target side
+   - Link source → target via Translations navigation
+   - Set Enriched
+5. **Handle validation failures**: InvalidSource, InvalidTarget, InvalidLink are
+   terminal — no retry.
+6. **Handle provider errors**: increment attempts, exponential backoff via
+   `EnrichmentNotBefore`. ProviderError after max retries.
+7. **Save**: single `SaveChangesAsync` at the end.
 
 The worker creates a new DI scope per poll cycle since `AppDbContext` is scoped.
 
 ## Form-Based Deduplication
 
-When the LLM enriches a term, it creates DictionaryEntry rows for base forms and
-derived forms in both languages. Derived forms point back to their base via
-`BaseEntryId`.
+When the provider enriches a term, it creates DictionaryEntry rows for base forms
+and derived forms. Derived forms point back to their base via `BaseEntryId`.
 
 Over time, this builds a lookup index:
 
 ```
-DictionaryEntry("книгу", ru, base→"книга")
-DictionaryEntry("книге", ru, base→"книга")
-DictionaryEntry("книга", ru, base=null)
-  ← Translations (M2M) →
-DictionaryEntry("book", en, base=null)
+DictionaryEntry("книгу", ru, noun, base→"книга")
+DictionaryEntry("книге", ru, noun, base→"книга")
+DictionaryEntry("книга", ru, noun, base=null)
+  ← Translations →
+DictionaryEntry("book", en, noun, base=null)
 ```
 
-When a second user adds "book" + "книге", the lookup finds the existing
-DictionaryEntry("книге", ru) → base → Translations → "book" (en).
-No LLM call needed.
+When a second user adds "book" (noun) + "книге", the lookup finds the existing
+DictionaryEntry("книге", ru, noun) → base → Translations → "book" (en).
+No provider call needed.
 
 ## Rate Limiting
 
@@ -155,14 +136,19 @@ No LLM call needed.
 - **API-level**: Gemini free-tier limits (requests per minute/day). In-memory
   sliding window in the background worker.
 - **Backoff**: on HTTP 429 or 5xx from Gemini, the worker sets
-  `UserDictionaryEntry.EnrichmentNotBefore` with exponential delay. Retried
-  later, not counted as a permanent failure.
+  `EnrichmentNotBefore` with exponential delay. Retried later.
 - **Permanent failure**: after max retries (configurable, default 3), the item
-  is marked `Failed`.
+  is marked `ProviderError`.
 
 ## Feature Flag
 
-`Features.EnableAiEnrichment` in `appsettings.json` controls whether the Worker
-processes pending items. When disabled, the sync enrichment path (using
-LocalEnrichmentProvider) is used for base item seeding. User-added items stay
-Pending until the flag is enabled.
+`EnableAiEnrichment` feature flag (via `Microsoft.FeatureManagement`) controls
+whether the Worker processes pending items. Configured in `appsettings.json`:
+
+```json
+"feature_management": {
+  "feature_flags": [
+    { "id": "EnableAiEnrichment", "enabled": false }
+  ]
+}
+```

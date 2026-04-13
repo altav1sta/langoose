@@ -66,7 +66,7 @@ UserDictionaryEntry is created for background enrichment.
 
 ### POST /dictionary/import
 
-Upload CSV content. Required columns: English term, translation(s), type.
+Upload CSV content. Required columns: English term, translation(s), part of speech.
 Optional: Notes, Tags. Returns import statistics including pending enrichment count.
 
 ## Study

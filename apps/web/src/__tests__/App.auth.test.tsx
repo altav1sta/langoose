@@ -46,7 +46,7 @@ const dictionary: DictionaryListItem[] = [
     isPublic: true,
     userDictionaryEntryId: null,
     enrichmentStatus: null,
-    type: 'phrase',
+    partOfSpeech: 'phrase',
     notes: null,
     tags: []
   }

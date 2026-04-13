@@ -11,7 +11,7 @@ better for B-tree indexing in PostgreSQL). Mapping tables use composite primary 
 |--------|-------|-------------------|
 | DictionaryEntry | dictionary_entries | Self-ref BaseEntryId, has many EntryContexts, M2M Translations |
 | EntryContext | entry_contexts | FK -> DictionaryEntry, M2M Translations |
-| UserDictionaryEntry | user_dictionary_entries | FK -> DictionaryEntry (nullable) |
+| UserDictionaryEntry | user_dictionary_entries | FK SourceEntryId -> DictionaryEntry, FK TargetEntryId -> DictionaryEntry (both nullable) |
 | UserEntryContext | user_entry_contexts | FK -> UserDictionaryEntry |
 | UserProgress | user_progress | FK -> DictionaryEntry. Unique (UserId, DictionaryEntryId) |
 | StudyEvent | study_events | FK -> DictionaryEntry, FK -> EntryContext (nullable) |
@@ -38,9 +38,9 @@ Contains `AuthUser`, `AuthSession`, and OpenIddict tables. Unchanged by domain r
 
 ## Key Indexes
 
-- `DictionaryEntry`: index on `(Language, Text)`, index on `BaseEntryId`.
+- `DictionaryEntry`: index on `(Language, Text, PartOfSpeech)`, index on `BaseEntryId`.
 - `EntryContext`: index on `DictionaryEntryId`.
-- `UserDictionaryEntry`: index on `(UserId, DictionaryEntryId)`,
+- `UserDictionaryEntry`: index on `UserId`,
   index on `(EnrichmentStatus, CreatedAtUtc)` for worker polling.
 - `UserProgress`: unique on `(UserId, DictionaryEntryId)`.
 - `StudyEvent`: index on `(UserId, CreatedAtUtc)` for dashboard queries.

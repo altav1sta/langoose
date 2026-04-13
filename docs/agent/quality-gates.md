@@ -11,6 +11,7 @@
 ## Validation
 
 - Run the smallest relevant build, test, and acceptance checks for the change.
+- Run E2E tests (`docker compose --profile e2e up --build e2e`) as part of full validation when the change affects cross-layer behavior.
 - Prefer containerized whole-app validation when the change affects startup, persistence, auth, or cross-app behavior.
 - If a validation lane is blocked or fails, say so plainly and do not report it as passing by inference.
 - When a change renames or moves a project, Dockerfile, or test assembly, update the affected GitHub Actions workflows, contributor commands, and repo guidance docs in the same change.

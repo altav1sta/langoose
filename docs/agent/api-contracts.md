@@ -38,7 +38,8 @@ controllers don't go through Core services.
 ## Key Response Shapes
 
 - **Dictionary items**: flat DTO combining DictionaryEntry + UserDictionaryEntry +
-  translation data. Includes `enrichmentStatus` for pending/enriched/failed display.
+  translation data. Includes `enrichmentStatus` (pending, enriched, invalidSource,
+  invalidTarget, invalidLink, providerError) and `partOfSpeech`.
 - **Study cards**: includes `cloze` (from EntryContext), sentence translation
   (from paired context via Translations), `translations` (from
   Translations navigation), `grammarHint` (from PartOfSpeech + GrammarLabel),

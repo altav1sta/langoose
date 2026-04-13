@@ -45,9 +45,9 @@ public sealed class DictionaryController(
             request.UserInputTranslation,
             request.SourceLanguage,
             request.TargetLanguage,
+            request.PartOfSpeech,
             request.Notes,
-            request.Tags,
-            request.Type);
+            request.Tags);
 
         return Ok(await dictionaryService.AddUserEntryAsync(user.Id, input, cancellationToken));
     }

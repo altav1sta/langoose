@@ -13,7 +13,8 @@ erDiagram
     DictionaryEntry }o--o| DictionaryEntry : "BaseEntryId (self-ref)"
     DictionaryEntry }o--o{ DictionaryEntry : "Translations (M2M)"
     EntryContext }o--o{ EntryContext : "Translations (M2M)"
-    UserDictionaryEntry }o--o| DictionaryEntry : references
+    UserDictionaryEntry }o--o| DictionaryEntry : "SourceEntryId"
+    UserDictionaryEntry }o--o| DictionaryEntry : "TargetEntryId"
     UserDictionaryEntry ||--o{ UserEntryContext : has
     UserProgress }o--|| DictionaryEntry : tracks
     StudyEvent }o--|| DictionaryEntry : references
@@ -25,7 +26,7 @@ erDiagram
         string Language
         string Text
         guid BaseEntryId FK "nullable, self-ref"
-        string PartOfSpeech "nullable"
+        string PartOfSpeech "required"
         string GrammarLabel "nullable"
         string Difficulty
         bool IsPublic
@@ -45,17 +46,18 @@ erDiagram
     UserDictionaryEntry {
         guid Id PK
         guid UserId
-        guid DictionaryEntryId FK "nullable"
+        guid SourceEntryId FK "nullable"
+        guid TargetEntryId FK "nullable"
         string SourceLanguage
         string TargetLanguage
         string UserInputTerm
         string UserInputTranslation
+        string PartOfSpeech "required"
         EnrichmentStatus EnrichmentStatus
         int EnrichmentAttempts
         datetime EnrichmentNotBefore "nullable"
         string Notes
         string_arr Tags
-        string Type
         datetime CreatedAtUtc
         datetime UpdatedAtUtc
     }
@@ -124,7 +126,7 @@ Base forms have `BaseEntryId = null`.
 | Language | string | Language code (e.g., "en", "ru") |
 | Text | string | The word or form (e.g., "book", "booked", "книга", "книгу") |
 | BaseEntryId | Guid? | FK to self. Null for base forms, points to lemma for derived forms. |
-| PartOfSpeech | string? | "noun", "verb", "phrase", etc. Meaningful on base forms. |
+| PartOfSpeech | string | Required. "noun", "verb", "phrase", etc. |
 | GrammarLabel | string? | Inflection info for derived forms: "past simple", "plural", "accusative". Null for base forms. |
 | Difficulty | string? | General difficulty (A1–B2) |
 | IsPublic | bool | `true` for curated base items, `false` for user-contributed until validated |
@@ -132,10 +134,11 @@ Base forms have `BaseEntryId = null`.
 | UpdatedAtUtc | DateTimeOffset | |
 
 **Translations** — implicit M2M navigation (`ICollection<DictionaryEntry>`) links
-base forms across languages. Stored bidirectionally — if (A→B) exists, (B→A) also
-exists. These provide the word-level glosses shown on study cards.
+base forms across languages. Stored unidirectionally (source → target).
+These provide the word-level glosses shown on study cards.
+Join table: `dictionary_entries_translations (source_id, target_id)`.
 
-Indexed on `(Language, Text)`.
+Indexed on `(Language, Text, PartOfSpeech)`.
 
 Examples:
 - `("en", "book", null, null)` — base form
@@ -163,7 +166,8 @@ The expected answer and grammar hint are derived from the linked DictionaryEntry
 | CreatedAtUtc | DateTimeOffset | |
 
 **Translations** — implicit M2M navigation (`ICollection<EntryContext>`) links
-paired contexts across languages. Stored bidirectionally.
+paired contexts across languages.
+Join table: `entry_contexts_translations (source_id, target_id)`.
 
 A base entry typically has 1–3 contexts across its forms, providing variety for
 study card rotation.
@@ -180,23 +184,26 @@ A per-user dictionary entry. Owns the enrichment lifecycle (pending/failed state
 |-------|------|-------|
 | Id | Guid v7 | |
 | UserId | Guid | |
-| DictionaryEntryId | Guid? | FK to DictionaryEntry. Null while pending enrichment. |
+| SourceEntryId | Guid? | FK to source-language DictionaryEntry base form. Null while pending. |
+| TargetEntryId | Guid? | FK to target-language DictionaryEntry base form. Null while pending. |
 | SourceLanguage | string | User's native language (e.g., "ru") |
 | TargetLanguage | string | Learning language (e.g., "en") |
 | UserInputTerm | string | What the user typed as the word |
 | UserInputTranslation | string? | What the user typed as the translation |
-| EnrichmentStatus | enum | `Pending`, `Enriched`, or `Failed` |
+| PartOfSpeech | string | Required. Set by user on input. |
+| EnrichmentStatus | enum | Pending, Enriched, InvalidSource, InvalidTarget, InvalidLink, ProviderError |
 | EnrichmentAttempts | int | Retry counter |
 | EnrichmentNotBefore | DateTimeOffset? | Backoff scheduling |
 | Notes | string? | User's private notes |
 | Tags | string[] | User's private tags |
-| Type | string? | "word" or "phrase" |
 | CreatedAtUtc | DateTimeOffset | |
 | UpdatedAtUtc | DateTimeOffset | |
 
-When enrichment succeeds, a DictionaryEntry is created (or found),
-`DictionaryEntryId` is set, and status becomes `Enriched`. When enrichment fails
-after max retries, the item is marked `Failed` and `DictionaryEntryId` stays null.
+When enrichment succeeds, DictionaryEntries are created (or found),
+`SourceEntryId` and `TargetEntryId` are set via navigation properties,
+and status becomes `Enriched`. Terminal validation failures set
+`InvalidSource`, `InvalidTarget`, or `InvalidLink`. Transient provider
+failures retry with exponential backoff; `ProviderError` after max retries.
 
 ### UserEntryContext
 

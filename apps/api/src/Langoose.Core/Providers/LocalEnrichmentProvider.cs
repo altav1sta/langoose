@@ -1,3 +1,4 @@
+using Langoose.Domain.Enums;
 using Langoose.Domain.Models;
 using Langoose.Domain.Services;
 
@@ -6,52 +7,28 @@ namespace Langoose.Core.Providers;
 public sealed class LocalEnrichmentProvider : IEnrichmentProvider
 {
     public Task<EnrichmentResult[]> EnrichBatchAsync(
-        EnrichmentRequest[] batch, CancellationToken cancellationToken)
+        UserDictionaryEntry[] batch, CancellationToken cancellationToken)
     {
         var results = new EnrichmentResult[batch.Length];
 
         for (var i = 0; i < batch.Length; i++)
-        {
             results[i] = Enrich(batch[i]);
-        }
 
         return Task.FromResult(results);
     }
 
-    private static EnrichmentResult Enrich(EnrichmentRequest request)
+    private static EnrichmentResult Enrich(UserDictionaryEntry item)
     {
-        var sourceEntry = new EnrichedEntry(
-            Text: request.RawText.Trim(),
-            BaseFormText: null,
-            PartOfSpeech: null,
-            GrammarLabel: null,
-            Difficulty: null);
+        EnrichedEntry[]? sourceEntries = item.SourceEntry == null
+            ? [new EnrichedEntry(item.UserInputTerm.Trim(), IsBaseForm: true, null, null)]
+            : null;
 
-        if (string.IsNullOrWhiteSpace(request.RawTranslation))
-        {
-            return new EnrichmentResult([sourceEntry], [], []);
-        }
+        var targetText = item.UserInputTranslation?.Trim() ?? item.UserInputTerm.Trim();
 
-        var translation = request.RawTranslation.Trim();
+        EnrichedEntry[]? targetEntries = item.TargetEntry == null
+            ? [new EnrichedEntry(targetText, IsBaseForm: true, null, null)]
+            : null;
 
-        var targetEntry = new EnrichedEntry(
-            Text: translation,
-            BaseFormText: null,
-            PartOfSpeech: null,
-            GrammarLabel: null,
-            Difficulty: null);
-
-        var cloze = $"____ ({translation})";
-        var sentenceText = $"{sourceEntry.Text} ({translation})";
-
-        var context = new EnrichedContext(
-            SourceText: sentenceText,
-            SourceCloze: cloze,
-            TargetText: translation,
-            SourceFormText: sourceEntry.Text,
-            TargetFormText: translation,
-            Difficulty: null);
-
-        return new EnrichmentResult([sourceEntry], [targetEntry], [context]);
+        return new EnrichmentResult(item.Id, EnrichmentStatus.Enriched, sourceEntries, targetEntries);
     }
 }

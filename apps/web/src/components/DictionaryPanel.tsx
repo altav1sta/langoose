@@ -3,8 +3,11 @@ import type { AuthResponse, DictionaryListItem } from '../api';
 function statusPillClass(entry: DictionaryListItem): string {
   if (entry.isPublic) return '';
   if (entry.enrichmentStatus === 'pending') return 'pill-pending';
-  if (entry.enrichmentStatus === 'failed') return 'pill-failed';
   if (entry.enrichmentStatus === 'enriched') return 'pill-enriched';
+  if (entry.enrichmentStatus === 'providerError') return 'pill-failed';
+  if (entry.enrichmentStatus === 'invalidSource'
+    || entry.enrichmentStatus === 'invalidTarget'
+    || entry.enrichmentStatus === 'invalidLink') return 'pill-warning';
   return '';
 }
 
@@ -45,7 +48,7 @@ export function DictionaryPanel({
             </div>
             <div className="pill-row">
               <span className={statusPillClass(entry)}>{entry.isPublic ? 'base' : entry.enrichmentStatus ?? 'custom'}</span>
-              <span>{entry.type ?? 'word'}</span>
+              <span>{entry.partOfSpeech ?? 'noun'}</span>
               {entry.difficulty ? <span>{entry.difficulty}</span> : null}
             </div>
           </article>

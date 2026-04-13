@@ -1,6 +1,9 @@
+using Langoose.Domain.Enums;
+
 namespace Langoose.Domain.Models;
 
 public sealed record EnrichmentResult(
-    EnrichedEntry[] SourceEntries,
-    EnrichedEntry[] TargetEntries,
-    EnrichedContext[] Contexts);
+    Guid UserEntryId,
+    EnrichmentStatus Status,
+    EnrichedEntry[]? SourceEntries,
+    EnrichedEntry[]? TargetEntries);

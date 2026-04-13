@@ -33,6 +33,7 @@ export type AuthFormState = {
 export type QuickAddFormState = {
   englishText: string;
   russianText: string;
+  partOfSpeech: string;
 };
 
 export const initialState: SessionState = {
@@ -46,7 +47,8 @@ export const initialAuthForm: AuthFormState = {
 
 export const initialQuickAddForm: QuickAddFormState = {
   englishText: 'look for',
-  russianText: '\u0438\u0441\u043a\u0430\u0442\u044c'
+  russianText: '\u0438\u0441\u043a\u0430\u0442\u044c',
+  partOfSpeech: 'verb'
 };
 
 export function verdictClassName(verdict: StudyAnswerResult['verdict'] | undefined) {
@@ -124,7 +126,8 @@ export function buildQuickAddPayload(form: QuickAddFormState): AddUserEntryReque
     userInputTerm: russianTerm || form.englishText,
     userInputTranslation: form.englishText,
     sourceLanguage: 'ru',
-    targetLanguage: 'en'
+    targetLanguage: 'en',
+    partOfSpeech: form.partOfSpeech
   };
 }
 

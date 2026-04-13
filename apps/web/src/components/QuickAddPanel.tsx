@@ -9,6 +9,8 @@ type QuickAddPanelProps = {
   onSubmit: () => void;
 };
 
+const posOptions = ['noun', 'verb', 'adjective', 'adverb', 'phrase', 'other'];
+
 export function QuickAddPanel({ auth, form, onFormChange, onSubmit }: QuickAddPanelProps) {
   return (
     <article className="panel">
@@ -29,6 +31,14 @@ export function QuickAddPanel({ auth, form, onFormChange, onSubmit }: QuickAddPa
           onChange={event => onFormChange(current => ({ ...current, russianText: event.target.value }))}
           placeholder="Russian glosses, comma separated"
         />
+        <select
+          value={form.partOfSpeech}
+          onChange={event => onFormChange(current => ({ ...current, partOfSpeech: event.target.value }))}
+        >
+          {posOptions.map(pos => (
+            <option key={pos} value={pos}>{pos}</option>
+          ))}
+        </select>
         <button type="submit" disabled={!auth}>Add to my dictionary</button>
       </form>
     </article>
