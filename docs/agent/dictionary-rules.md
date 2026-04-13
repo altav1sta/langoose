@@ -14,66 +14,64 @@ The dictionary uses a two-layer model:
 
 - **DictionaryEntry** — a word or form in any language. Base forms (lemmas) and
   derived forms (inflections, cases) in the same table, linked by `BaseEntryId`.
-  Only validated/enriched content. `IsPublic` controls visibility.
-- **Translations** (implicit M2M) — links base forms across languages (bidirectional).
-- **UserDictionaryEntry** — per-user custom entries referencing a DictionaryEntry.
-  `DictionaryEntryId` is nullable (null while pending enrichment).
+  `PartOfSpeech` is required. `IsPublic` controls visibility.
+- **Translations** (implicit M2M) — links base forms across languages
+  (source → target). Join table: `dictionary_entries_translations`.
+- **UserDictionaryEntry** — per-user custom entries with `SourceEntryId` and
+  `TargetEntryId` FKs (both nullable, set by the enrichment worker).
 
 ## Visibility Rules
 
-- Users see all public DictionaryEntries (base dictionary) plus their own
-  enriched UserDictionaryEntries (DictionaryEntryId is not null).
-- Pending UserDictionaryEntries (DictionaryEntryId is null) are visible in the
+- Users see all public base DictionaryEntries plus their own UserDictionaryEntries.
+- Pending UserDictionaryEntries (SourceEntryId is null) are visible in the
   dictionary list but excluded from study cards.
-- User-contributed DictionaryEntries have `IsPublic = false` — they don't appear
+- Enrichment-created DictionaryEntries have `IsPublic = false` — they don't appear
   for other users. Admin validation can promote them to public.
 
 ## Quick Add Flow
 
-1. Look up the user's translation text as a DictionaryEntry form.
-2. If found → follow BaseEntryId → check Translations navigation for linked entry
-   in the learning language → create UserDictionaryEntry linked to it (Enriched).
-3. If not found → create UserDictionaryEntry with `DictionaryEntryId = null`,
-   `EnrichmentStatus = Pending`. Worker enriches it later.
-4. Phrase vs word determined automatically from input.
+1. User provides term, optional translation, source/target languages, and POS.
+2. Check if user already has a matching entry (same user, sourceLang, targetLang,
+   POS, term, translation) — if so, return existing.
+3. Otherwise create UserDictionaryEntry with `EnrichmentStatus = Pending`.
+4. Worker handles lookup, validation, entry creation, and linking.
 
 ## Duplicate Handling
 
-- Dedup uses DictionaryEntry form lookup: user types "книгу" → find entry →
-  follow BaseEntryId → "книга" → Translations → linked base entries.
-- If a user already has a UserDictionaryEntry for a given DictionaryEntry,
-  the existing entry is updated (merged) rather than creating a duplicate.
-- Base vocabulary overlap: if the user adds a word that matches an existing
-  public DictionaryEntry, they get a UserDictionaryEntry linked to it without
-  triggering enrichment.
+- Dedup checks `(userId, sourceLang, POS, term)` in DB, then filters by
+  `targetLanguage` and `translation` in memory.
+- Same term with different translation creates a new entry (different meaning).
+- Same term with different POS creates a new entry (different word class).
+- Exact duplicates return the existing entry without modification.
 
 ## CSV Import
 
-- Required header order: term, translation(s), type.
+- Required header order: English term, Russian translation(s), Part of Speech.
+  Also accepts legacy "Type" header.
 - Optional columns: Notes, Tags.
 - Row-shape errors and malformed input prevent partial import.
-- Each row follows the quick add flow.
+- Dedup uses `(term, translation, POS)` — skips rows matching existing entries.
 - Response includes count of items pending enrichment.
 
 ## CSV Export
 
-- Returns the user's UserDictionaryEntries joined with DictionaryEntry and
+- Returns the user's UserDictionaryEntries joined with SourceEntry and
   translation data (via Translations navigation).
-- Only enriched items with DictionaryEntryId are exported.
+- Header: English term, Russian translation(s), Part of Speech, Notes, Tags.
 
 ## Clear Custom Data
 
-- Deletes all UserDictionaryEntries, UserEntryContexts, and UserProgress for
-  non-public items.
+- Deletes all UserDictionaryEntries, UserProgress, StudyEvents for non-public
+  items, ImportRecords, and ContentFlags for the user.
 - Preserves DictionaryEntries (shared content layer).
 - Preserves UserProgress for public items (base dictionary study progress).
 - Does not revoke active sessions.
 
 ## Review Checklist
 
-- Does form lookup correctly dedup across morphological variants?
+- Does dedup correctly match on (term, translation, POS, languages)?
 - Does CSV validation remain strict and predictable?
-- Does import skip base-overlap and duplicate rows correctly?
-- Does export include DictionaryEntry + translation data for enriched items?
+- Does import skip duplicate rows correctly?
+- Does export include SourceEntry + translation data?
 - Does clear-custom-data preserve DictionaryEntries and base dictionary progress?
 - Does clear-custom-data avoid revoking sessions?

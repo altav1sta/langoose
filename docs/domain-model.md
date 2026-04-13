@@ -15,7 +15,6 @@ erDiagram
     EntryContext }o--o{ EntryContext : "Translations (M2M)"
     UserDictionaryEntry }o--o| DictionaryEntry : "SourceEntryId"
     UserDictionaryEntry }o--o| DictionaryEntry : "TargetEntryId"
-    UserDictionaryEntry ||--o{ UserEntryContext : has
     UserProgress }o--|| DictionaryEntry : tracks
     StudyEvent }o--|| DictionaryEntry : references
     StudyEvent }o--o| EntryContext : tested_with
@@ -60,13 +59,6 @@ erDiagram
         string_arr Tags
         datetime CreatedAtUtc
         datetime UpdatedAtUtc
-    }
-
-    UserEntryContext {
-        guid Id PK
-        guid UserDictionaryEntryId FK
-        string Text
-        string Cloze
     }
 
     UserProgress {
@@ -204,17 +196,6 @@ When enrichment succeeds, DictionaryEntries are created (or found),
 and status becomes `Enriched`. Terminal validation failures set
 `InvalidSource`, `InvalidTarget`, or `InvalidLink`. Transient provider
 failures retry with exponential backoff; `ProviderError` after max retries.
-
-### UserEntryContext
-
-A private learning context created by the user. Linked to UserDictionaryEntry.
-
-| Field | Type | Notes |
-|-------|------|-------|
-| Id | Guid v7 | |
-| UserDictionaryEntryId | Guid | FK to UserDictionaryEntry |
-| Text | string | Full sentence |
-| Cloze | string | Sentence with gap |
 
 ### UserProgress
 

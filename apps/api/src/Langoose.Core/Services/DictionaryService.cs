@@ -23,7 +23,6 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         // User's own entries (pending, enriched, failed, etc.)
         var userItems = await dbContext.UserDictionaryEntries
             .Where(x => x.UserId == userId)
-            .Include(x => x.SourceEntry)
             .Select(x => new DictionaryListItem(
                 x.SourceEntryId ?? x.Id,
                 x.SourceEntry != null ? x.SourceEntry.Text : x.UserInputTranslation ?? x.UserInputTerm,
@@ -58,15 +57,41 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         AddUserEntryInput input,
         CancellationToken cancellationToken)
     {
-        var (userEntries, allBaseEntries) =
-            await LoadUpsertStateAsync(userId, cancellationToken);
+        var cleanedTerm = TextNormalizer.CleanInput(input.UserInputTerm);
+        var cleanedTranslation = input.UserInputTranslation is not null
+            ? TextNormalizer.CleanInput(input.UserInputTranslation)
+            : null;
 
-        var (entry, _) = UpsertUserEntry(
-            dbContext, userId,
-            input.UserInputTerm, input.UserInputTranslation,
-            input.SourceLanguage, input.TargetLanguage,
-            input.PartOfSpeech, input.Notes, input.Tags ?? [],
-            userEntries, allBaseEntries);
+        var userEntries = await dbContext.UserDictionaryEntries
+            .AsNoTracking()
+            .Where(x => x.UserId == userId
+                && x.SourceLanguage == input.SourceLanguage
+                && x.PartOfSpeech == input.PartOfSpeech
+                && x.UserInputTerm == cleanedTerm)
+            .ToListAsync(cancellationToken);
+
+        var existing = userEntries.FirstOrDefault(x =>
+            x.TargetLanguage == input.TargetLanguage
+            && x.UserInputTranslation == cleanedTranslation);
+
+        if (existing is not null)
+            return existing;
+
+        var entry = new UserDictionaryEntry
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = userId,
+            SourceLanguage = input.SourceLanguage,
+            TargetLanguage = input.TargetLanguage,
+            UserInputTerm = cleanedTerm,
+            UserInputTranslation = cleanedTranslation,
+            PartOfSpeech = input.PartOfSpeech,
+            EnrichmentStatus = EnrichmentStatus.Pending,
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        };
+
+        dbContext.UserDictionaryEntries.Add(entry);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -135,23 +160,43 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
                 Math.Max(0, rows.Length - 1), 0, errors);
         }
 
-        var (userEntries, allBaseEntries) =
-            await LoadUpsertStateAsync(userId, cancellationToken);
+        var existingKeys = (await dbContext.UserDictionaryEntries
+            .Where(x => x.UserId == userId)
+            .Select(x => new { x.UserInputTerm, x.UserInputTranslation, x.PartOfSpeech })
+            .ToListAsync(cancellationToken))
+            .Select(x => (x.UserInputTerm, x.UserInputTranslation ?? "", x.PartOfSpeech))
+            .ToHashSet();
 
         var pendingCount = 0;
+        var now = DateTimeOffset.UtcNow;
 
         foreach (var (term, translation, pos, notes, tags) in candidates)
         {
-            var (_, created) = UpsertUserEntry(
-                dbContext, userId,
-                term,
-                string.IsNullOrWhiteSpace(translation) ? null : translation,
-                "ru", "en", pos,
-                string.IsNullOrWhiteSpace(notes) ? null : notes,
-                tags, userEntries, allBaseEntries);
+            var cleanedTerm = TextNormalizer.CleanInput(term);
+            var cleanedTranslation = string.IsNullOrWhiteSpace(translation)
+                ? ""
+                : TextNormalizer.CleanInput(translation);
 
-            if (created)
-                pendingCount++;
+            if (!existingKeys.Add((cleanedTerm, cleanedTranslation, pos)))
+                continue;
+
+            dbContext.UserDictionaryEntries.Add(new UserDictionaryEntry
+            {
+                Id = Guid.CreateVersion7(),
+                UserId = userId,
+                SourceLanguage = "ru",
+                TargetLanguage = "en",
+                UserInputTerm = cleanedTerm,
+                UserInputTranslation = cleanedTranslation.Length > 0
+                    ? cleanedTranslation
+                    : null,
+                PartOfSpeech = pos,
+                EnrichmentStatus = EnrichmentStatus.Pending,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+
+            pendingCount++;
         }
 
         dbContext.ImportRecords.Add(new ImportRecord
@@ -173,6 +218,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         Guid userId, CancellationToken cancellationToken)
     {
         var entries = await dbContext.UserDictionaryEntries
+            .AsNoTracking()
             .Where(x => x.UserId == userId)
             .Include(x => x.SourceEntry)
             .ThenInclude(x => x!.Translations)
@@ -250,133 +296,8 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private static (UserDictionaryEntry Entry, bool Created) UpsertUserEntry(
-        AppDbContext dbContext,
-        Guid userId,
-        string rawTerm,
-        string? rawTranslation,
-        string sourceLanguage,
-        string targetLanguage,
-        string partOfSpeech,
-        string? notes,
-        List<string> tags,
-        List<UserDictionaryEntry> userEntries,
-        List<DictionaryEntry> allBaseEntries)
-    {
-        var cleanedTerm = TextNormalizer.CleanInput(rawTerm);
-        var normalizedTerm =
-            TextNormalizer.NormalizeForComparison(cleanedTerm);
-        var cleanedTranslation = rawTranslation is not null
-            ? TextNormalizer.CleanInput(rawTranslation)
-            : null;
 
-        // 1. Check if user already has this term → merge
-        var existingUserEntry = userEntries.FirstOrDefault(x =>
-            TextNormalizer.NormalizeForComparison(x.UserInputTerm) == normalizedTerm);
 
-        if (existingUserEntry is not null)
-        {
-            MergeUserEntry(existingUserEntry, notes, tags);
-
-            return (existingUserEntry, false);
-        }
-
-        // 2. Source-language lookup: term → DictionaryEntry form → base
-        DictionaryEntry? sourceBase = null;
-        DictionaryEntry? targetBase = null;
-
-        var sourceForm = allBaseEntries.FirstOrDefault(x =>
-            x.Language == sourceLanguage && x.PartOfSpeech == partOfSpeech
-            && TextNormalizer.NormalizeForComparison(x.Text) == normalizedTerm);
-
-        sourceBase = sourceForm is not null && sourceForm.BaseEntryId is not null
-            ? allBaseEntries.FirstOrDefault(x => x.Id == sourceForm.BaseEntryId)
-            : sourceForm;
-
-        // 3. Check Translations for a linked target-language entry
-        if (sourceBase is not null)
-        {
-            targetBase = sourceBase.Translations
-                .FirstOrDefault(x => x.Language == targetLanguage);
-        }
-
-        // 4. Fallback: direct match on the target-language text
-        if (targetBase is null && !string.IsNullOrWhiteSpace(cleanedTranslation))
-        {
-            var normalizedTranslation =
-                TextNormalizer.NormalizeForComparison(cleanedTranslation);
-
-            targetBase = allBaseEntries.FirstOrDefault(x =>
-                x.Language == targetLanguage && x.BaseEntryId is null
-                && x.PartOfSpeech == partOfSpeech
-                && TextNormalizer.NormalizeForComparison(x.Text) == normalizedTranslation);
-        }
-
-        var entry = new UserDictionaryEntry
-        {
-            Id = Guid.CreateVersion7(),
-            UserId = userId,
-            SourceEntryId = sourceBase?.Id,
-            TargetEntryId = targetBase?.Id,
-            SourceLanguage = sourceLanguage,
-            TargetLanguage = targetLanguage,
-            UserInputTerm = cleanedTerm,
-            UserInputTranslation = cleanedTranslation,
-            PartOfSpeech = partOfSpeech,
-            EnrichmentStatus = sourceBase is not null
-                ? EnrichmentStatus.Enriched
-                : EnrichmentStatus.Pending,
-            Notes = notes,
-            Tags = [.. tags],
-            CreatedAtUtc = DateTimeOffset.UtcNow,
-            UpdatedAtUtc = DateTimeOffset.UtcNow
-        };
-
-        dbContext.UserDictionaryEntries.Add(entry);
-        userEntries.Add(entry);
-
-        return (entry, true);
-    }
-
-    private static void MergeUserEntry(
-        UserDictionaryEntry existing, string? notes, List<string> tags)
-    {
-        if (tags.Count > 0)
-        {
-            existing.Tags = [.. existing.Tags
-                .Concat(tags)
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(TextNormalizer.CleanInput)
-                .Distinct(StringComparer.OrdinalIgnoreCase)];
-        }
-
-        if (!string.IsNullOrWhiteSpace(notes)
-            && !(existing.Notes ?? "").Contains(
-                notes, StringComparison.OrdinalIgnoreCase))
-        {
-            existing.Notes = string.IsNullOrWhiteSpace(existing.Notes)
-                ? notes
-                : $"{existing.Notes}; {notes}";
-        }
-
-        existing.UpdatedAtUtc = DateTimeOffset.UtcNow;
-    }
-
-    private async
-        Task<(List<UserDictionaryEntry> UserEntries, List<DictionaryEntry> BaseEntries)>
-        LoadUpsertStateAsync(Guid userId, CancellationToken cancellationToken)
-    {
-        var userEntries = await dbContext.UserDictionaryEntries
-            .Where(x => x.UserId == userId)
-            .ToListAsync(cancellationToken);
-
-        var allBaseEntries = await dbContext.DictionaryEntries
-            .Where(x => x.IsPublic)
-            .Include(x => x.Translations)
-            .ToListAsync(cancellationToken);
-
-        return (userEntries, allBaseEntries);
-    }
 
     private static void ValidateCsvHeader(string headerRow)
     {
