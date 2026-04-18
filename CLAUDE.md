@@ -9,9 +9,11 @@
 - `apps/api/src/Langoose.Api` contains controllers, DTOs, middleware, and DI setup.
 - `apps/api/src/Langoose.Worker` contains the background processing host.
 - `apps/api/src/Langoose.Auth.Data` contains auth persistence.
+- `apps/api/src/Langoose.Corpus.Data` contains the read-only corpus database access layer (Dapper, raw SQL schema).
+- `apps/api/src/Langoose.Corpus.DbTool` contains the CLI for initialising and importing into the corpus database.
 - `apps/api/tests` contains backend unit and integration tests.
 - `apps/web` contains the React 19 + TypeScript + Vite frontend.
-- App and auth persistence use PostgreSQL through EF Core.
+- App and auth persistence use PostgreSQL through EF Core. Corpus persistence uses PostgreSQL through Dapper (read-only).
 
 ## Core Rules
 

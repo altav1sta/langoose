@@ -26,6 +26,8 @@ The product combines:
 - [`apps/web`](apps/web): React frontend
 - [`docs`](docs): supporting product and implementation docs
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): contribution workflow
+- [`ATTRIBUTION.md`](ATTRIBUTION.md): third-party data sources and
+  license terms (Wiktionary via Kaikki, future: wordfreq, Tatoeba, …)
 
 ## Quick Start
 

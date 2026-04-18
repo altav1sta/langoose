@@ -18,16 +18,17 @@ ASP.NET Core with PostgreSQL; the frontend is React + TypeScript + Vite.
                   └─────────────┘
                         │
                         ▼
-                  ┌─────────────┐
-                  │ Gemini Flash│
-                  │   (LLM)    │
-                  └─────────────┘
+                  ┌──────────────┐
+                  │  Corpus DB   │
+                  │ (Wiktionary, │
+                  │  read-only)  │
+                  └──────────────┘
 ```
 
 The API serves the SPA and handles authentication, dictionary management, and study
 sessions. The Worker is a separate process that runs background enrichment — polling
-pending items, calling the LLM, and writing enriched content back to the database.
-Both share the same PostgreSQL instance.
+pending items, looking up linguistic data from the read-only corpus database, and
+writing enriched content back to the application database.
 
 ## Onion Architecture
 
@@ -46,8 +47,8 @@ Dependencies point inward. Domain has no dependencies; everything else depends o
 │  ┌──────────────────────────────────────┐    │
 │  │ DictionaryService, StudyService,     │    │
 │  │ ContentService,                      │    │
-│  │ LocalEnrichmentProvider,             │    │
-│  │ GeminiEnrichmentProvider,            │    │
+│  │ LocalEnrichmentProvider              │    │
+│  │ (corpus provider tracked in #92),    │    │
 │  │ TextNormalizer                       │    │
 │  └──────────────────┬───────────────────┘    │
 ├─────────────────────┼────────────────────────┤

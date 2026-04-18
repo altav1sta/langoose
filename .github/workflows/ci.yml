@@ -148,6 +148,32 @@ jobs:
       - name: Run backend integration tests
         run: dotnet test apps/api/tests/Langoose.Api.IntegrationTests/Langoose.Api.IntegrationTests.csproj --configuration Release --no-restore /p:RestoreConfigFile=${{ github.workspace }}/apps/api/NuGet.Config
 
+  corpus-integration-tests:
+    name: Corpus Integration Tests
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache Postgres image
+        uses: ./.github/actions/cache-docker-image
+        with:
+          image: postgres:17-alpine
+
+      - name: Restore corpus integration tests
+        run: dotnet restore apps/api/tests/Langoose.Corpus.IntegrationTests/Langoose.Corpus.IntegrationTests.csproj /p:RestoreConfigFile=${{ github.workspace }}/apps/api/NuGet.Config
+
+      - name: Run corpus integration tests
+        run: dotnet test apps/api/tests/Langoose.Corpus.IntegrationTests/Langoose.Corpus.IntegrationTests.csproj --configuration Release --no-restore /p:RestoreConfigFile=${{ github.workspace }}/apps/api/NuGet.Config
+
   frontend-tests:
     name: Frontend Tests
     runs-on: ubuntu-latest
@@ -227,6 +253,7 @@ jobs:
       - backend-build
       - backend-unit-tests
       - backend-integration-tests
+      - corpus-integration-tests
       - frontend-tests
       - frontend-build
       - e2e

@@ -59,15 +59,15 @@ Complete the core product loop for a returning learner.
 - Sentence-based study cards with per-sentence difficulty, grammar hints, and expected answer forms
 - Services use domain models only; DTOs map in the presentation layer
 
-**AI-powered enrichment (#56, depends on #68)**
+**Dictionary enrichment pipeline (#92, replaces #56)**
 
 - Async background enrichment for custom words added by users
-- SharedItem is the shared content layer: only enriched/validated content lives there, reusable across users
-- UserItem owns the enrichment lifecycle (pending/failed state); linked to SharedItem once enriched
-- GlossSurfaceForm dedup: morphological variants resolved to canonical form by LLM, cached for instant lookup
-- Provider: best available free-tier LLM (currently Gemini Flash), abstracted behind IEnrichmentProvider
-- Batch processing within external API limits for CSV imports and bulk operations
-- Rate limiting to stay within API quotas and prevent abuse
+- DictionaryEntry is the shared content layer: only enriched/validated content lives there, reusable across users
+- UserDictionaryEntry owns the enrichment lifecycle (pending/failed state); linked to DictionaryEntry once enriched
+- Form dedup: inflected variants resolved to canonical lemma via the corpus, cached for instant lookup
+- Provider: self-hosted corpus database (Wiktionary via Kaikki, supplementary sources), abstracted behind IEnrichmentProvider. Replaces the original LLM-based direction (#56), which hit blocking issues with free-tier Gemini quotas.
+- Batch processing within the worker for CSV imports and bulk operations
+- Per-user throttling to prevent abuse
 
 **Study sessions**
 

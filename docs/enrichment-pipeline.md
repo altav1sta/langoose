@@ -42,9 +42,9 @@ User adds "book" (noun) + "книга"
                │
                ▼
       ┌─────────────────┐
-      │  LLM (Gemini)   │
-      │  or Local        │
-      │  fallback        │
+      │  Corpus lookup  │
+      │  (or Local      │
+      │   fallback)     │
       └────────┬────────┘
                │
                ▼
@@ -71,9 +71,10 @@ POS comes from `UserDictionaryEntry.PartOfSpeech`.
 Two implementations in Core:
 
 - **LocalEnrichmentProvider** — returns base-form entries, always valid. Used as
-  fallback when AI enrichment is disabled.
-- **GeminiEnrichmentProvider** — calls Gemini Flash REST API (future). Validates
-  terms, generates derived forms, and validates semantic links.
+  fallback when corpus enrichment is unavailable.
+- **CorpusEnrichmentProvider** (future, tracked in #92) — looks up the corpus
+  database (`langoose_corpus`) backed by Wiktionary and supplementary sources.
+  Validates terms, generates derived forms, validates translation pairs.
 
 ## What the Provider Returns
 
@@ -133,9 +134,10 @@ No provider call needed.
 ## Rate Limiting
 
 - **Per-user**: maximum items per hour/day (configurable). Prevents abuse.
-- **API-level**: Gemini free-tier limits (requests per minute/day). In-memory
-  sliding window in the background worker.
-- **Backoff**: on HTTP 429 or 5xx from Gemini, the worker sets
+  Tracked in #77.
+- **Provider-side**: corpus lookups have no external API limits. The corpus
+  database is local and unmetered.
+- **Backoff**: on transient provider errors, the worker sets
   `EnrichmentNotBefore` with exponential delay. Retried later.
 - **Permanent failure**: after max retries (configurable, default 3), the item
   is marked `ProviderError`.

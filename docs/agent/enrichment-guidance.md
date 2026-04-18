@@ -67,8 +67,103 @@ POS is not on the entry — it comes from `UserDictionaryEntry.PartOfSpeech`.
 
 ### Implementations (in Core/Providers)
 
-- `LocalEnrichmentProvider` — returns base-form entries, always valid
-- `GeminiEnrichmentProvider` — Gemini Flash REST API (future)
+- `LocalEnrichmentProvider` — returns base-form entries, always valid. Used as
+  a dev-mode fallback before the corpus pipeline lands.
+- (future) `CorpusEnrichmentProvider` — looks up the corpus database (#92) to
+  validate inputs, generate inflected forms, and resolve translations. Same
+  contract as `LocalEnrichmentProvider`. Tracked under #92.
+
+## Corpus database (langoose_corpus)
+
+A separate, read-only Postgres database providing reference linguistic data
+that powers the corpus-based provider. Schema and importer live in:
+
+- `apps/api/src/Langoose.Corpus.Data/` — embedded SQL schema files, POCOs,
+  Dapper-based query layer (no EF, no migrations).
+- `apps/api/src/Langoose.Corpus.DbTool/` — CLI for `init` and
+  `import-wiktionary` (and future importers).
+
+### Source-first schema
+
+Each corpus source gets its own tables that mirror its native shape rather
+than fitting into a unified schema. Wiktionary uses a hybrid approach:
+structured columns (`lang_code`, `word`, `pos`) for fast indexed lookups
+plus a `data JSONB` column preserving the source entry as-is (`forms[]`,
+`senses[]`, `translations[]`, `etymology_number`, `sounds`, `categories`,
+…). The structured columns duplicate three source fields — a conscious
+trade-off: ~2-3% extra JSONB storage in exchange for query ergonomics,
+better planner statistics on the hot lookup path, and a faster import
+(`data` is the raw source line, written through COPY BINARY with no
+per-row re-serialisation).
+
+Concrete consequences of "source-first":
+
+- **No filtering at import**. The importer does not drop entries by POS
+  (proper nouns, abbreviations, etc.) — it stores every entry the source
+  emits. Filtering happens at query time so the allow-list can change
+  without a re-import.
+- **Raw values, no normalisation**. The structured `pos` column stores
+  Kaikki's raw POS string (e.g. `adj`, not `adjective`). Mapping to a
+  canonical vocabulary is a query-time concern.
+- **Etymology splits preserved as separate rows**. `wiktionary_entries`
+  has no UNIQUE / PK on `(lang_code, word, pos, source_version)` because
+  Wiktionary publishes one entry per etymology: English `lead` (noun) is
+  two entries — the metal and the leash — with distinct `senses[]` and
+  `translations[]` in their JSONB documents. Lookups by `(lang_code,
+  word, pos)` may return multiple rows, and the provider merges/picks
+  across them at query time rather than the schema forcing a lossy
+  collapse at import time.
+- **Form lookups go through JSONB containment, not a dedicated form
+  table**. To resolve an inflected form (`бронировал`) to its lemma
+  (`бронировать`), query with `data @> '{"forms":[{"form":"бронировал"}]}'::jsonb`
+  — indexed by the GIN on `data`. A materialised form-index table is
+  pure derived data; if benchmarks ever show containment as too slow, it
+  can be built as a follow-up step without re-importing the source.
+
+Invariant for query authors: **always filter by `lang_code`**. Every
+index on the table is scoped by language; every partitioning scheme we'd
+adopt later (#96 territory) is keyed by language. Queries that omit
+`lang_code` will full-scan and will break once we partition.
+
+Future sources will add their own tables without modifying existing ones:
+- `wordfreq_rankings` (flat) — frequency ranks per word
+- `cefr_levels` (flat) — CEFR difficulty per word
+- `tatoeba_sentences` + `tatoeba_links` (hybrid) — example sentences for
+  context generation (#91)
+
+### JSON serialisation
+
+Corpus document records (`WiktionaryEntry`, `WiktionaryForm`, etc.) use
+System.Text.Json source generation via `CorpusJsonContext`. Property names
+map to the source's snake_case fields automatically — no per-property
+attributes. Add new types to `CorpusJsonContext` with `[JsonSerializable]`
+when introducing them.
+
+### Distribution
+
+For development the DbTool runs `import-wiktionary --lang en --source <jsonl>`
+against a Kaikki extract. For production a pre-built `pg_dump` artifact is
+restored — much faster than re-importing JSONL on every deploy.
+
+Source files (Kaikki JSONL, Tatoeba TSV) are downloaded out of band by
+maintainer scripts under `scripts/`, never fetched at deploy time.
+
+### Attribution
+
+Wiktionary data is licensed CC-BY-SA 4.0. Future source additions
+(Tatoeba CC-BY 2.0, CEFR-J open) carry their own attribution
+requirements. The canonical list of every external data source shipped
+or evaluated by the project lives in
+[`ATTRIBUTION.md`](../../ATTRIBUTION.md) at the repo root — add new
+sources there when their import code lands. Two distinct obligations:
+
+- **Redistribution.** Any dump artifact published via
+  `scripts/publish-{full,mini}-corpus-dump.sh` must carry the attribution
+  file; the scripts upload `ATTRIBUTION.md` alongside the `.dump` asset
+  and cite the sources in the release body.
+- **UI surfacing.** The web UI must render a visible attribution notice
+  wherever Wiktionary-derived content (translations, forms, example
+  sentences) is shown to end users. Tracked under epic #92.
 
 ## Background Worker
 
@@ -138,9 +233,11 @@ For each term, the provider produces:
 
 ## Rate Limiting
 
-- Per-user throttle: max items per hour/day
-- API-level: Gemini free-tier limits, in-memory sliding window
-- Backoff: 429/5xx sets `EnrichmentNotBefore` with exponential delay
+- Per-user throttle: max items per hour/day (#77)
+- Provider-side: corpus lookups have no external API limits; the corpus is
+  local and unmetered
+- Backoff: transient provider exceptions set `EnrichmentNotBefore` with
+  exponential delay
 - Permanent failure after MaxRetries → ProviderError
 
 ## Review Checklist
