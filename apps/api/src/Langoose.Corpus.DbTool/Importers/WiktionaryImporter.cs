@@ -179,7 +179,12 @@ public sealed class WiktionaryImporter(
         await foreach (var entry in StreamEntriesAsync(sourcePath, ct))
         {
             await importer.StartRowAsync(ct);
-            await importer.WriteAsync(entry.Data.LangCode, NpgsqlDbType.Varchar, ct);
+            // langCode (the constructor argument) is the single source of
+            // truth for the stored column. The source entry's lang_code is
+            // validated to match in StreamEntriesAsync, so these are
+            // always equal here — writing the constructor value keeps the
+            // DELETE/COPY/metadata triple unambiguously consistent.
+            await importer.WriteAsync(langCode, NpgsqlDbType.Varchar, ct);
             await importer.WriteAsync(entry.Data.Word, NpgsqlDbType.Varchar, ct);
             await importer.WriteAsync(entry.Data.Pos, NpgsqlDbType.Varchar, ct);
             await importer.WriteAsync(sourceVersion, NpgsqlDbType.Varchar, ct);
@@ -208,7 +213,7 @@ public sealed class WiktionaryImporter(
         return count;
     }
 
-    private static async IAsyncEnumerable<RawWiktionaryEntry> StreamEntriesAsync(
+    private async IAsyncEnumerable<RawWiktionaryEntry> StreamEntriesAsync(
         string sourcePath,
         [EnumeratorCancellation] CancellationToken ct)
     {
@@ -220,30 +225,65 @@ public sealed class WiktionaryImporter(
 
         using var reader = new StreamReader(readStream);
         string? line;
+        long lineNumber = 0;
 
         while ((line = await reader.ReadLineAsync(ct)) != null)
         {
+            lineNumber++;
+
             if (string.IsNullOrWhiteSpace(line))
                 continue;
 
+            // Strict parsing. Silent skips on a release-building pipeline
+            // would be indistinguishable from success — a truncated
+            // download or a corrupted line could produce a "successful"
+            // dump missing entries, with metadata stamped as if nothing
+            // was wrong. Fail fast with line number + preview so the
+            // operator can inspect or re-download.
             WiktionaryEntry? data;
-
             try
             {
                 data = JsonSerializer.Deserialize(line, CorpusJsonContext.Default.WiktionaryEntry);
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
-                // Malformed lines are skipped so a single corrupt entry
-                // doesn't fail the entire import.
-                continue;
+                throw new InvalidOperationException(
+                    $"Malformed JSON on line {lineNumber} of '{sourcePath}': {ex.Message}. " +
+                    $"Line preview: {Preview(line)}. " +
+                    $"Re-download the source file or inspect the line.",
+                    ex);
             }
 
-            if (data is null
-                || string.IsNullOrEmpty(data.Word)
+            if (data is null)
+            {
+                throw new InvalidOperationException(
+                    $"Line {lineNumber} of '{sourcePath}' deserialised to null. " +
+                    $"Line preview: {Preview(line)}.");
+            }
+
+            if (string.IsNullOrEmpty(data.Word)
                 || string.IsNullOrEmpty(data.LangCode)
                 || string.IsNullOrEmpty(data.Pos))
-                continue;
+            {
+                throw new InvalidOperationException(
+                    $"Entry on line {lineNumber} of '{sourcePath}' is missing a required field. " +
+                    $"Got word='{data.Word}', lang_code='{data.LangCode}', pos='{data.Pos}'.");
+            }
+
+            // Fail fast if the source file's declared lang_code doesn't
+            // match the --lang flag. Without this check, the DELETE
+            // (keyed on the constructor's langCode) and the COPY (would
+            // otherwise write the source's lang_code) could disagree —
+            // existing rows of langCode wiped, new rows inserted under a
+            // different code, and metadata stamped under the wrong key.
+            // Transaction rollback in the caller restores pre-import
+            // state cleanly.
+            if (!string.Equals(data.LangCode, langCode, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Source file '{sourcePath}' contains entry '{data.Word}' with lang_code='{data.LangCode}', " +
+                    $"but --lang was set to '{langCode}'. Either pass --lang {data.LangCode} or use a matching source file.");
+            }
 
             yield return new RawWiktionaryEntry(data, line);
         }
@@ -251,6 +291,9 @@ public sealed class WiktionaryImporter(
         if (readStream != fileStream)
             await readStream.DisposeAsync();
     }
+
+    private static string Preview(string line) =>
+        line.Length > 200 ? line[..200] + "..." : line;
 
     private sealed record RawWiktionaryEntry(WiktionaryEntry Data, string RawJson);
 }

@@ -22,15 +22,27 @@
 #   scripts/build-full-corpus-dump.sh
 #
 # Env overrides:
-#   LANGUAGES="English Russian German"   Kaikki language names (default: English Russian)
+#   LANGUAGES="en,ru,de"                 Comma-separated ISO 639 codes.
+#                                        Default: "en,ru". Codes are
+#                                        resolved to Kaikki URL segments
+#                                        by scripts/download-kaikki.sh;
+#                                        add new codes there.
 #   DATE_STAMP="2026-04-15"              Override the date in the output filename
 #   FORCE=1                              Skip the interactive confirmation prompt
 
 set -euo pipefail
 
 DATE_STAMP="${DATE_STAMP:-$(date -u +%Y-%m-%d)}"
-LANGUAGES="${LANGUAGES:-English Russian}"
+LANGUAGES="${LANGUAGES:-en,ru}"
 DUMP_FILE="data/dump/corpus-full-${DATE_STAMP}.dump"
+
+# Parse LANGUAGES into LANG_CODES. Strip whitespace, drop blanks.
+IFS=',' read -ra LANG_CODES <<< "${LANGUAGES// /}"
+LANG_CODES=($(printf '%s\n' "${LANG_CODES[@]}" | grep -v '^$' || true))
+if [[ ${#LANG_CODES[@]} -eq 0 ]]; then
+    echo "LANGUAGES is empty or missing. Example: LANGUAGES='en,ru'." >&2
+    exit 1
+fi
 
 mkdir -p data/corpus data/dump
 
@@ -38,7 +50,7 @@ echo ""
 echo "==================================================================="
 echo " FULL CORPUS DUMP BUILD"
 echo "==================================================================="
-echo " Languages to (re-)import : $LANGUAGES"
+echo " Languages to (re-)import : ${LANG_CODES[*]}"
 echo " Output dump file         : $DUMP_FILE"
 echo ""
 echo " This will MUTATE your local langoose_corpus DB:"
@@ -67,19 +79,17 @@ echo "==> Resetting Wiktionary data so the dump matches LANGUAGES exactly"
 dotnet run --project apps/api/src/Langoose.Corpus.DbTool --configuration Release -- \
     reset-wiktionary
 
-for LANG_NAME in $LANGUAGES; do
-    LANG_LOWER=$(echo "$LANG_NAME" | tr '[:upper:]' '[:lower:]')
-    LANG_CODE=$(echo "$LANG_LOWER" | cut -c1-2)
-    SRC_FILE="data/corpus/wiktionary-${LANG_LOWER}.jsonl.gz"
+for LANG_CODE in "${LANG_CODES[@]}"; do
+    SRC_FILE="data/corpus/wiktionary-${LANG_CODE}.jsonl.gz"
 
     if [[ ! -f "$SRC_FILE" ]]; then
-        echo "==> Downloading $LANG_NAME"
-        scripts/download-kaikki.sh "$LANG_NAME" data/corpus
+        echo "==> Downloading $LANG_CODE"
+        scripts/download-kaikki.sh "$LANG_CODE" data/corpus
     else
         echo "==> Reusing cached $SRC_FILE"
     fi
 
-    echo "==> Importing $LANG_NAME ($LANG_CODE) — indexes deferred"
+    echo "==> Importing $LANG_CODE — indexes deferred"
     dotnet run --project apps/api/src/Langoose.Corpus.DbTool --configuration Release -- \
         import-wiktionary --lang "$LANG_CODE" --source "$SRC_FILE" --defer-indexes
 done

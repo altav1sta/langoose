@@ -215,6 +215,128 @@ public sealed class WiktionaryImporterTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task ImportAsync_WhenSourceLangCodeDisagreesWithFlag_FailsAndRollsBack()
+    {
+        // Seed some existing data under 'en' so we can confirm the
+        // rollback restores it.
+        var seed = new WiktionaryImporter(postgres.DataSource, "en", "seed");
+        await seed.ImportAsync(FixtureEnPath);
+
+        await using var connection = await postgres.DataSource.OpenConnectionAsync();
+        var countBefore = await connection.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*) FROM wiktionary_entries WHERE lang_code = 'en'");
+        countBefore.Should().Be(6);
+
+        // Now try to import the RU fixture under --lang en. The
+        // importer's pre-COPY DELETE would wipe the 6 en rows; without
+        // the validation, the RU entries would then land with
+        // lang_code='ru' while metadata gets recorded under
+        // source_version_wiktionary_en. Guard must trip before any of
+        // that happens.
+        var mismatched = new WiktionaryImporter(postgres.DataSource, "en", "mismatched");
+
+        var act = async () => await mismatched.ImportAsync(FixtureRuPath);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*lang_code='ru'*--lang was set to 'en'*");
+
+        // Rollback restored the seeded state.
+        var countAfter = await connection.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*) FROM wiktionary_entries WHERE lang_code = 'en'");
+        countAfter.Should().Be(6);
+
+        // No RU rows were smuggled in.
+        var ruCount = await connection.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*) FROM wiktionary_entries WHERE lang_code = 'ru'");
+        ruCount.Should().Be(0);
+
+        // Metadata wasn't updated for the failed import.
+        var metadataRows = (await connection.QueryAsync<string>(
+            "SELECT key FROM corpus_metadata ORDER BY key")).ToArray();
+        metadataRows.Should().ContainSingle()
+            .Which.Should().Be("source_version_wiktionary_en");
+    }
+
+    [Fact]
+    public async Task ImportAsync_OnMalformedJsonLine_FailsAndRollsBack()
+    {
+        // Seed some existing data so we can confirm rollback.
+        var seed = new WiktionaryImporter(postgres.DataSource, "en", "seed");
+        await seed.ImportAsync(FixtureEnPath);
+
+        // Build a fixture with a valid entry, a malformed line, then
+        // another valid entry. Writes to a temp file so we don't pollute
+        // the committed fixtures directory.
+        var tempPath = Path.Combine(Path.GetTempPath(), $"wiktionary-malformed-{Guid.NewGuid():N}.jsonl");
+        try
+        {
+            await File.WriteAllLinesAsync(tempPath, new[]
+            {
+                """{"word":"book","lang_code":"en","pos":"noun","senses":[]}""",
+                """{"word":"truncated","lang_code":"en",""",  // malformed — file truncated mid-object
+                """{"word":"run","lang_code":"en","pos":"verb","senses":[]}"""
+            });
+
+            var importer = new WiktionaryImporter(postgres.DataSource, "en", "should-not-commit");
+
+            var act = async () => await importer.ImportAsync(tempPath);
+
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*Malformed JSON on line 2*");
+
+            // Rollback preserved the seeded data and did not advance
+            // metadata past "seed".
+            await using var connection = await postgres.DataSource.OpenConnectionAsync();
+            var count = await connection.ExecuteScalarAsync<long>(
+                "SELECT COUNT(*) FROM wiktionary_entries WHERE lang_code = 'en'");
+            count.Should().Be(6);
+
+            var sourceVersion = await connection.QuerySingleOrDefaultAsync<string>(
+                "SELECT value FROM corpus_metadata WHERE key = 'source_version_wiktionary_en'");
+            sourceVersion.Should().Be("seed");
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+                File.Delete(tempPath);
+        }
+    }
+
+    [Fact]
+    public async Task ImportAsync_OnEntryMissingRequiredField_FailsAndRollsBack()
+    {
+        var seed = new WiktionaryImporter(postgres.DataSource, "en", "seed");
+        await seed.ImportAsync(FixtureEnPath);
+
+        var tempPath = Path.Combine(Path.GetTempPath(), $"wiktionary-missing-field-{Guid.NewGuid():N}.jsonl");
+        try
+        {
+            await File.WriteAllLinesAsync(tempPath, new[]
+            {
+                """{"word":"book","lang_code":"en","pos":"noun","senses":[]}""",
+                """{"word":"nopos","lang_code":"en","pos":"","senses":[]}"""  // empty pos
+            });
+
+            var importer = new WiktionaryImporter(postgres.DataSource, "en", "should-not-commit");
+
+            var act = async () => await importer.ImportAsync(tempPath);
+
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*missing a required field*");
+
+            await using var connection = await postgres.DataSource.OpenConnectionAsync();
+            var count = await connection.ExecuteScalarAsync<long>(
+                "SELECT COUNT(*) FROM wiktionary_entries WHERE lang_code = 'en'");
+            count.Should().Be(6);
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+                File.Delete(tempPath);
+        }
+    }
+
+    [Fact]
     public async Task ImportAsync_RecordsSourceVersionInMetadata()
     {
         var importer = new WiktionaryImporter(postgres.DataSource, "en", "v2026.04.15");

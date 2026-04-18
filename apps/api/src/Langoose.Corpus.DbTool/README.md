@@ -24,11 +24,12 @@ docker compose up -d postgres
 ```
 
 By default the data lives in a Docker-managed volume. To put it on a
-specific drive (e.g. `D:` on Windows when `C:` is full), create a `.env`
-file at the repo root:
+specific path (e.g. a different drive on Windows when the system drive
+is full, or an external SSD on Linux/macOS), create a `.env` file at
+the repo root:
 
 ```
-POSTGRES_DATA_PATH=D:/langoose-data/postgres
+POSTGRES_DATA_PATH=./data/postgres
 ```
 
 then `docker compose up -d postgres` again. The bind mount path will be
@@ -160,8 +161,10 @@ prompt with `FORCE=1` (for scripting or CI).
 
 Env overrides:
 ```bash
-LANGUAGES="English Russian German" scripts/build-full-corpus-dump.sh
-LIMIT=2000 LANGUAGES="English" scripts/build-test-corpus-dump.sh
+# LANGUAGES is a comma-separated list of ISO 639 codes.
+# Unsupported codes fail fast with a pointer to that file. Default: "en,ru".
+LANGUAGES="ang,enm,de" scripts/build-full-corpus-dump.sh
+LIMIT=2000 LANGUAGES="en" scripts/build-test-corpus-dump.sh
 DATE_STAMP=2026-04-15 scripts/build-full-corpus-dump.sh
 FORCE=1 scripts/build-test-corpus-dump.sh   # no confirmation prompt
 ```
