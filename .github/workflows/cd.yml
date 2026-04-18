@@ -44,7 +44,12 @@ jobs:
               return;
             }
 
-            const backend = files.some(f => f.filename.startsWith('apps/api/'));
+            const isCorpusOnly = (filename) =>
+              filename.startsWith('apps/api/src/Langoose.Corpus.') ||
+              filename.startsWith('apps/api/tests/Langoose.Corpus.');
+
+            const backend = files.some(f =>
+              f.filename.startsWith('apps/api/') && !isCorpusOnly(f.filename));
             const frontend = files.some(f => f.filename.startsWith('apps/web/'));
 
             core.setOutput('app', (backend || frontend) ? 'true' : 'false');

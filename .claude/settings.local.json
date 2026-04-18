@@ -5,11 +5,14 @@
       "Bash(bash scripts/sync-rules.sh to-claude)",
       "Bash(bash scripts/sync-rules.sh to-codex)",
       "Bash(docker compose:*)",
+      "Bash(docker info:*)",
+      "Bash(docker version:*)",
       "Bash(dotnet add:*)",
       "Bash(dotnet build:*)",
       "Bash(dotnet ef:*)",
       "Bash(dotnet format:*)",
       "Bash(dotnet new:*)",
+      "Bash(dotnet sln:*)",
       "Bash(dotnet test:*)",
       "Bash(echo \"---EXIT:$?\")",
       "Bash(gh api:*)",
@@ -26,6 +29,8 @@
       "Bash(npx tsc:*)",
       "Bash(npx vitest:*)",
       "Bash(xargs grep:*)",
+      "Skill(sync-rules)",
+      "Skill(sync-rules:*)",
       "Skill(what-next)",
       "Skill(what-next:*)"
     ]

@@ -1,0 +1,53 @@
+name: Cache Docker image
+description: >
+  Caches a single Docker image by its name. On a cache hit the image is
+  loaded from a tarball; on a miss it is pulled and saved for the next run.
+  Use this action once per image that a job needs — each image has its own
+  cache key, so caches are shared across any jobs that pull the same image.
+
+inputs:
+  image:
+    description: Full image name including tag (e.g. "postgres:17-alpine").
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve cache path
+      id: paths
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+      run: |
+        set -euo pipefail
+        slug=$(echo "$IMAGE" | tr '/:' '__')
+        dir="$HOME/.docker-images/$slug"
+        tar="$dir/image.tar"
+        mkdir -p "$dir"
+        echo "slug=$slug" >> "$GITHUB_OUTPUT"
+        echo "dir=$dir" >> "$GITHUB_OUTPUT"
+        echo "tar=$tar" >> "$GITHUB_OUTPUT"
+
+    - name: Restore image cache
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.paths.outputs.dir }}
+        key: docker-image-${{ steps.paths.outputs.slug }}
+
+    - name: Load or pull image
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        TAR: ${{ steps.paths.outputs.tar }}
+        CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+      run: |
+        set -euo pipefail
+        if [ "$CACHE_HIT" = "true" ] && [ -f "$TAR" ]; then
+          echo "Loading $IMAGE from cache"
+          docker load -i "$TAR"
+        else
+          echo "Pulling $IMAGE (cache miss)"
+          docker pull "$IMAGE"
+          docker save "$IMAGE" -o "$TAR"
+        fi

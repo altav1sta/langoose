@@ -1,0 +1,82 @@
+name: Corpus Restore
+
+# Manually-triggered restore of a pre-built corpus dump (GitHub Release
+# artifact) into a target environment's corpus database. The dump itself is
+# produced out of band by the maintainer (see
+# apps/api/src/Langoose.Corpus.DbTool/README.md for the manual flow).
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_environment:
+        description: Target environment to restore into
+        required: true
+        type: choice
+        default: staging
+        options:
+          - staging
+          - production
+      release_tag:
+        description: "GitHub Release tag holding the dump. Staging: use test-corpus (rolling). Production: use the dated corpus-full-<date> tag."
+        required: true
+        type: string
+
+run-name: Restore corpus to ${{ inputs.target_environment }} (${{ inputs.release_tag }})
+
+permissions:
+  contents: read
+
+concurrency:
+  group: corpus-restore-${{ inputs.target_environment }}
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    name: Restore corpus
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_environment }}
+
+    env:
+      CORPUS_DATABASE: ${{ secrets.CORPUS_DATABASE }}
+
+    steps:
+      - name: Validate required secret
+        run: |
+          if [ -z "$CORPUS_DATABASE" ]; then
+            echo "Missing CORPUS_DATABASE secret for ${{ inputs.target_environment }}." >&2
+            exit 1
+          fi
+
+      - name: Download dump asset from release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .artifacts/corpus
+          # Match any *.dump asset in the release. Decouples asset
+          # filename from tag name so we can handle both the dated
+          # corpus-full-<date> tags and the rolling test-corpus tag.
+          gh release download '${{ inputs.release_tag }}' \
+            --repo '${{ github.repository }}' \
+            --pattern '*.dump' \
+            --dir .artifacts/corpus
+          ls -lh .artifacts/corpus
+          # Expect exactly one dump file. If a release ever contains more
+          # than one we fail fast rather than pick arbitrarily.
+          DUMP_COUNT=$(find .artifacts/corpus -maxdepth 1 -name '*.dump' | wc -l)
+          if [ "$DUMP_COUNT" -ne 1 ]; then
+            echo "Expected exactly one .dump asset in release ${{ inputs.release_tag }}, found $DUMP_COUNT." >&2
+            exit 1
+          fi
+
+      - name: Restore dump into target database
+        run: |
+          DUMP_PATH=$(find .artifacts/corpus -maxdepth 1 -name '*.dump' | head -n 1)
+          DUMP_FILENAME=$(basename "$DUMP_PATH")
+          docker run --rm \
+            -v "$PWD/.artifacts/corpus:/dump:ro" \
+            postgres:17-alpine \
+            pg_restore \
+              --clean --if-exists --no-owner --no-acl \
+              --jobs 4 \
+              --dbname "$CORPUS_DATABASE" \
+              "/dump/$DUMP_FILENAME"

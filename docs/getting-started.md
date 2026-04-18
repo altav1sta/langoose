@@ -123,12 +123,11 @@ The API reads configuration from `appsettings.json`:
 
 | Section | Key settings |
 |---------|-------------|
-| ConnectionStrings | AppDatabase, AuthDatabase |
+| ConnectionStrings | AppDatabase, AuthDatabase, CorpusDatabase (future) |
 | Cors | AllowedOrigins |
 | ForwardedHeaders | Enabled, KnownProxies |
 | Features | EnableAiEnrichment |
 | Enrichment | PollIntervalSeconds, BatchSize, MaxRetries |
-| Gemini | ApiKey, Model, MaxOutputTokens |
 
 For local development, the defaults in `appsettings.json` work with the Docker
 Compose PostgreSQL setup.

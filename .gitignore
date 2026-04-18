@@ -16,3 +16,10 @@
 TestResults/
 *.coverage
 *.coveragexml
+
+# Local environment overrides
+.env
+.env.local
+
+# Downloaded corpus source files and bind-mounted Postgres data
+data/

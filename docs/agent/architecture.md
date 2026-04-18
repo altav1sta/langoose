@@ -20,12 +20,30 @@ flowchart LR
   AuthData --> Domain
   DbTool["Langoose.DbTool"] --> Data
   DbTool --> Domain
+  CorpusData["Langoose.Corpus.Data"]
+  CorpusDbTool["Langoose.Corpus.DbTool"] --> CorpusData
   UnitTests["Core.UnitTests"] --> Core
   UnitTests --> Domain
   IntTests["Api.IntegrationTests"] --> Api
   IntTests --> Data
   IntTests --> Domain
+  CorpusIntTests["Corpus.IntegrationTests"] --> CorpusDbTool
+  CorpusIntTests --> CorpusData
 ```
+
+## Solution Layout
+
+`apps/api/Langoose.sln` organises projects with two conventions:
+
+- **Source projects** sit at the root of the solution (no `src` solution
+  folder), even though they live on disk under `apps/api/src/`.
+- **Test projects** are nested under a `tests` solution folder
+  (`NestedProjects` section), matching their on-disk location under
+  `apps/api/tests/`.
+
+When adding a new project, do not let `dotnet sln add` create a default
+`src` solution folder — it must be removed and the new test project must be
+added to the `NestedProjects` section under the existing `tests` folder.
 
 ## Layers
 
@@ -59,11 +77,10 @@ Contains:
 Contains:
 - **Services**: `DictionaryService`, `StudyService`, `ContentService`
   — implement interfaces from Domain
-- **Providers**: `LocalEnrichmentProvider`, `GeminiEnrichmentProvider`
-  — implement `IEnrichmentProvider` from Domain
+- **Providers**: `LocalEnrichmentProvider` — implements `IEnrichmentProvider`
+  from Domain. The corpus-based provider is tracked under #92.
 - **Utilities**: `TextNormalizer` — static utility, no interface
-- **Configuration**: settings classes (`EnrichmentSettings`, `GeminiSettings`,
-  `FeaturesSettings`)
+- **Configuration**: settings classes (`EnrichmentSettings`, `FeaturesSettings`)
 
 Services accept and return domain models. They use `AppDbContext` directly — no
 repository-per-entity abstraction.
@@ -102,6 +119,19 @@ Runs as a separate process. Shares the same database.
 
 `apps/api/src/Langoose.DbTool/` — depends on Data, Domain.
 CLI for applying migrations and seeding in hosted environments.
+
+### Corpus.Data
+
+`apps/api/src/Langoose.Corpus.Data/` — no project references; uses Dapper +
+Npgsql directly. Read-only access layer for the `langoose_corpus` database.
+Schema is defined in embedded SQL files (no EF migrations). Hybrid
+Postgres + JSONB tables preserve each source's native shape.
+
+### Corpus.DbTool
+
+`apps/api/src/Langoose.Corpus.DbTool/` — depends on Corpus.Data.
+CLI for initialising the corpus database schema and importing source
+files (Kaikki Wiktionary JSONL, etc.) via streaming + bulk COPY.
 
 ## Anti-Goals
 
