@@ -23,44 +23,49 @@
 
 set -euo pipefail
 
-# Map ISO 639 codes → Kaikki URL segment. Values are per-language path
+# Map ISO 639 code → Kaikki URL segment. Values are per-language path
 # segments on kaikki.org (may contain spaces — URL-encoded below).
-# Extend as needed; unknown codes fail fast with a pointer here.
-declare -A KAIKKI_NAMES=(
-    [ang]="Old English"
-    [ar]="Arabic"
-    [bg]="Bulgarian"
-    [ca]="Catalan"
-    [cs]="Czech"
-    [da]="Danish"
-    [de]="German"
-    [el]="Greek"
-    [en]="English"
-    [enm]="Middle English"
-    [es]="Spanish"
-    [fi]="Finnish"
-    [fr]="French"
-    [grc]="Ancient Greek"
-    [he]="Hebrew"
-    [hi]="Hindi"
-    [hu]="Hungarian"
-    [id]="Indonesian"
-    [it]="Italian"
-    [ja]="Japanese"
-    [ko]="Korean"
-    [la]="Latin"
-    [nl]="Dutch"
-    [no]="Norwegian"
-    [pl]="Polish"
-    [pt]="Portuguese"
-    [ro]="Romanian"
-    [ru]="Russian"
-    [sv]="Swedish"
-    [tr]="Turkish"
-    [uk]="Ukrainian"
-    [vi]="Vietnamese"
-    [zh]="Chinese"
-)
+# Using a case statement (not `declare -A`) keeps this compatible with
+# Bash 3.2, still the default on stock macOS. Extend as needed; unknown
+# codes fall through to the caller's error path below.
+kaikki_name_for() {
+    case "$1" in
+        ang) echo "Old English" ;;
+        ar)  echo "Arabic" ;;
+        bg)  echo "Bulgarian" ;;
+        ca)  echo "Catalan" ;;
+        cs)  echo "Czech" ;;
+        da)  echo "Danish" ;;
+        de)  echo "German" ;;
+        el)  echo "Greek" ;;
+        en)  echo "English" ;;
+        enm) echo "Middle English" ;;
+        es)  echo "Spanish" ;;
+        fi)  echo "Finnish" ;;
+        fr)  echo "French" ;;
+        grc) echo "Ancient Greek" ;;
+        he)  echo "Hebrew" ;;
+        hi)  echo "Hindi" ;;
+        hu)  echo "Hungarian" ;;
+        id)  echo "Indonesian" ;;
+        it)  echo "Italian" ;;
+        ja)  echo "Japanese" ;;
+        ko)  echo "Korean" ;;
+        la)  echo "Latin" ;;
+        nl)  echo "Dutch" ;;
+        no)  echo "Norwegian" ;;
+        pl)  echo "Polish" ;;
+        pt)  echo "Portuguese" ;;
+        ro)  echo "Romanian" ;;
+        ru)  echo "Russian" ;;
+        sv)  echo "Swedish" ;;
+        tr)  echo "Turkish" ;;
+        uk)  echo "Ukrainian" ;;
+        vi)  echo "Vietnamese" ;;
+        zh)  echo "Chinese" ;;
+        *)   return 1 ;;
+    esac
+}
 
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <iso-code> [out-dir]" >&2
@@ -71,14 +76,12 @@ fi
 LANG_CODE="$1"
 OUT_DIR="${2:-./data/corpus}"
 
-if [[ -z "${KAIKKI_NAMES[$LANG_CODE]+_}" ]]; then
+if ! LANG_NAME=$(kaikki_name_for "$LANG_CODE"); then
     echo "Unknown ISO code '$LANG_CODE'." >&2
-    echo "Add it to the KAIKKI_NAMES map in scripts/download-kaikki.sh" >&2
+    echo "Add it to the kaikki_name_for function in scripts/download-kaikki.sh" >&2
     echo "(value = the per-language URL segment on kaikki.org)." >&2
     exit 1
 fi
-
-LANG_NAME="${KAIKKI_NAMES[$LANG_CODE]}"
 
 mkdir -p "$OUT_DIR"
 
