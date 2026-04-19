@@ -18,9 +18,10 @@ jobs:
     name: Changes
     runs-on: ubuntu-latest
     outputs:
-      app: ${{ steps.detect.outputs.app }}
       backend: ${{ steps.detect.outputs.backend }}
       frontend: ${{ steps.detect.outputs.frontend }}
+      migrations_app: ${{ steps.detect.outputs.migrations_app }}
+      migrations_auth: ${{ steps.detect.outputs.migrations_auth }}
 
     steps:
       - name: Detect deploy-relevant changes
@@ -34,37 +35,58 @@ jobs:
               basehead: `${context.payload.before}...${context.payload.after}`
             });
 
-            const files = comparison.data.files;
+            const files = comparison.data.files.map(f => f.filename);
 
             if (files.length >= 300) {
               core.info('Compare API returned 300+ files — assuming truncation, deploying everything');
-              core.setOutput('app', 'true');
               core.setOutput('backend', 'true');
               core.setOutput('frontend', 'true');
+              core.setOutput('migrations_app', 'true');
+              core.setOutput('migrations_auth', 'true');
               return;
             }
 
-            const isCorpusOnly = (filename) =>
-              filename.startsWith('apps/api/src/Langoose.Corpus.') ||
-              filename.startsWith('apps/api/tests/Langoose.Corpus.');
+            const isBackendRuntime = (f) =>
+              f.startsWith('apps/api/src/') &&
+              !f.startsWith('apps/api/src/Langoose.Corpus.') &&
+              !f.startsWith('apps/api/src/Langoose.DbTool/');
 
-            const backend = files.some(f =>
-              f.filename.startsWith('apps/api/') && !isCorpusOnly(f.filename));
-            const frontend = files.some(f => f.filename.startsWith('apps/web/'));
+            const startsWithAny = (f, prefixes) =>
+              prefixes.some(p => f.startsWith(p));
 
-            core.setOutput('app', (backend || frontend) ? 'true' : 'false');
+            const backend = files.some(isBackendRuntime);
+            const frontend = files.some(f => f.startsWith('apps/web/'));
+
+            const dbtoolPrefix = 'apps/api/src/Langoose.DbTool/';
+            const migrationsApp = files.some(f => startsWithAny(f, [
+              'apps/api/src/Langoose.Data/Migrations/',
+              dbtoolPrefix
+            ]));
+            const migrationsAuth = files.some(f => startsWithAny(f, [
+              'apps/api/src/Langoose.Auth.Data/Migrations/',
+              dbtoolPrefix
+            ]));
+
             core.setOutput('backend', backend ? 'true' : 'false');
             core.setOutput('frontend', frontend ? 'true' : 'false');
+            core.setOutput('migrations_app', migrationsApp ? 'true' : 'false');
+            core.setOutput('migrations_auth', migrationsAuth ? 'true' : 'false');
 
   deploy-staging:
     name: Deploy Staging
     needs:
       - ci
       - changes
-    if: needs.changes.outputs.app == 'true'
+    if: >-
+      needs.changes.outputs.backend == 'true'
+      || needs.changes.outputs.frontend == 'true'
+      || needs.changes.outputs.migrations_app == 'true'
+      || needs.changes.outputs.migrations_auth == 'true'
     uses: ./.github/workflows/deploy-environment.yml
     with:
       target_environment: staging
       deploy_api: ${{ needs.changes.outputs.backend == 'true' }}
       deploy_web: ${{ needs.changes.outputs.frontend == 'true' }}
+      run_migrations_app: ${{ needs.changes.outputs.migrations_app == 'true' }}
+      run_migrations_auth: ${{ needs.changes.outputs.migrations_auth == 'true' }}
     secrets: inherit

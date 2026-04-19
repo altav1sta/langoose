@@ -29,17 +29,10 @@ jobs:
           script: |
             const globalForceAllFiles = [
               '.editorconfig',
-              '.gitattributes'
+              '.gitattributes',
+              '.github/workflows/ci.yml'
             ];
-            // Any change to shared CI automation — workflows (ci, cd,
-            // deploy, migrations, seed, corpus-restore, ...) or composite
-            // actions under .github/actions/** — forces the full matrix
-            // so we actually exercise the change on main. Without this,
-            // a merge that only modifies .github/actions/cache-docker-image/
-            // action.yml would resolve to backend=false/frontend=false/
-            // e2e=false and no lane would catch the breakage.
             const globalForceAllPrefixes = [
-              '.github/workflows/',
               '.github/actions/'
             ];
             const backendPrefixes = [
