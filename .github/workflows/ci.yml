@@ -29,8 +29,18 @@ jobs:
           script: |
             const globalForceAllFiles = [
               '.editorconfig',
-              '.gitattributes',
-              '.github/workflows/ci.yml'
+              '.gitattributes'
+            ];
+            // Any change to shared CI automation — workflows (ci, cd,
+            // deploy, migrations, seed, corpus-restore, ...) or composite
+            // actions under .github/actions/** — forces the full matrix
+            // so we actually exercise the change on main. Without this,
+            // a merge that only modifies .github/actions/cache-docker-image/
+            // action.yml would resolve to backend=false/frontend=false/
+            // e2e=false and no lane would catch the breakage.
+            const globalForceAllPrefixes = [
+              '.github/workflows/',
+              '.github/actions/'
             ];
             const backendPrefixes = [
               'apps/api/'
@@ -100,12 +110,15 @@ jobs:
 
             const matchesAnyExact = exact =>
               files.some(file => exact.includes(file));
+            const matchesAnyPrefix = prefixes =>
+              files.some(file => prefixes.some(prefix => file.startsWith(prefix)));
             const includesAny = (prefixes, exact = []) =>
               files.some(file =>
                 exact.includes(file) ||
                 prefixes.some(prefix => file.startsWith(prefix)));
 
-            const forceAll = matchesAnyExact(globalForceAllFiles);
+            const forceAll = matchesAnyExact(globalForceAllFiles)
+              || matchesAnyPrefix(globalForceAllPrefixes);
             const backend = forceAll || includesAny(backendPrefixes, backendFiles);
             const frontend = forceAll || includesAny(frontendPrefixes, frontendFiles);
             const e2e = forceAll || includesAny(e2ePrefixes, e2eFiles);
