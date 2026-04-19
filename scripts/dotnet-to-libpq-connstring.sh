@@ -46,8 +46,8 @@
 #   Timezone *                        -> options '-c TimeZone=VAL'
 #   Keepalive *                       -> keepalives=1 + keepalives_idle=VAL  (seconds)
 #   TCP Keepalive *                   -> keepalives=1/0
-#   TCP Keepalive Time *              -> keepalives_idle (ms / 1000)
-#   TCP Keepalive Interval *          -> keepalives_interval (ms / 1000)
+#   TCP Keepalive Time                -> keepalives_idle  (same unit: seconds)
+#   TCP Keepalive Interval            -> keepalives_interval (same unit: seconds)
 #
 # Dropped (.NET/Npgsql-only, no libpq equivalent):
 #   Pooling, Min/Minimum Pool Size, Max/Maximum Pool Size,
@@ -102,6 +102,11 @@ quote_value() {
     printf "'%s'" "$v"
 }
 
+# Helpers below exit on validation failure. `set -e` does not propagate
+# a non-zero return through `$(...)` used as a function argument (unlike
+# bare assignment), so bare `return 1` would leak an empty value and
+# continue. Using `exit` kills the whole script regardless of call site.
+
 # Parse an Npgsql boolean literal to 0/1 for libpq.
 parse_bool() {
     local v
@@ -111,20 +116,19 @@ parse_bool() {
         false|0|no|off)  printf '0' ;;
         *)
             echo "Error: boolean value expected, got '$1'" >&2
-            return 1
+            exit 1
             ;;
     esac
 }
 
-# Milliseconds -> seconds (truncated integer division).
-ms_to_seconds() {
-    local ms
-    ms=$(trim "$1")
-    if ! [[ "$ms" =~ ^-?[0-9]+$ ]]; then
-        echo "Error: integer milliseconds value expected, got '$1'" >&2
-        return 1
+require_integer_seconds() {
+    local v
+    v=$(trim "$1")
+    if ! [[ "$v" =~ ^-?[0-9]+$ ]]; then
+        echo "Error: integer seconds value expected, got '$1'" >&2
+        exit 1
     fi
-    printf '%d' $(( ms / 1000 ))
+    printf '%s' "$v"
 }
 
 OUT=""
@@ -147,17 +151,26 @@ emit() {
 }
 
 # Npgsql Target Session Attributes values use PascalCase; libpq uses
-# kebab-case lowercase. Map known values; unknowns pass through lowercased.
+# kebab-case lowercase. Only translate values that have an exact libpq
+# equivalent. Anything else fails — silently falling back to "any" or
+# inverting the preference (e.g. prefer-primary -> prefer-standby) would
+# send pg_restore to the wrong node.
 translate_target_session_attrs() {
     local v
     v=$(to_lower "$(trim "$1")")
     case "$v" in
-        any|primary|standby)                    printf '%s' "$v" ;;
-        readwrite|read-write)                   printf 'read-write' ;;
-        readonly|read-only)                     printf 'read-only' ;;
-        preferstandby|prefer-standby)           printf 'prefer-standby' ;;
-        preferprimary|prefer-primary)           printf 'prefer-standby' ;;  # libpq has no prefer-primary; fall back
-        *)                                      printf '%s' "$v" ;;
+        any|primary|standby)              printf '%s' "$v" ;;
+        readwrite|read-write)             printf 'read-write' ;;
+        readonly|read-only)               printf 'read-only' ;;
+        preferstandby|prefer-standby)     printf 'prefer-standby' ;;
+        preferprimary|prefer-primary)
+            echo "Error: 'Target Session Attributes=PreferPrimary' has no libpq equivalent (libpq offers 'primary' strict-only or 'prefer-standby'; it does not have a prefer-primary mode). Change the secret to 'primary' (reject non-writers) or 'any' (no preference), or extend the converter with an explicit strategy." >&2
+            exit 1
+            ;;
+        *)
+            echo "Error: unsupported 'Target Session Attributes' value '$1'. Add an explicit mapping in scripts/dotnet-to-libpq-connstring.sh." >&2
+            exit 1
+            ;;
     esac
 }
 
@@ -211,9 +224,26 @@ for PAIR in "${PAIRS[@]}"; do
 
         # --- Routing ---
         targetsessionattributes)
-            emit target_session_attrs "$(translate_target_session_attrs "$VALUE")"
+            # Assign first so `set -e` picks up a non-zero subshell exit.
+            # Command substitution exit status is swallowed when embedded
+            # directly as a function argument (`emit x "$(fails)"`) but
+            # propagates through bare assignment.
+            TSA=$(translate_target_session_attrs "$VALUE")
+            emit target_session_attrs "$TSA"
             ;;
-        loadbalancehosts)                   emit load_balance_hosts "$(parse_bool "$VALUE")" ;;
+        loadbalancehosts)
+            # Npgsql takes a bool; libpq takes a textual mode:
+            #   true  -> random  (shuffle the host list)
+            #   false -> disable (try in provided order, the libpq default)
+            # Treating this as a bool 0/1 would either be rejected by libpq
+            # or silently interpreted as "disable" for both values, losing
+            # the balancing intent entirely.
+            LBH_BOOL=$(parse_bool "$VALUE")
+            case "$LBH_BOOL" in
+                1) emit load_balance_hosts "random" ;;
+                0) emit load_balance_hosts "disable" ;;
+            esac
+            ;;
 
         # --- Session init (merged into libpq "options") ---
         clientencoding|encoding)            emit client_encoding "$VALUE" ;;
@@ -234,12 +264,21 @@ for PAIR in "${PAIRS[@]}"; do
                 emit keepalives_idle "$VALUE"
             fi
             ;;
-        tcpkeepalive)                       emit keepalives "$(parse_bool "$VALUE")" ;;
-        # Npgsql "TCP Keepalive Time" / "TCP Keepalive Interval" are in
-        # MILLISECONDS; libpq keepalives_idle / keepalives_interval are in
-        # SECONDS. Truncate on conversion.
-        tcpkeepalivetime)                   emit keepalives_idle "$(ms_to_seconds "$VALUE")" ;;
-        tcpkeepaliveinterval)               emit keepalives_interval "$(ms_to_seconds "$VALUE")" ;;
+        tcpkeepalive)
+            KA=$(parse_bool "$VALUE")
+            emit keepalives "$KA"
+            ;;
+        # Npgsql "TCP Keepalive Time" / "TCP Keepalive Interval" are
+        # seconds, matching libpq's keepalives_idle / keepalives_interval.
+        # No unit conversion needed — just validate it's an integer.
+        tcpkeepalivetime)
+            KAT=$(require_integer_seconds "$VALUE")
+            emit keepalives_idle "$KAT"
+            ;;
+        tcpkeepaliveinterval)
+            KAI=$(require_integer_seconds "$VALUE")
+            emit keepalives_interval "$KAI"
+            ;;
 
         # --- .NET / Npgsql-only: no libpq analogue ---
         pooling|minpoolsize|minimumpoolsize|maxpoolsize|maximumpoolsize|\
