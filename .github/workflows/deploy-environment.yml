@@ -272,6 +272,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - resolve-context
+      - validate-config
       - auth-db-migrations
       - app-db-migrations
     if: >-
