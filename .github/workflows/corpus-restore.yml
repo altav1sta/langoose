@@ -98,8 +98,18 @@ jobs:
         run: |
           DUMP_PATH=$(find .artifacts/corpus -maxdepth 1 -name '*.dump' | head -n 1)
           DUMP_FILENAME=$(basename "$DUMP_PATH")
+          # PGSSLROOTCERT=system tells libpq 16+ to use the container's
+          # OS trust store (ca-certificates package, bundled in
+          # postgres:17-alpine's libpq 17) instead of the default
+          # ~/.postgresql/root.crt path, which doesn't exist here.
+          # Needed for Npgsql secrets with SSL Mode=VerifyCA / VerifyFull
+          # against providers signed by public CAs (Neon, Supabase, RDS).
+          # An explicit `sslrootcert=/path` inside the libpq string still
+          # wins over this env default. Kept out of the converter script
+          # so generic callers aren't forced onto libpq 16+.
           docker run --rm \
             -v "$PWD/.artifacts/corpus:/dump:ro" \
+            -e PGSSLROOTCERT=system \
             postgres:17-alpine \
             pg_restore \
               --clean --if-exists --no-owner --no-acl \
