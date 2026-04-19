@@ -36,6 +36,9 @@
 #   SSL Key                           -> sslkey
 #   SSL Password                      -> sslpassword
 #   Root Certificate                  -> sslrootcert
+#   (implicit) sslmode verify-{ca,full} with no Root Certificate
+#                                     -> sslrootcert=system  (libpq 16+;
+#                                        mirrors .NET's default OS trust store)
 #   Kerberos Service Name             -> krbsrvname
 #   Channel Binding                   -> channel_binding (value lowercased)
 #   Target Session Attributes *       -> target_session_attrs (PascalCase -> kebab-case)
@@ -137,6 +140,15 @@ OUT=""
 # emit one merged options=... at the end (merging any passthrough Options=
 # the user provided directly).
 OPTIONS_RAW=""
+# Track sslmode and whether an explicit Root Certificate was provided, so
+# that we can default sslrootcert=system for verify-{ca,full} when the
+# input didn't specify one. .NET / Npgsql verifies against the OS trust
+# store by default; libpq defaults to looking at ~/.postgresql/root.crt
+# which doesn't exist in a typical pg_* container. sslrootcert=system
+# (libpq 16+) matches .NET's behaviour and works with standard public-CA
+# providers (Neon / Supabase / RDS / ...).
+SSLMODE_FINAL=""
+SSLROOTCERT_SET=0
 
 append_opt() {
     if [[ -n "$OPTIONS_RAW" ]]; then
@@ -210,6 +222,7 @@ for PAIR in "${PAIRS[@]}"; do
                 verifyfull) V_LIBPQ="verify-full" ;;
                 *)          V_LIBPQ="$V_LOWER" ;;
             esac
+            SSLMODE_FINAL="$V_LIBPQ"
             emit sslmode "$V_LIBPQ"
             ;;
         trustservercertificate)
@@ -218,7 +231,10 @@ for PAIR in "${PAIRS[@]}"; do
         sslcertificate)                     emit sslcert "$VALUE" ;;
         sslkey)                             emit sslkey "$VALUE" ;;
         sslpassword)                        emit sslpassword "$VALUE" ;;
-        rootcertificate)                    emit sslrootcert "$VALUE" ;;
+        rootcertificate)
+            SSLROOTCERT_SET=1
+            emit sslrootcert "$VALUE"
+            ;;
         kerberosservicename)                emit krbsrvname "$VALUE" ;;
         channelbinding)                     emit channel_binding "$(to_lower "$VALUE")" ;;
 
@@ -309,6 +325,14 @@ done
 # Emit the merged options keyword if we accumulated any fragments.
 if [[ -n "$OPTIONS_RAW" ]]; then
     OUT+="options=$(quote_value "$OPTIONS_RAW") "
+fi
+
+# Default sslrootcert=system for verify-{ca,full} when the caller didn't
+# specify one. See comment near the SSLMODE_FINAL declaration above.
+if [[ "$SSLROOTCERT_SET" -eq 0 ]] \
+        && { [[ "$SSLMODE_FINAL" == "verify-ca" ]] || [[ "$SSLMODE_FINAL" == "verify-full" ]]; }; then
+    OUT+="sslrootcert='system' "
+    echo "Info: sslmode=$SSLMODE_FINAL set with no explicit Root Certificate — defaulting sslrootcert=system (libpq 16+) to mirror .NET's OS-trust-store behaviour." >&2
 fi
 
 OUT="${OUT% }"
