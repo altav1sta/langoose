@@ -40,12 +40,38 @@ jobs:
       CORPUS_DATABASE: ${{ secrets.CORPUS_DATABASE }}
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Validate required secret
         run: |
           if [ -z "$CORPUS_DATABASE" ]; then
             echo "Missing CORPUS_DATABASE secret for ${{ inputs.target_environment }}." >&2
             exit 1
           fi
+
+      - name: Convert .NET connection string to libpq form
+        run: |
+          # pg_restore uses libpq, which doesn't understand .NET ADO keys
+          # like "Host=" / "Username=" / "SSL Mode=". Translate losslessly.
+          set -o pipefail
+          # Mask the raw password explicitly. GitHub masks the full secret
+          # value automatically, but not its sub-parts — after conversion,
+          # the password appears inside a longer libpq string.
+          PASSWORD=$(printf '%s' "$CORPUS_DATABASE" | tr ';' '\n' | \
+            awk -F= 'BEGIN{IGNORECASE=1} /^[[:space:]]*(Password|Pwd)[[:space:]]*=/{sub(/^[^=]*=/, ""); print; exit}')
+          if [ -n "$PASSWORD" ]; then
+            echo "::add-mask::$PASSWORD"
+          fi
+          if ! LIBPQ_CONN=$(scripts/dotnet-to-libpq-connstring.sh "$CORPUS_DATABASE"); then
+            echo "Connection string conversion failed." >&2
+            exit 1
+          fi
+          {
+            echo "LIBPQ_CONN<<EOF"
+            echo "$LIBPQ_CONN"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
 
       - name: Download dump asset from release
         env:
@@ -78,5 +104,5 @@ jobs:
             pg_restore \
               --clean --if-exists --no-owner --no-acl \
               --jobs 4 \
-              --dbname "$CORPUS_DATABASE" \
+              --dbname "$LIBPQ_CONN" \
               "/dump/$DUMP_FILENAME"
