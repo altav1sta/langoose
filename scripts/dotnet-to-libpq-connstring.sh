@@ -36,6 +36,15 @@
 #   SSL Key                           -> sslkey
 #   SSL Password                      -> sslpassword
 #   Root Certificate                  -> sslrootcert
+#
+# The converter does not inject a default `sslrootcert` for
+# sslmode=verify-{ca,full}. .NET uses the OS trust store implicitly;
+# libpq requires either an explicit sslrootcert path or (libpq 16+)
+# the special value `sslrootcert=system`. Callers that want the
+# OS-trust-store default should set PGSSLROOTCERT=system in the
+# environment running pg_restore / psql, or include
+# `Root Certificate=system` in the input — this keeps the script
+# usable with older libpq clients that don't understand `system`.
 #   Kerberos Service Name             -> krbsrvname
 #   Channel Binding                   -> channel_binding (value lowercased)
 #   Target Session Attributes *       -> target_session_attrs (PascalCase -> kebab-case)
