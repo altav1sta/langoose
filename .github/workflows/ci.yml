@@ -51,23 +51,52 @@ jobs:
               'compose.yml'
             ];
 
-            if (context.eventName !== 'pull_request') {
+            // Pick the right change source for the event:
+            //   pull_request                  -> listFiles on the PR
+            //   push / workflow_call(push)    -> compare before..after
+            //   workflow_dispatch or unknown  -> run everything (safe default)
+            //
+            // When CI is invoked as a reusable workflow from CD, context
+            // inherits CD's triggering event (push to main), so the push
+            // branch handles it. Earlier the non-PR branch just forced every
+            // output to 'true', making every merge — even a YAML-only one —
+            // run the full backend + frontend + e2e matrix after CD had
+            // already decided not to deploy.
+            let files = null;
+
+            if (context.eventName === 'pull_request') {
+              files = await github.paginate(
+                github.rest.pulls.listFiles,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: context.payload.pull_request.number,
+                  per_page: 100
+                },
+                response => response.data.map(file => file.filename)
+              );
+            } else if (context.payload.before && context.payload.after
+                && context.payload.before !== '0000000000000000000000000000000000000000') {
+              const comparison = await github.rest.repos.compareCommitsWithBasehead({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                basehead: `${context.payload.before}...${context.payload.after}`
+              });
+              const changed = comparison.data.files || [];
+              if (changed.length >= 300) {
+                core.info('Compare API returned 300+ files — assuming truncation, running everything.');
+              } else {
+                files = changed.map(f => f.filename);
+              }
+            }
+
+            if (files === null) {
+              core.info('No precise change set available — running everything.');
               core.setOutput('backend', 'true');
               core.setOutput('frontend', 'true');
               core.setOutput('e2e', 'true');
               return;
             }
-
-            const files = await github.paginate(
-              github.rest.pulls.listFiles,
-              {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.payload.pull_request.number,
-                per_page: 100
-              },
-              response => response.data.map(file => file.filename)
-            );
 
             const matchesAnyExact = exact =>
               files.some(file => exact.includes(file));

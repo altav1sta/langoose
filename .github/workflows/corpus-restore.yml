@@ -63,7 +63,7 @@ jobs:
           if [ -n "$PASSWORD" ]; then
             echo "::add-mask::$PASSWORD"
           fi
-          if ! LIBPQ_CONN=$(scripts/dotnet-to-libpq-connstring.sh "$CORPUS_DATABASE"); then
+          if ! LIBPQ_CONN=$(bash scripts/dotnet-to-libpq-connstring.sh "$CORPUS_DATABASE"); then
             echo "Connection string conversion failed." >&2
             exit 1
           fi
