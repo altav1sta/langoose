@@ -11,7 +11,7 @@ better for B-tree indexing in PostgreSQL). Mapping tables use composite primary 
 |--------|-------|-------------------|
 | DictionaryEntry | dictionary_entries | Self-ref BaseEntryId, has many EntryContexts, has many Senses |
 | Sense | senses | FK -> DictionaryEntry, has many SenseTranslations. Unique (DictionaryEntryId, SenseIndex) |
-| SenseTranslation | sense_translations | Composite PK (SourceSenseId, TargetSenseId). Carries Rank, Source |
+| SenseTranslation | sense_translations | Composite PK (SourceSenseId, TargetSenseId). Carries Rank |
 | EntryContext | entry_contexts | FK -> DictionaryEntry, M2M Translations |
 | UserDictionaryEntry | user_dictionary_entries | FK SourceEntryId -> DictionaryEntry, FK TargetEntryId -> DictionaryEntry (both nullable) |
 | UserEntryContext | user_entry_contexts | FK -> UserDictionaryEntry |
@@ -36,9 +36,9 @@ Contains `AuthUser`, `AuthSession`, and OpenIddict tables. Unchanged by domain r
 - PostgreSQL arrays (`text[]`) for `List<string>` properties (Tags, etc.).
 - Use implicit many-to-many via `HasMany().WithMany().UsingEntity()` when the
   join carries no extra data (e.g. `EntryContext.Translations`). When the join
-  needs columns of its own (rank, source, audit fields), define an explicit
-  join entity class — `SenseTranslation` is the canonical example (composite
-  PK on `(SourceSenseId, TargetSenseId)`, carries `Rank` and `Source`).
+  needs columns of its own (rank, audit fields), define an explicit join
+  entity class — `SenseTranslation` is the canonical example (composite PK on
+  `(SourceSenseId, TargetSenseId)`, carries `Rank`).
 - Services use `AppDbContext` directly — no repository-per-entity abstraction.
 - Keep EF-specific concerns out of controllers.
 

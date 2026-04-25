@@ -57,6 +57,9 @@ public sealed class EnrichmentProcessor(
                 .Include(x => x.Senses)
                     .ThenInclude(x => x.Translations).ThenInclude(x => x.TargetSense)
                     .ThenInclude(x => x.DictionaryEntry)
+                .Include(x => x.BaseEntry).ThenInclude(b => b!.Senses)
+                    .ThenInclude(s => s.Translations).ThenInclude(t => t.TargetSense)
+                    .ThenInclude(s => s.DictionaryEntry)
                 .Where(x => languages.Contains(x.Language) && texts.Contains(x.Text))
                 .ToArrayAsync(cancellationToken);
 
@@ -64,9 +67,7 @@ public sealed class EnrichmentProcessor(
                 .Where(x => lookupKeys.Contains(new EntryKey(x.Language, x.Text, x.PartOfSpeech)))
                 .ToDictionary(
                     x => new EntryKey(x.Language, x.Text, x.PartOfSpeech),
-                    x => x.BaseEntryId is null
-                        ? x
-                        : dbEntries.FirstOrDefault(y => y.Id == x.BaseEntryId) ?? x);
+                    x => x.BaseEntryId is null ? x : (x.BaseEntry ?? x));
         }
 
         // Step 2: resolve navigations from lookup, split into resolved vs needing enrichment

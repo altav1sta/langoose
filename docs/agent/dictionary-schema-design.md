@@ -101,7 +101,7 @@ sense_translations
   source_sense_id  Guid
   target_sense_id  Guid
   rank             int       -- 0-based; lower wins for "primary translation"
-  source           text      -- enum: 'wiktionary', 'manual', 'import'
+  created_at_utc   timestamptz
 
 primary key (source_sense_id, target_sense_id)
 ```
