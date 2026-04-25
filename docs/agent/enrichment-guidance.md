@@ -122,14 +122,17 @@ Concrete consequences of "source-first":
 
 Invariant for query authors: **always filter by `lang_code`**. Every
 index on the table is scoped by language; every partitioning scheme we'd
-adopt later (#96 territory) is keyed by language. Queries that omit
+adopt later (#97 territory) is keyed by language. Queries that omit
 `lang_code` will full-scan and will break once we partition.
 
-Future sources will add their own tables without modifying existing ones:
-- `wordfreq_rankings` (flat) — frequency ranks per word
-- `cefr_levels` (flat) — CEFR difficulty per word
-- `tatoeba_sentences` + `tatoeba_links` (hybrid) — example sentences for
-  context generation (#91)
+Sibling tables under the same source-first principle:
+- `wordfreq_rankings` (flat) — frequency ranks per word, per source
+  (e.g. `wordfreq-2026-04-25`). Drives `--frequency-filter-top` on
+  `import-wiktionary` and ranks multi-candidate translations in the
+  corpus-backed provider. Imported via `import-wordfreq` (#96).
+- (future) `cefr_levels` (flat) — CEFR difficulty per word
+- (future) `tatoeba_sentences` + `tatoeba_links` (hybrid) — example
+  sentences for context generation (#91)
 
 ### JSON serialisation
 
@@ -158,7 +161,7 @@ or evaluated by the project lives in
 sources there when their import code lands. Two distinct obligations:
 
 - **Redistribution.** Any dump artifact published via
-  `scripts/publish-{full,mini}-corpus-dump.sh` must carry the attribution
+  `scripts/publish-{full,test}-corpus-dump.sh` must carry the attribution
   file; the scripts upload `ATTRIBUTION.md` alongside the `.dump` asset
   and cite the sources in the release body.
 - **UI surfacing.** The web UI must render a visible attribution notice

@@ -24,6 +24,10 @@ beyond the standard `docker.io` service step.
 ## Test fixtures
 
 `fixtures/wiktionary-{lang}-sample.jsonl` are committed alongside the tests.
-They contain ~3-4 hand-picked entries per language exercising the importer's
-main paths: forms, senses, translations, POS allow-listing, and JSONB
-containment lookups.
+They contain ~3-4 hand-picked entries per language exercising the
+Wiktionary importer's main paths: forms, senses, translations, POS
+allow-listing, and JSONB containment lookups.
+
+`fixtures/wordfreq-{lang}-sample.tsv` are short (~10-row) TSV fixtures that
+exercise the wordfreq importer's parse + replace path, and drive the
+`--frequency-filter-top` test on the Wiktionary importer.

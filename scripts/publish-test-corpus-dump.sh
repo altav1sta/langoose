@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Publish the test corpus dump (data/dump/test-corpus.dump, built by
-# scripts/build-test-corpus-dump.sh) to GitHub Releases under a rolling
+# scripts/rebuild-test-corpus-dump.sh) to GitHub Releases under a rolling
 # tag. Each publish replaces the previous one so git history doesn't
 # accumulate a tag per staging rebuild.
 #
@@ -24,7 +24,7 @@ ATTRIBUTION_FILE="ATTRIBUTION.md"
 
 if [[ ! -f "$DUMP_FILE" ]]; then
     echo "Dump file not found: $DUMP_FILE" >&2
-    echo "Build it first with scripts/build-test-corpus-dump.sh." >&2
+    echo "Build it first with scripts/rebuild-test-corpus-dump.sh." >&2
     exit 1
 fi
 

@@ -21,10 +21,24 @@ if (args.Length == 0)
                             --source <path>
                             [--source-version <ver>]
                             [--limit <n>]   Stop after <n> imported entries (mini dump).
+                            [--frequency-filter-top <n>]
+                                            Skip entries whose headword isn't in the
+                                            top <n> of wordfreq_rankings for this
+                                            language. Requires `import-wordfreq` to
+                                            have run first. Used by mini-dump builds
+                                            instead of --limit so the snapshot is
+                                            representative of everyday vocabulary.
                             [--defer-indexes]
                                             Skip the post-COPY index rebuild. Use when
                                             importing multiple languages in sequence;
                                             follow with `rebuild-indexes` at the end.
+          import-wordfreq   --lang <code>   Import a wordfreq frequency-ranking TSV
+                            --source <path> (word\trank\tzipf_score, gz allowed).
+                            [--source-version <ver>]
+                                            Defaults to wordfreq-<UTC date>. Stored in
+                                            the `source` column so multiple frequency
+                                            sources (wordfreq, SUBTLEX, ...) can
+                                            coexist for the same language.
           rebuild-indexes                   Drop and recreate the wiktionary_entries
                                             indexes. Idempotent. Typically the final
                                             step of a bulk multi-language build.
@@ -52,6 +66,7 @@ return command switch
     "init" => await RunInitAsync(dataSource),
     "reset-wiktionary" => await RunResetWiktionaryAsync(dataSource),
     "import-wiktionary" => await RunImportWiktionaryAsync(dataSource, commandArgs),
+    "import-wordfreq" => await RunImportWordfreqAsync(dataSource, commandArgs),
     "rebuild-indexes" => await RunRebuildIndexesAsync(dataSource),
     _ => UnknownCommand(command)
 };
@@ -116,15 +131,36 @@ static async Task<int> RunImportWiktionaryAsync(NpgsqlDataSource dataSource, str
     var limit = GetOption(commandArgs, "--limit") is { } limitText
         ? long.Parse(limitText)
         : (long?)null;
+    var frequencyFilterTop = GetOption(commandArgs, "--frequency-filter-top") is { } topText
+        ? int.Parse(topText)
+        : (int?)null;
     var deferIndexes = HasFlag(commandArgs, "--defer-indexes");
 
     var importer = new WiktionaryImporter(
-        dataSource, langCode, sourceVersion, limit, deferIndexes);
+        dataSource, langCode, sourceVersion, limit, deferIndexes, frequencyFilterTop);
     var summary = await importer.ImportAsync(sourcePath);
 
     Console.WriteLine(
         $"""
         Imported {summary.EntriesImported} entries from {summary.Source} (version {summary.SourceVersion}).
+        """);
+
+    return 0;
+}
+
+static async Task<int> RunImportWordfreqAsync(NpgsqlDataSource dataSource, string[] commandArgs)
+{
+    var langCode = GetRequiredOption(commandArgs, "--lang");
+    var sourcePath = GetRequiredOption(commandArgs, "--source");
+    var sourceVersion = GetOption(commandArgs, "--source-version")
+        ?? $"wordfreq-{DateTime.UtcNow:yyyy-MM-dd}";
+
+    var importer = new WordfreqImporter(dataSource, langCode, sourceVersion);
+    var summary = await importer.ImportAsync(sourcePath);
+
+    Console.WriteLine(
+        $"""
+        Imported {summary.EntriesImported} rankings from {summary.Source} (source {summary.SourceVersion}).
         """);
 
     return 0;

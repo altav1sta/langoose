@@ -41,11 +41,35 @@ obliges derivative works to keep the same license and credit the source.
   table (`source_version_wiktionary_<lang>`) so the exact upstream
   snapshot is always traceable.
 
+### wordfreq
+
+- **Source:** [wordfreq](https://github.com/rspeer/wordfreq) — Robyn
+  Speer's per-language frequency tables aggregated from web text,
+  subtitles, Twitter, and other corpora.
+- **What we use:** Per-language word lists with rank and Zipf score.
+  Fetched offline via
+  [`scripts/download-wordfreq.sh`](scripts/download-wordfreq.sh) (which
+  invokes the Python `wordfreq` package — by default inside a
+  `python:3-slim` Docker container, so no local Python install is
+  required) and bulk-loaded into `wordfreq_rankings` by
+  `import-wordfreq`. Rankings are used to filter mini dumps to
+  representative everyday vocabulary, and will rank multi-candidate
+  translations in the corpus-backed enrichment provider.
+- **License:**
+  [Creative Commons Attribution-ShareAlike 4.0 International (CC-BY-SA 4.0)](https://creativecommons.org/licenses/by-sa/4.0/)
+  for the aggregated frequency data; some upstream subtitle corpora are
+  CC-BY. Treating the bundled output as CC-BY-SA covers both.
+- **Attribution:** "Frequency data from wordfreq (Robyn Speer), used
+  under CC-BY-SA 4.0." The source identifier (e.g. `wordfreq-2026-04-25`)
+  is recorded both in the `wordfreq_rankings.source` column and in
+  `corpus_metadata` as `source_version_wordfreq_<lang>` so the exact
+  snapshot is traceable.
+
 ## Compliance in this repository
 
 - **Redistributed artifacts.** Any corpus dump published to
   [GitHub Releases](https://github.com/altav1sta/langoose/releases) via
-  `scripts/publish-{full,mini}-corpus-dump.sh` ships this file as a
+  `scripts/publish-{full,test}-corpus-dump.sh` ships this file as a
   companion asset and cites Wiktionary + Kaikki in the release notes.
   The dump itself is therefore available under CC-BY-SA 4.0 to match
   the upstream.
@@ -80,9 +104,6 @@ don't re-litigate the decision silently.
 Already queued in the enrichment epic ([#92](https://github.com/altav1sta/langoose/issues/92));
 each will be added here when its import code lands.
 
-- **wordfreq** ([#96](https://github.com/altav1sta/langoose/issues/96)) —
-  frequency rankings derived from web, subtitles, and Twitter.
-  CC-BY-SA.
 - **CEFR-J** — English CEFR level data. Open with citation.
 - **Tatoeba** ([#91](https://github.com/altav1sta/langoose/issues/91)) —
   example-sentence corpus used for generating contextual examples.
