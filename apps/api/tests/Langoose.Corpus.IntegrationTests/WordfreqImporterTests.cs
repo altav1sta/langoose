@@ -148,6 +148,50 @@ public sealed class WordfreqImporterTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task ResetWordfreq_TruncatesTableAndClearsMetadata()
+    {
+        // Seed two distinct (lang, source) row sets. The naive
+        // import-wordfreq DELETE only catches one pair at a time; the
+        // reset has to wipe everything.
+        var enImporter = new WordfreqImporter(postgres.DataSource, "en", "wordfreq-2026-04-01");
+        var ruImporter = new WordfreqImporter(postgres.DataSource, "ru", "wordfreq-2026-04-25");
+        await enImporter.ImportAsync(FixtureEnPath);
+        // RU fixture isn't committed (see WiktionaryImporterTests), so
+        // re-use the EN fixture under the ru lang_code — the importer
+        // doesn't validate the words against the lang code, and the
+        // assertion only cares that BOTH (lang, source) pairs get wiped.
+        await ruImporter.ImportAsync(FixtureEnPath);
+
+        await using var connection = await postgres.DataSource.OpenConnectionAsync();
+        var beforeRows = await connection.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*) FROM wordfreq_rankings");
+        var beforeMetadataKeys = (await connection.QueryAsync<string>(
+            "SELECT key FROM corpus_metadata WHERE key LIKE 'source_version_wordfreq_%' ORDER BY key")).ToArray();
+
+        beforeRows.Should().Be(20);
+        beforeMetadataKeys.Should().Equal("source_version_wordfreq_en", "source_version_wordfreq_ru");
+
+        // Invoke the same SQL the reset-wordfreq subcommand runs.
+        await using (var resetCmd = connection.CreateCommand())
+        {
+            resetCmd.CommandText = """
+                TRUNCATE TABLE wordfreq_rankings;
+                DELETE FROM corpus_metadata
+                    WHERE key LIKE 'source_version_wordfreq_%';
+                """;
+            await resetCmd.ExecuteNonQueryAsync();
+        }
+
+        var afterRows = await connection.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*) FROM wordfreq_rankings");
+        var afterMetadataKeys = (await connection.QueryAsync<string>(
+            "SELECT key FROM corpus_metadata WHERE key LIKE 'source_version_wordfreq_%'")).ToArray();
+
+        afterRows.Should().Be(0);
+        afterMetadataKeys.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task ImportAsync_OnInvalidRank_FailsAndRollsBack()
     {
         var tempPath = Path.Combine(Path.GetTempPath(), $"wordfreq-bad-rank-{Guid.NewGuid():N}.tsv");

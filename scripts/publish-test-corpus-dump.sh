@@ -44,7 +44,7 @@ echo "Publishing $DUMP_FILE ($SIZE) as rolling release $RELEASE_TAG (targeting m
 RELEASE_NOTES=$(cat <<EOF
 Rolling staging dump, rebuilt and overwritten on every publish. Built on $(date -u +%Y-%m-%dT%H:%M:%SZ). Use \`corpus-full-*\` releases for production.
 
-Derived from [Wiktionary](https://www.wiktionary.org/) via [Kaikki.org](https://kaikki.org/), subset of ~2000 entries/language. Available under [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); see the \`ATTRIBUTION.md\` asset for the full notice.
+Derived from [Wiktionary](https://www.wiktionary.org/) via [Kaikki.org](https://kaikki.org/) (subset of ~2000 entries/language, frequency-filtered) plus [wordfreq](https://github.com/rspeer/wordfreq) frequency rankings. All sources are distributed under [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), so the dump itself is too; see the \`ATTRIBUTION.md\` asset for the full notice.
 EOF
 )
 

@@ -17,6 +17,15 @@ if (args.Length == 0)
                                             Use at the start of a full bulk build so
                                             languages removed from the LANGUAGES list
                                             don't linger in the dump.
+          reset-wordfreq                    Truncate wordfreq_rankings and clear all
+                                            source_version_wordfreq_* metadata rows.
+                                            Wordfreq counterpart of reset-wiktionary.
+                                            Required at the start of a rebuild — the
+                                            per-import (lang, source) DELETE alone
+                                            doesn't catch rows from prior dates or
+                                            languages dropped from LANGUAGES, which
+                                            would pollute --frequency-filter-top and
+                                            the published dump.
           import-wiktionary --lang <code>   Import a Kaikki Wiktionary JSONL extract.
                             --source <path>
                             [--source-version <ver>]
@@ -65,6 +74,7 @@ return command switch
 {
     "init" => await RunInitAsync(dataSource),
     "reset-wiktionary" => await RunResetWiktionaryAsync(dataSource),
+    "reset-wordfreq" => await RunResetWordfreqAsync(dataSource),
     "import-wiktionary" => await RunImportWiktionaryAsync(dataSource, commandArgs),
     "import-wordfreq" => await RunImportWordfreqAsync(dataSource, commandArgs),
     "rebuild-indexes" => await RunRebuildIndexesAsync(dataSource),
@@ -115,6 +125,42 @@ static async Task<int> RunResetWiktionaryAsync(NpgsqlDataSource dataSource)
     // DROP IF EXISTS dance — they can assume a fresh, unindexed table.
     // `rebuild-indexes` at the end of the bulk flow recreates them.
     await WiktionaryIndexMaintenance.DropAsync(connection, transaction, default);
+
+    await transaction.CommitAsync();
+
+    Console.WriteLine($"Done in {FormatDuration(stopwatch.Elapsed)}.");
+    return 0;
+}
+
+static async Task<int> RunResetWordfreqAsync(NpgsqlDataSource dataSource)
+{
+    var stopwatch = Stopwatch.StartNew();
+    Console.WriteLine("Resetting wordfreq data (truncate + clear metadata)...");
+
+    await using var connection = await dataSource.OpenConnectionAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+
+    await using (var command = connection.CreateCommand())
+    {
+        command.Transaction = transaction;
+        command.CommandTimeout = 0;
+        // import-wordfreq deletes per-(lang_code, source) before its
+        // COPY, so a same-day re-import is already idempotent. This
+        // reset exists for the "rebuild" case: cross-date rebuilds
+        // would otherwise accumulate one (lang, wordfreq-<old-date>)
+        // row set per run, and dropping a language from LANGUAGES
+        // would leave its prior rows behind. Both would silently
+        // pollute --frequency-filter-top (which unions ranks across
+        // all sources for a language) and the published dump.
+        // Wordfreq's only index (lang_code, rank) is cheap to maintain
+        // during COPY, so we don't bother dropping it here.
+        command.CommandText = """
+            TRUNCATE TABLE wordfreq_rankings;
+            DELETE FROM corpus_metadata
+                WHERE key LIKE 'source_version_wordfreq_%';
+            """;
+        await command.ExecuteNonQueryAsync();
+    }
 
     await transaction.CommitAsync();
 

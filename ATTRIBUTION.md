@@ -70,9 +70,9 @@ obliges derivative works to keep the same license and credit the source.
 - **Redistributed artifacts.** Any corpus dump published to
   [GitHub Releases](https://github.com/altav1sta/langoose/releases) via
   `scripts/publish-{full,test}-corpus-dump.sh` ships this file as a
-  companion asset and cites Wiktionary + Kaikki in the release notes.
-  The dump itself is therefore available under CC-BY-SA 4.0 to match
-  the upstream.
+  companion asset and cites Wiktionary, Kaikki, and wordfreq in the
+  release notes. The dump itself is therefore available under
+  CC-BY-SA 4.0 to match the upstream.
 - **UI attribution.** The Langoose web UI will render a visible
   attribution notice anywhere Wiktionary-derived content is surfaced to
   end users (translations, inflected forms, example sentences). This

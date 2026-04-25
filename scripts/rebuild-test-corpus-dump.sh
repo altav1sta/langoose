@@ -9,7 +9,11 @@
 # Steps:
 #   1. Ensure local Postgres is running
 #   2. Apply schema (idempotent)
-#   3. Reset wiktionary data (TRUNCATE + clear source_version metadata)
+#   3. Reset wiktionary AND wordfreq data (TRUNCATE both tables +
+#      clear source_version metadata). Both resets are required:
+#      import-wordfreq deletes per-(lang, source), so a cross-date
+#      rebuild or a language dropped from LANGUAGES would leave stale
+#      rankings behind and pollute the dump + --frequency-filter-top.
 #   4. Import wordfreq TSVs so wiktionary_entries can then be filtered
 #      by frequency. --frequency-filter-top N keeps only entries whose
 #      headword is in the top N of wordfreq for that language,
@@ -100,9 +104,9 @@ echo " Top-N per language       : $LIMIT (frequency-filtered via wordfreq)"
 echo " Output dump file         : $DUMP_FILE (overwritten each rebuild)"
 echo ""
 echo " This will MUTATE your local langoose_corpus DB:"
-echo "   - wiktionary_entries will be TRUNCATED (all languages wiped)"
+echo "   - wiktionary_entries AND wordfreq_rankings will be TRUNCATED"
+echo "     (all languages and sources wiped)"
 echo "   - the listed languages are then freshly imported"
-echo "   - wordfreq_rankings will gain/refresh per-language rows"
 echo "   - the resulting dump contains exactly the listed languages"
 echo "==================================================================="
 echo ""
@@ -125,6 +129,10 @@ dotnet run --project apps/api/src/Langoose.Corpus.DbTool --configuration Release
 echo "==> Resetting Wiktionary data so the dump matches LANGUAGES exactly"
 dotnet run --project apps/api/src/Langoose.Corpus.DbTool --configuration Release -- \
     reset-wiktionary
+
+echo "==> Resetting wordfreq data so prior dates / dropped languages don't linger"
+dotnet run --project apps/api/src/Langoose.Corpus.DbTool --configuration Release -- \
+    reset-wordfreq
 
 # Import wordfreq BEFORE wiktionary so the --frequency-filter-top step
 # has rankings to consult.
