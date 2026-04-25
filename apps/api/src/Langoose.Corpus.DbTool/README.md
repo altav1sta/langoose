@@ -93,7 +93,7 @@ dotnet run --project apps/api/src/Langoose.Corpus.DbTool -- \
 ```
 
 The importer prints progress every 50k entries during COPY plus a per-step
-breakdown on finish (`delete / drop indexes / copy / build indexes /
+breakdown on finish (`drop indexes / truncate / copy / build indexes /
 metadata / commit`). Ballpark timing on a local dev machine (Docker
 Postgres on a modern SSD, no competing load):
 
@@ -102,18 +102,20 @@ Postgres on a modern SSD, no competing load):
 | English  | ~900k   | 3–5 min | 1–3 min    | 5–8 min |
 | Russian  | ~150k   | 30–60 s | 30–60 s    | 1–2 min |
 
-The importer drops the JSONB GIN index and the `(lang_code, word, pos)`
-btree before COPY and rebuilds them afterwards, inside the same
-transaction. Per-row GIN maintenance on Wiktionary's nested JSONB is very
-slow; building in bulk is typically 10-30× faster. The build uses
+`wiktionary_entries` is LIST-partitioned by `lang_code` (#97). Each
+language gets its own partition `wiktionary_entries_<lang>` with its
+own pair of indexes — a `(lang_code, word, pos)` btree and a JSONB GIN
+on `data jsonb_path_ops`. The importer drops the partition's two
+indexes before COPY, TRUNCATEs the partition, COPYs new rows, and
+rebuilds those two indexes — all inside one transaction, only touching
+this language. Per-row GIN maintenance on Wiktionary's nested JSONB is
+very slow; building in bulk is typically 10-30× faster. The build uses
 `SET LOCAL maintenance_work_mem = '1GB'` and
 `max_parallel_maintenance_workers = 4` to keep posting-list sorting in
-memory and parallelise the merge — otherwise it spills to disk, which is
-punishing on Docker Desktop Windows. Adjust those two knobs in
+memory and parallelise the merge — otherwise it spills to disk, which
+is punishing on Docker Desktop Windows. Adjust those two knobs in
 `WiktionaryIndexMaintenance.cs` if your Postgres container has
-significantly less than 2 GB available. See #97 for the per-language
-partitioning follow-up that would localise the rebuild cost when many
-languages are loaded.
+significantly less than 2 GB available.
 
 **Multi-language bulk builds**: pass `--defer-indexes` to each
 `import-wiktionary` call, then run `rebuild-indexes` once at the end.
@@ -167,14 +169,15 @@ command per missing file.
 > 1. Starts local Postgres (`docker compose up -d postgres`)
 > 2. Applies the corpus schema (`init`, idempotent)
 > 3. Resets both source tables (`reset-wiktionary` + `reset-wordfreq`):
->    TRUNCATEs `wiktionary_entries` and `wordfreq_rankings`, clears
->    `source_version_*` metadata rows, drops the wiktionary indexes.
+>    drops every `wiktionary_entries_<lang>` partition, TRUNCATEs
+>    `wordfreq_rankings`, and clears `source_version_*` metadata rows.
 >    Both resets are required: `import-wordfreq` only deletes per
 >    `(lang, source)`, so a cross-date rebuild or a language dropped
->    from `LANGUAGES` would otherwise leave stale rankings behind. The
->    dump is thereby deterministic from the `LANGUAGES` list — anything
->    removed from the list since a previous rebuild is gone from the
->    new dump.
+>    from `LANGUAGES` would otherwise leave stale rankings behind, and
+>    a partition for a removed language would linger as an empty
+>    partition in the dump. The dump is thereby deterministic from the
+>    `LANGUAGES` list — anything removed from the list since a previous
+>    rebuild is gone from the new dump.
 > 4. Imports the wordfreq TSV per language via `import-wordfreq`.
 >    Required by the test rebuild (drives the frequency filter);
 >    included in the full rebuild so the published dump ships rankings.
@@ -284,9 +287,9 @@ each.
 | `init` | Apply embedded SQL schema files in order. Idempotent. |
 | `import-wiktionary --lang <code> --source <jsonl> [--source-version <ver>] [--limit <n>] [--frequency-filter-top <n>] [--defer-indexes]` | Bulk-load a Kaikki Wiktionary JSONL extract. Replaces existing rows for that language. `--frequency-filter-top` keeps only headwords in the top N of `wordfreq_rankings` (run `import-wordfreq` first). |
 | `import-wordfreq --lang <code> --source <tsv> [--source-version <ver>]` | Bulk-load a wordfreq frequency-ranking TSV (`word\trank\tzipf_score`, `.gz` allowed). Replaces existing rows for that (lang, source). Fetch the TSV with `scripts/download-wordfreq.sh`. |
-| `reset-wiktionary` | Truncate `wiktionary_entries`, clear `source_version_wiktionary_*` metadata, drop indexes. Use at the start of a bulk multi-language rebuild. |
+| `reset-wiktionary` | Drop every `wiktionary_entries_<lang>` partition (and its indexes) and clear `source_version_wiktionary_*` metadata. Use at the start of a bulk multi-language rebuild — partitions for languages no longer in `LANGUAGES` are removed, not just emptied. |
 | `reset-wordfreq` | Truncate `wordfreq_rankings`, clear `source_version_wordfreq_*` metadata. Required at the start of a rebuild — `import-wordfreq` only deletes per `(lang, source)`, so cross-date rebuilds or dropped languages would otherwise accumulate stale rankings. |
-| `rebuild-indexes` | Drop and recreate the `wiktionary_entries` indexes. Idempotent. |
+| `rebuild-indexes` | Iterate every `wiktionary_entries_<lang>` partition and drop+recreate its two indexes. Idempotent. Used as the final step of a multi-language `--defer-indexes` build. |
 
 Future commands tracked under #92: `import-cefrj`, `import-tatoeba`,
 `dump`, `restore`.

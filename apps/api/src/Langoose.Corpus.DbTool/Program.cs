@@ -12,11 +12,13 @@ if (args.Length == 0)
         Langoose corpus DbTool. Subcommands:
 
           init                              Apply embedded SQL schema to the corpus database.
-          reset-wiktionary                  Truncate wiktionary_entries and clear all
-                                            source_version_wiktionary_* metadata rows.
-                                            Use at the start of a full bulk build so
-                                            languages removed from the LANGUAGES list
-                                            don't linger in the dump.
+          reset-wiktionary                  Drop every wiktionary_entries_<lang>
+                                            partition (and its indexes) and clear
+                                            all source_version_wiktionary_* metadata
+                                            rows. Use at the start of a full bulk
+                                            build so languages removed from the
+                                            LANGUAGES list don't linger in the dump
+                                            as empty partitions.
           reset-wordfreq                    Truncate wordfreq_rankings and clear all
                                             source_version_wordfreq_* metadata rows.
                                             Wordfreq counterpart of reset-wiktionary.
@@ -48,9 +50,12 @@ if (args.Length == 0)
                                             the `source` column so multiple frequency
                                             sources (wordfreq, SUBTLEX, ...) can
                                             coexist for the same language.
-          rebuild-indexes                   Drop and recreate the wiktionary_entries
-                                            indexes. Idempotent. Typically the final
-                                            step of a bulk multi-language build.
+          rebuild-indexes                   For every wiktionary_entries_<lang>
+                                            partition that exists, drop and
+                                            recreate its two indexes. Idempotent.
+                                            Typically the final step of a bulk
+                                            multi-language build that ran each
+                                            import-wiktionary with --defer-indexes.
         """);
 
     return 1;
@@ -100,35 +105,39 @@ static async Task<int> RunInitAsync(NpgsqlDataSource dataSource)
 static async Task<int> RunResetWiktionaryAsync(NpgsqlDataSource dataSource)
 {
     var stopwatch = Stopwatch.StartNew();
-    Console.WriteLine("Resetting wiktionary data (truncate + clear metadata + drop indexes)...");
+    Console.WriteLine("Resetting wiktionary data (drop all partitions + clear metadata)...");
 
     await using var connection = await dataSource.OpenConnectionAsync();
     await using var transaction = await connection.BeginTransactionAsync();
+
+    // Per #97 wiktionary_entries is LIST-partitioned by lang_code. Dropping
+    // every partition (rather than just truncating the parent) makes the
+    // dump match LANGUAGES exactly — a partition for a language no longer
+    // in LANGUAGES would otherwise linger as an empty partition in the
+    // dump. The importer's `EnsurePartitionAsync` recreates them on demand.
+    var partitions = await WiktionaryIndexMaintenance.ListPartitionLangCodesAsync(
+        connection, transaction, default);
+    foreach (var lang in partitions)
+    {
+        await WiktionaryIndexMaintenance.DropPartitionAsync(
+            connection, transaction, lang, default);
+    }
 
     await using (var command = connection.CreateCommand())
     {
         command.Transaction = transaction;
         command.CommandTimeout = 0;
-        // TRUNCATE avoids the per-row scan cost of a big DELETE and
-        // reclaims space immediately. CASCADE isn't needed — no FKs target
-        // this table.
         command.CommandText = """
-            TRUNCATE TABLE wiktionary_entries;
             DELETE FROM corpus_metadata
                 WHERE key LIKE 'source_version_wiktionary_%';
             """;
         await command.ExecuteNonQueryAsync();
     }
 
-    // Dropping the indexes here (as part of the reset) means subsequent
-    // `import-wiktionary --defer-indexes` calls don't need to repeat the
-    // DROP IF EXISTS dance — they can assume a fresh, unindexed table.
-    // `rebuild-indexes` at the end of the bulk flow recreates them.
-    await WiktionaryIndexMaintenance.DropAsync(connection, transaction, default);
-
     await transaction.CommitAsync();
 
-    Console.WriteLine($"Done in {FormatDuration(stopwatch.Elapsed)}.");
+    Console.WriteLine(
+        $"Done in {FormatDuration(stopwatch.Elapsed)}. Dropped {partitions.Count} partition(s).");
     return 0;
 }
 
@@ -215,16 +224,32 @@ static async Task<int> RunImportWordfreqAsync(NpgsqlDataSource dataSource, strin
 static async Task<int> RunRebuildIndexesAsync(NpgsqlDataSource dataSource)
 {
     var totalStopwatch = Stopwatch.StartNew();
-    Console.WriteLine("Rebuilding wiktionary_entries indexes...");
+    Console.WriteLine("Rebuilding wiktionary_entries partition indexes...");
 
     await using var connection = await dataSource.OpenConnectionAsync();
     await using var transaction = await connection.BeginTransactionAsync();
 
-    var dropElapsed = await WiktionaryIndexMaintenance.DropAsync(connection, transaction, default);
-    Console.WriteLine($"  dropped existing indexes in {FormatDuration(dropElapsed)}");
+    // Iterate every partition that exists in this database. Per-partition
+    // drop+create keeps each language's indexes named distinctly
+    // (ix_wiktionary_entries_<lang>_lookup / _data) so they don't collide
+    // and so a future single-language re-import can rebuild just one set.
+    var partitions = await WiktionaryIndexMaintenance.ListPartitionLangCodesAsync(
+        connection, transaction, default);
+    if (partitions.Count == 0)
+    {
+        Console.WriteLine(
+            "  no partitions found — nothing to rebuild. Did you skip the import step?");
+    }
 
-    var createElapsed = await WiktionaryIndexMaintenance.CreateAsync(connection, transaction, default);
-    Console.WriteLine($"  built indexes in {FormatDuration(createElapsed)}");
+    foreach (var lang in partitions)
+    {
+        var dropElapsed = await WiktionaryIndexMaintenance.DropAsync(
+            connection, transaction, lang, default);
+        var createElapsed = await WiktionaryIndexMaintenance.CreateAsync(
+            connection, transaction, lang, default);
+        Console.WriteLine(
+            $"  {lang}: dropped in {FormatDuration(dropElapsed)}, built in {FormatDuration(createElapsed)}");
+    }
 
     await transaction.CommitAsync();
 

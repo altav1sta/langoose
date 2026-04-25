@@ -120,10 +120,36 @@ Concrete consequences of "source-first":
   pure derived data; if benchmarks ever show containment as too slow, it
   can be built as a follow-up step without re-importing the source.
 
-Invariant for query authors: **always filter by `lang_code`**. Every
-index on the table is scoped by language; every partitioning scheme we'd
-adopt later (#97 territory) is keyed by language. Queries that omit
-`lang_code` will full-scan and will break once we partition.
+### Partitioning by `lang_code` (#97)
+
+`wiktionary_entries` is LIST-partitioned by `lang_code`. Each language
+gets its own partition `wiktionary_entries_<lang>` with its own indexes
+(`ix_wiktionary_entries_<lang>_lookup` on `(lang_code, word, pos)` and
+`ix_wiktionary_entries_<lang>_data` GIN on `data jsonb_path_ops`).
+Partitions are created on demand by the importer — the parent ships
+empty with no up-front list of supported languages, and dropping a
+language from `LANGUAGES` removes its partition entirely on the next
+`reset-wiktionary`.
+
+The motivation is purely operational: with N languages loaded, a
+single-language re-import without partitioning rebuilds GIN over the
+whole table (millions of rows scanned) before COPY can land. With
+partitioning, the rebuild scans only the partition we just truncated
+and reloaded. Other partitions' indexes are not touched.
+
+Per-partition DDL (create/drop partition, drop/create the two indexes,
+truncate, list) lives in `002_wiktionary.sql` as `corpus_wiktionary_*`
+PL/pgSQL helpers. The C# importer is a thin caller that passes
+`lang_code` as a parameter; `format(%I, %L)` inside the helpers does
+the identifier and literal quoting. Add or change an index by editing
+`corpus_wiktionary_create_partition_indexes` — no C# change needed.
+
+Invariant for query authors: **always filter by `lang_code`**. The
+planner needs that predicate to prune to the right partition; without
+it, queries either scan every partition (slow) or fail to use any
+local index (slower). The query layout already reflects this — every
+production query against `wiktionary_entries` filters on `lang_code`
+as the leading column, and the integration tests assert it.
 
 Sibling tables under the same source-first principle:
 - `wordfreq_rankings` (flat) — frequency ranks per word, per source

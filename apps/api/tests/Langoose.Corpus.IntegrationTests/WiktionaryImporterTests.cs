@@ -23,16 +23,31 @@ public sealed class WiktionaryImporterTests(PostgresFixture postgres)
         // Reset to a clean slate before each test so ordering doesn't
         // matter and future tests can't be broken by stale data. The
         // container itself is still reused across the class (disposable
-        // per class via PostgresFixture) — truncating is cheaper than
-        // booting a container per test.
+        // per class via PostgresFixture). With #97 wiktionary_entries is
+        // LIST-partitioned, so we drop every partition individually
+        // before wiping wordfreq + metadata.
         await using var connection = await postgres.DataSource.OpenConnectionAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            TRUNCATE TABLE wiktionary_entries;
-            TRUNCATE TABLE wordfreq_rankings;
-            DELETE FROM corpus_metadata;
-            """;
-        await command.ExecuteNonQueryAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        var partitions = await WiktionaryIndexMaintenance.ListPartitionLangCodesAsync(
+            connection, transaction, default);
+        foreach (var lang in partitions)
+        {
+            await WiktionaryIndexMaintenance.DropPartitionAsync(
+                connection, transaction, lang, default);
+        }
+
+        await using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = """
+                TRUNCATE TABLE wordfreq_rankings;
+                DELETE FROM corpus_metadata;
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await transaction.CommitAsync();
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -160,19 +175,14 @@ public sealed class WiktionaryImporterTests(PostgresFixture postgres)
     }
 
     [Fact]
-    public async Task ImportAsync_WithDeferIndexes_LeavesIndexesMissingUntilRebuild()
+    public async Task ImportAsync_WithDeferIndexes_LeavesPartitionIndexesMissingUntilRebuild()
     {
-        // Bulk-build pattern (scripts/build-*-corpus-dump.sh): drop indexes
-        // up-front via `reset-wiktionary`, import each language with
-        // --defer-indexes (just COPY, no per-lang DROP/REBUILD), then
-        // `rebuild-indexes` at the end restores them.
-        await using (var setupConnection = await postgres.DataSource.OpenConnectionAsync())
-        await using (var setupTx = await setupConnection.BeginTransactionAsync())
-        {
-            await WiktionaryIndexMaintenance.DropAsync(setupConnection, setupTx, default);
-            await setupTx.CommitAsync();
-        }
-
+        // Bulk-build pattern (scripts/rebuild-*-corpus-dump.sh): wipe
+        // partitions via `reset-wiktionary`, import each language with
+        // --defer-indexes (creates the partition + COPY, no per-lang
+        // DROP/REBUILD of partition indexes), then `rebuild-indexes` at
+        // the end builds indexes on every partition. Per #97 each
+        // partition has its own pair of indexes.
         var en = new WiktionaryImporter(postgres.DataSource, "en", "test-1", deferIndexes: true);
         var ru = new WiktionaryImporter(postgres.DataSource, "ru", "test-1", deferIndexes: true);
 
@@ -181,38 +191,47 @@ public sealed class WiktionaryImporterTests(PostgresFixture postgres)
 
         await using var connection = await postgres.DataSource.OpenConnectionAsync();
 
-        var indexes = (await connection.QueryAsync<string>(
+        var indexesBefore = (await connection.QueryAsync<string>(
             """
             SELECT indexname FROM pg_indexes
-            WHERE tablename = 'wiktionary_entries'
-              AND indexname IN ('ix_wiktionary_entries_lookup', 'ix_wiktionary_entries_data')
+            WHERE schemaname = 'public'
+              AND indexname LIKE 'ix_wiktionary_entries_%'
             """)).ToArray();
 
-        indexes.Should().BeEmpty();
+        indexesBefore.Should().BeEmpty();
 
-        // Both languages' rows are in place despite no indexes.
+        // Both languages' rows are in place despite no indexes — COPY
+        // routed each row to its partition by lang_code.
         var totalRows = await connection.ExecuteScalarAsync<long>(
             "SELECT COUNT(*) FROM wiktionary_entries");
         totalRows.Should().Be(6 + 3);  // EN fixture has 6, RU has 3
 
-        // rebuild-indexes restores both indexes.
+        // rebuild-indexes builds the per-partition indexes.
         await using var rebuildConnection = await postgres.DataSource.OpenConnectionAsync();
         await using var rebuildTx = await rebuildConnection.BeginTransactionAsync();
-        await WiktionaryIndexMaintenance.DropAsync(rebuildConnection, rebuildTx, default);
-        await WiktionaryIndexMaintenance.CreateAsync(rebuildConnection, rebuildTx, default);
+        var partitions = await WiktionaryIndexMaintenance.ListPartitionLangCodesAsync(
+            rebuildConnection, rebuildTx, default);
+        foreach (var lang in partitions)
+        {
+            await WiktionaryIndexMaintenance.DropAsync(rebuildConnection, rebuildTx, lang, default);
+            await WiktionaryIndexMaintenance.CreateAsync(rebuildConnection, rebuildTx, lang, default);
+        }
         await rebuildTx.CommitAsync();
 
         var indexesAfter = (await connection.QueryAsync<string>(
             """
             SELECT indexname FROM pg_indexes
-            WHERE tablename = 'wiktionary_entries'
-              AND indexname IN ('ix_wiktionary_entries_lookup', 'ix_wiktionary_entries_data')
+            WHERE schemaname = 'public'
+              AND indexname LIKE 'ix_wiktionary_entries_%'
+            ORDER BY indexname
             """)).ToArray();
 
         indexesAfter.Should().BeEquivalentTo(new[]
         {
-            "ix_wiktionary_entries_lookup",
-            "ix_wiktionary_entries_data"
+            "ix_wiktionary_entries_en_data",
+            "ix_wiktionary_entries_en_lookup",
+            "ix_wiktionary_entries_ru_data",
+            "ix_wiktionary_entries_ru_lookup"
         });
     }
 
@@ -390,5 +409,132 @@ public sealed class WiktionaryImporterTests(PostgresFixture postgres)
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*--frequency-filter-top 100*wordfreq_rankings*no rows for lang_code='en'*");
+    }
+
+    [Fact]
+    public async Task ImportAsync_FirstRunForLanguage_CreatesPartitionAndIndexes()
+    {
+        var importer = new WiktionaryImporter(postgres.DataSource, "en", "test-1");
+
+        await importer.ImportAsync(FixtureEnPath);
+
+        await using var connection = await postgres.DataSource.OpenConnectionAsync();
+
+        // Partition exists with the expected name.
+        var partitions = (await connection.QueryAsync<string>(
+            """
+            SELECT c.relname
+            FROM pg_inherits i
+            JOIN pg_class c ON c.oid = i.inhrelid
+            JOIN pg_class p ON p.oid = i.inhparent
+            WHERE p.relname = 'wiktionary_entries'
+            ORDER BY c.relname
+            """)).ToArray();
+        partitions.Should().Equal("wiktionary_entries_en");
+
+        // Per-partition indexes were created with predictable names.
+        var indexes = (await connection.QueryAsync<string>(
+            """
+            SELECT indexname FROM pg_indexes
+            WHERE schemaname = 'public' AND tablename = 'wiktionary_entries_en'
+            ORDER BY indexname
+            """)).ToArray();
+        indexes.Should().Equal(
+            "ix_wiktionary_entries_en_data",
+            "ix_wiktionary_entries_en_lookup");
+    }
+
+    [Fact]
+    public async Task ImportAsync_RunTwice_PartitionCreationIsIdempotent()
+    {
+        // Re-importing the same language must reuse the existing partition
+        // (CREATE TABLE IF NOT EXISTS path), drop+recreate only that
+        // partition's indexes, and leave the row count at 6 — not 12.
+        var importer = new WiktionaryImporter(postgres.DataSource, "en", "test-1");
+
+        await importer.ImportAsync(FixtureEnPath);
+        await importer.ImportAsync(FixtureEnPath);
+
+        await using var connection = await postgres.DataSource.OpenConnectionAsync();
+
+        var partitionCount = await connection.ExecuteScalarAsync<long>(
+            """
+            SELECT COUNT(*)
+            FROM pg_inherits i
+            JOIN pg_class p ON p.oid = i.inhparent
+            WHERE p.relname = 'wiktionary_entries'
+            """);
+        partitionCount.Should().Be(1);
+
+        var rowCount = await connection.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*) FROM wiktionary_entries WHERE lang_code = 'en'");
+        rowCount.Should().Be(6);
+
+        // Indexes are present after the second import (rebuilt as part of
+        // the second run, not duplicated).
+        var indexCount = await connection.ExecuteScalarAsync<long>(
+            """
+            SELECT COUNT(*) FROM pg_indexes
+            WHERE schemaname = 'public' AND tablename = 'wiktionary_entries_en'
+            """);
+        indexCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task ImportAsync_SingleLanguageReimport_LeavesOtherPartitionsIndexesIntact()
+    {
+        // The headline #97 win: re-importing one language must NOT touch
+        // any other partition's indexes. We capture each EN index's
+        // pg_class.oid before the RU re-import; if the EN indexes are
+        // recreated (rather than left alone), the oids change.
+        const string EnIndexOidQuery = """
+            SELECT c.relname AS indexname, c.oid::bigint AS oid
+            FROM pg_index i
+            JOIN pg_class c ON c.oid = i.indexrelid
+            JOIN pg_class t ON t.oid = i.indrelid
+            WHERE t.relname = 'wiktionary_entries_en'
+            ORDER BY c.relname
+            """;
+
+        var en = new WiktionaryImporter(postgres.DataSource, "en", "test-1");
+        var ru = new WiktionaryImporter(postgres.DataSource, "ru", "test-1");
+
+        await en.ImportAsync(FixtureEnPath);
+        await ru.ImportAsync(FixtureRuPath);
+
+        await using var connection = await postgres.DataSource.OpenConnectionAsync();
+
+        var enIndexOidsBefore = (await connection.QueryAsync<(string indexname, long oid)>(
+            EnIndexOidQuery)).ToArray();
+        enIndexOidsBefore.Should().HaveCount(2);
+
+        // Re-import RU. The EN partition and its indexes must be untouched.
+        var ruReimport = new WiktionaryImporter(postgres.DataSource, "ru", "test-2");
+        await ruReimport.ImportAsync(FixtureRuPath);
+
+        var enIndexOidsAfter = (await connection.QueryAsync<(string indexname, long oid)>(
+            EnIndexOidQuery)).ToArray();
+
+        enIndexOidsAfter.Should().BeEquivalentTo(enIndexOidsBefore);
+
+        // EN row count is also unaffected.
+        var enRowCount = await connection.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*) FROM wiktionary_entries WHERE lang_code = 'en'");
+        enRowCount.Should().Be(6);
+    }
+
+    [Fact]
+    public async Task ImportAsync_WithUnsafeLangCode_RejectsBeforeIssuingDdl()
+    {
+        // Defence in depth: lang_code is interpolated into partition/index
+        // DDL (Postgres doesn't accept parameters there), so anything that
+        // isn't a strict identifier must throw before any DDL is issued.
+        // Mirrors the WiktionaryIndexMaintenance.ValidateLangCode contract.
+        var importer = new WiktionaryImporter(postgres.DataSource, "en'; DROP TABLE--", "test-1");
+
+        var act = async () => await importer.ImportAsync(FixtureEnPath);
+
+        await act.Should().ThrowAsync<ArgumentException>()
+            .WithMessage("*Invalid lang_code*");
     }
 }

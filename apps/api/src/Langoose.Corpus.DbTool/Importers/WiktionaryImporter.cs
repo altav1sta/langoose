@@ -14,6 +14,12 @@ namespace Langoose.Corpus.DbTool.Importers;
 /// corpus database. Streams the input (no full-file load), bulk-loads via
 /// <see cref="NpgsqlBinaryImporter"/>, and replaces any existing rows for
 /// the same language in a single transaction.
+///
+/// Per #97 the table is LIST-partitioned by <c>lang_code</c>: this importer
+/// ensures the per-language partition exists, drops/rebuilds only that
+/// partition's indexes, and TRUNCATEs the partition rather than scanning
+/// the whole table for a per-row DELETE. Other languages' partitions are
+/// untouched.
 /// </summary>
 public sealed class WiktionaryImporter(
     NpgsqlDataSource dataSource,
@@ -37,49 +43,41 @@ public sealed class WiktionaryImporter(
         await using var connection = await dataSource.OpenConnectionAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
 
-        // 1. Replace any existing rows for this language. Skipped in bulk
-        //    mode (--defer-indexes) — the caller is expected to have run
-        //    `reset-wiktionary` before the loop, so the table is already
-        //    empty; a per-language DELETE would just scan for nothing.
-        var deleteElapsed = TimeSpan.Zero;
-        long deletedRows = 0;
-        if (!deferIndexes)
-        {
-            var deleteStopwatch = Stopwatch.StartNew();
-            Console.WriteLine($"[{Name}] Clearing existing rows for lang_code={langCode}...");
-            await using (var deleteCommand = connection.CreateCommand())
-            {
-                deleteCommand.Transaction = transaction;
-                deleteCommand.CommandText =
-                    "DELETE FROM wiktionary_entries WHERE lang_code = @lang_code";
-                deleteCommand.Parameters.AddWithValue("lang_code", langCode);
-                // Large-language DELETEs can easily run past the Npgsql
-                // default 30s command timeout. This step is bounded by
-                // user's ctrl-c.
-                deleteCommand.CommandTimeout = 0;
+        // 1. Make sure this language's partition exists. Idempotent — re-imports
+        //    under the same lang_code reuse it. In the bulk (--defer-indexes)
+        //    flow `reset-wiktionary` will have dropped any pre-existing
+        //    partition first, so this is also where partitions come back
+        //    after a reset. Validates lang_code as a safe identifier.
+        Console.WriteLine($"[{Name}] Ensuring partition {WiktionaryIndexMaintenance.PartitionName(langCode)} exists...");
+        await WiktionaryIndexMaintenance.EnsurePartitionAsync(connection, transaction, langCode, ct);
 
-                deletedRows = await deleteCommand.ExecuteNonQueryAsync(ct);
-            }
-            deleteElapsed = deleteStopwatch.Elapsed;
-            Console.WriteLine(
-                $"[{Name}] Cleared {deletedRows:N0} rows in {FormatDuration(deleteElapsed)}");
-        }
-
-        // 2. Drop indexes before COPY so we don't pay per-row GIN maintenance.
-        //    The JSONB GIN index is especially expensive incrementally (~50-100
-        //    path inserts per Wiktionary entry); building it in bulk after
-        //    COPY is typically 10-30× faster. Skipped in bulk mode — the
-        //    `reset-wiktionary` step run before the bulk loop has already
-        //    dropped them, so repeating here would be a no-op.
+        // 2. Drop the partition's indexes before COPY so we don't pay
+        //    per-row GIN maintenance. The JSONB GIN index is especially
+        //    expensive incrementally (~50-100 path inserts per Wiktionary
+        //    entry); building it in bulk after COPY is typically 10-30×
+        //    faster. Skipped in --defer-indexes mode — reset-wiktionary
+        //    drops all partitions before the bulk loop, so the freshly
+        //    created partition has no indexes to drop.
         var dropIndexElapsed = TimeSpan.Zero;
+        var truncateElapsed = TimeSpan.Zero;
         if (!deferIndexes)
         {
-            Console.WriteLine($"[{Name}] Dropping indexes (rebuilt after COPY)...");
+            Console.WriteLine($"[{Name}] Dropping partition indexes (rebuilt after COPY)...");
             dropIndexElapsed = await WiktionaryIndexMaintenance.DropAsync(
-                connection, transaction, ct);
+                connection, transaction, langCode, ct);
+
+            // 3. TRUNCATE the partition. Constant-time replacement for the
+            //    pre-#97 per-row DELETE — TRUNCATE skips the scan and
+            //    reclaims space immediately, and it only affects this
+            //    language's rows.
+            var truncateStopwatch = Stopwatch.StartNew();
+            Console.WriteLine($"[{Name}] Truncating partition for lang_code={langCode}...");
+            await WiktionaryIndexMaintenance.TruncatePartitionAsync(
+                connection, transaction, langCode, ct);
+            truncateElapsed = truncateStopwatch.Elapsed;
         }
 
-        // 3. Optionally load a frequency-ranked allowlist. Used by mini-dump
+        // 4. Optionally load a frequency-ranked allowlist. Used by mini-dump
         //    builds to keep entries representative of everyday vocabulary
         //    instead of taking the first N entries (which Kaikki publishes
         //    in roughly alphabetical order, biased toward `a-`/`ab-`).
@@ -100,7 +98,8 @@ public sealed class WiktionaryImporter(
             }
         }
 
-        // 4. Stream JSONL and bulk-COPY entries.
+        // 5. Stream JSONL and bulk-COPY entries. COPY targets the parent
+        //    table; Postgres routes each row to its partition by lang_code.
         Console.WriteLine($"[{Name}] Streaming {sourcePath}...");
         var copyStopwatch = Stopwatch.StartNew();
         var entriesImported = await CopyEntriesAsync(
@@ -109,16 +108,16 @@ public sealed class WiktionaryImporter(
         Console.WriteLine(
             $"[{Name}] COPY complete: {entriesImported:N0} entries in {FormatDuration(copyElapsed)} ({RateOrDash(entriesImported, copyElapsed)})");
 
-        // 5. Rebuild indexes — unless the caller is running a multi-language
-        //    bulk build and will call `rebuild-indexes` once at the end.
-        //    See #97 for the per-language partition follow-up that would
-        //    localise the rebuild cost when many languages are loaded.
+        // 6. Rebuild the partition's indexes — unless the caller is running
+        //    a multi-language bulk build and will call `rebuild-indexes`
+        //    once at the end. Per-partition rebuild only scans this
+        //    language's rows, which is the whole point of #97.
         TimeSpan buildIndexElapsed = TimeSpan.Zero;
         if (!deferIndexes)
         {
-            Console.WriteLine($"[{Name}] Rebuilding indexes...");
+            Console.WriteLine($"[{Name}] Rebuilding partition indexes...");
             buildIndexElapsed = await WiktionaryIndexMaintenance.CreateAsync(
-                connection, transaction, ct);
+                connection, transaction, langCode, ct);
             Console.WriteLine(
                 $"[{Name}] Indexes rebuilt in {FormatDuration(buildIndexElapsed)}");
         }
@@ -128,7 +127,7 @@ public sealed class WiktionaryImporter(
                 $"[{Name}] Skipping index rebuild (--defer-indexes set). Run `rebuild-indexes` after all languages are imported.");
         }
 
-        // 6. Record provenance.
+        // 7. Record provenance.
         var metadataStopwatch = Stopwatch.StartNew();
         await using (var metadataCommand = connection.CreateCommand())
         {
@@ -146,7 +145,7 @@ public sealed class WiktionaryImporter(
         }
         var metadataElapsed = metadataStopwatch.Elapsed;
 
-        // 7. Commit the transaction.
+        // 8. Commit the transaction.
         var commitStopwatch = Stopwatch.StartNew();
         await transaction.CommitAsync(ct);
         var commitElapsed = commitStopwatch.Elapsed;
@@ -156,8 +155,8 @@ public sealed class WiktionaryImporter(
         Console.WriteLine($"[{Name}] Done in {FormatDuration(totalElapsed)}. Breakdown:");
         if (!deferIndexes)
         {
-            Console.WriteLine($"[{Name}]   delete        {FormatDuration(deleteElapsed),10}");
             Console.WriteLine($"[{Name}]   drop indexes  {FormatDuration(dropIndexElapsed),10}");
+            Console.WriteLine($"[{Name}]   truncate      {FormatDuration(truncateElapsed),10}");
         }
         Console.WriteLine($"[{Name}]   copy          {FormatDuration(copyElapsed),10}");
         if (!deferIndexes)
@@ -211,7 +210,7 @@ public sealed class WiktionaryImporter(
             // truth for the stored column. The source entry's lang_code is
             // validated to match in StreamEntriesAsync, so these are
             // always equal here — writing the constructor value keeps the
-            // DELETE/COPY/metadata triple unambiguously consistent.
+            // partition routing and metadata stamp unambiguously consistent.
             await importer.WriteAsync(langCode, NpgsqlDbType.Varchar, ct);
             await importer.WriteAsync(entry.Data.Word, NpgsqlDbType.Varchar, ct);
             await importer.WriteAsync(entry.Data.Pos, NpgsqlDbType.Varchar, ct);
@@ -327,13 +326,13 @@ public sealed class WiktionaryImporter(
             }
 
             // Fail fast if the source file's declared lang_code doesn't
-            // match the --lang flag. Without this check, the DELETE
-            // (keyed on the constructor's langCode) and the COPY (would
-            // otherwise write the source's lang_code) could disagree —
-            // existing rows of langCode wiped, new rows inserted under a
-            // different code, and metadata stamped under the wrong key.
-            // Transaction rollback in the caller restores pre-import
-            // state cleanly.
+            // match the --lang flag. Without this check, the TRUNCATE
+            // (keyed on the constructor's langCode partition) and the COPY
+            // (would otherwise route the source's lang_code into a
+            // different partition) could disagree — existing rows of
+            // langCode wiped, new rows landing under a different code,
+            // metadata stamped under the wrong key. Transaction rollback
+            // in the caller restores pre-import state cleanly.
             if (!string.Equals(data.LangCode, langCode, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
