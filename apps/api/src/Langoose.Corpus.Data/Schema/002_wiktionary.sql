@@ -11,27 +11,138 @@
 -- Wiktionary splits by etymology (e.g. English "lead" = metal + leash,
 -- Russian "замок" = castle + lock), so forcing uniqueness would be lossy.
 -- Rows are never updated — the importer replaces by lang_code.
+--
+-- LIST-partitioned by `lang_code` (#97). Each language gets its own
+-- partition `wiktionary_entries_<lang>` with its own indexes, so a
+-- single-language re-import only rebuilds one partition's GIN index
+-- instead of scanning the whole table. Partitions are created on demand
+-- by the importer through corpus_wiktionary_ensure_partition() — the
+-- parent ships empty with no up-front list of supported languages.
+-- Indexes live on the partitions, not the parent, so the drop-rebuild
+-- during import only touches the partition being loaded. Query authors
+-- must always filter by `lang_code` (documented in
+-- docs/agent/enrichment-guidance.md) so the planner can prune.
 CREATE TABLE IF NOT EXISTS wiktionary_entries (
     lang_code VARCHAR(10) NOT NULL,
     word VARCHAR(300) NOT NULL,
     pos VARCHAR(50) NOT NULL,
     source_version VARCHAR(32) NOT NULL,
     data JSONB NOT NULL
-);
+) PARTITION BY LIST (lang_code);
 
--- Primary lookup: (lang, word, pos) → entry
-CREATE INDEX IF NOT EXISTS ix_wiktionary_entries_lookup
-    ON wiktionary_entries (lang_code, word, pos);
+-- Per-partition DDL helpers. Encapsulating the partition + index naming
+-- convention here (rather than templating it in C#) keeps the index
+-- structure visible alongside the table definition: a future change like
+-- adding a third index lives in one place. The C# importer becomes a
+-- thin caller that passes lang_code as a parameter.
+--
+-- All helpers validate lang_code against the same regex; they're safe
+-- to call directly from psql. format() with %I quotes identifiers and
+-- %L quotes literals, closing the only DDL injection path.
 
--- GIN index on the JSONB column with jsonb_path_ops (smaller, faster for @>
--- containment). Used for runtime lookups like:
---   - "entries where any sense has a translation matching (target_lang, target_text)"
---     data @> '{"senses":[{"translations":[{"code":"ru","word":"книга"}]}]}'::jsonb
---   - "entries whose forms[] contains a given inflected form"
---     data @> '{"forms":[{"form":"бронировал"}]}'::jsonb
--- Pure derivations from the JSONB — no separate form-index table needed at
--- this scale. If the provider ever benchmarks these as too slow, a
--- dedicated form-index table can be materialised as a follow-up step
--- (it's pure derived data, rebuildable without re-importing).
-CREATE INDEX IF NOT EXISTS ix_wiktionary_entries_data
-    ON wiktionary_entries USING GIN (data jsonb_path_ops);
+CREATE OR REPLACE FUNCTION corpus_wiktionary_assert_lang_code(lang_code text)
+    RETURNS void
+    LANGUAGE plpgsql
+    IMMUTABLE
+AS $$
+BEGIN
+    IF lang_code IS NULL OR lang_code !~ '^[a-z][a-z0-9_]*$' THEN
+        RAISE EXCEPTION 'Invalid lang_code %: must match [a-z][a-z0-9_]*. '
+            'lang_code is interpolated into partition/index DDL where parameters '
+            'are not allowed; the regex restricts it to a safe identifier.',
+            COALESCE(quote_literal(lang_code), 'NULL');
+    END IF;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION corpus_wiktionary_ensure_partition(lang_code text)
+    RETURNS void
+    LANGUAGE plpgsql
+AS $$
+BEGIN
+    PERFORM corpus_wiktionary_assert_lang_code(lang_code);
+    EXECUTE format(
+        'CREATE TABLE IF NOT EXISTS %I PARTITION OF wiktionary_entries FOR VALUES IN (%L)',
+        'wiktionary_entries_' || lang_code,
+        lang_code);
+END
+$$;
+
+CREATE OR REPLACE FUNCTION corpus_wiktionary_drop_partition(lang_code text)
+    RETURNS void
+    LANGUAGE plpgsql
+AS $$
+BEGIN
+    PERFORM corpus_wiktionary_assert_lang_code(lang_code);
+    EXECUTE format('DROP TABLE IF EXISTS %I', 'wiktionary_entries_' || lang_code);
+END
+$$;
+
+CREATE OR REPLACE FUNCTION corpus_wiktionary_truncate_partition(lang_code text)
+    RETURNS void
+    LANGUAGE plpgsql
+AS $$
+BEGIN
+    PERFORM corpus_wiktionary_assert_lang_code(lang_code);
+    EXECUTE format('TRUNCATE TABLE %I', 'wiktionary_entries_' || lang_code);
+END
+$$;
+
+CREATE OR REPLACE FUNCTION corpus_wiktionary_drop_partition_indexes(lang_code text)
+    RETURNS void
+    LANGUAGE plpgsql
+AS $$
+DECLARE
+    partition_name text;
+BEGIN
+    PERFORM corpus_wiktionary_assert_lang_code(lang_code);
+    partition_name := 'wiktionary_entries_' || lang_code;
+    EXECUTE format('DROP INDEX IF EXISTS %I', 'ix_' || partition_name || '_lookup');
+    EXECUTE format('DROP INDEX IF EXISTS %I', 'ix_' || partition_name || '_data');
+END
+$$;
+
+-- Builds the two indexes that every partition carries. Caller is
+-- expected to bracket the call with `SET LOCAL maintenance_work_mem`
+-- and `SET LOCAL max_parallel_maintenance_workers` for the GIN bulk
+-- build — those settings have no effect when issued inside a function
+-- body (they apply to the function's call frame, not the surrounding
+-- CREATE INDEX), so they have to live at the calling transaction level.
+CREATE OR REPLACE FUNCTION corpus_wiktionary_create_partition_indexes(lang_code text)
+    RETURNS void
+    LANGUAGE plpgsql
+AS $$
+DECLARE
+    partition_name text;
+BEGIN
+    PERFORM corpus_wiktionary_assert_lang_code(lang_code);
+    partition_name := 'wiktionary_entries_' || lang_code;
+    EXECUTE format(
+        'CREATE INDEX %I ON %I (lang_code, word, pos)',
+        'ix_' || partition_name || '_lookup',
+        partition_name);
+    EXECUTE format(
+        'CREATE INDEX %I ON %I USING GIN (data jsonb_path_ops)',
+        'ix_' || partition_name || '_data',
+        partition_name);
+END
+$$;
+
+-- Lists every existing wiktionary partition by its lang_code (the
+-- partition-name suffix). Drives reset-wiktionary's bulk drop and
+-- rebuild-indexes' bulk index rebuild.
+CREATE OR REPLACE FUNCTION corpus_wiktionary_list_partition_lang_codes()
+    RETURNS SETOF text
+    LANGUAGE sql
+    STABLE
+AS $$
+    SELECT substring(c.relname FROM length('wiktionary_entries_') + 1)
+    FROM pg_inherits i
+    JOIN pg_class c ON c.oid = i.inhrelid
+    JOIN pg_class p ON p.oid = i.inhparent
+    JOIN pg_namespace ns ON ns.oid = p.relnamespace
+    WHERE p.relname = 'wiktionary_entries'
+      AND ns.nspname = 'public'
+      AND c.relname LIKE 'wiktionary_entries\_%' ESCAPE '\'
+    ORDER BY c.relname
+$$;
