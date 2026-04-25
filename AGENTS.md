@@ -40,6 +40,7 @@ Keep this table in sync when adding or removing docs under `docs/agent/`.
 | `docs/agent/frontend-conventions.md` | React patterns, TypeScript config, CSS approach |
 | `docs/agent/api-contracts.md` | DTO mapping, response shapes, frontend type alignment |
 | `docs/agent/dictionary-rules.md` | Visibility, form-based dedup, CSV import/export, product invariants |
+| `docs/agent/dictionary-schema-design.md` | ADR for senses, phrases, ranked translations, provenance, staging tables |
 | `docs/agent/study-engine.md` | Study cards, answer evaluation, grading tolerances, scheduling |
 | `docs/agent/enrichment-guidance.md` | Provider interface, worker, content generation, rate limiting |
 | `docs/agent/auth-hosting.md` | Cookies, antiforgery, OpenIddict, proxy, Data Protection |
@@ -60,6 +61,7 @@ Keep this table in sync when adding or removing docs under `docs/agent/`.
 | `docs/agent/frontend-conventions.md` | `langoose-react-typescript` | |
 | `docs/agent/api-contracts.md` | `langoose-api-contracts` | |
 | `docs/agent/dictionary-rules.md` | `langoose-dictionary-imports` | |
+| `docs/agent/dictionary-schema-design.md` | `doc-only` | ADR; supersedes flat-translations model — see efcore-structure for current entity shape |
 | `docs/agent/study-engine.md` | `langoose-study-engine` | |
 | `docs/agent/enrichment-guidance.md` | `doc-only` | No dedicated skill yet |
 | `docs/agent/auth-hosting.md` | `langoose-auth-hosting` | |

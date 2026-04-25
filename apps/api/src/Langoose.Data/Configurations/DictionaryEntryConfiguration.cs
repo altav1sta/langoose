@@ -21,12 +21,6 @@ public sealed class DictionaryEntryConfiguration : IEntityTypeConfiguration<Dict
             .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasMany(x => x.Translations)
-            .WithMany()
-            .UsingEntity("dictionary_entries_translations",
-                x => x.HasOne(typeof(DictionaryEntry)).WithMany().HasForeignKey("target_id"),
-                x => x.HasOne(typeof(DictionaryEntry)).WithMany().HasForeignKey("source_id"));
-
         builder.HasIndex(x => new { x.Language, x.Text, x.PartOfSpeech });
         builder.HasIndex(x => x.BaseEntryId);
     }

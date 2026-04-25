@@ -222,8 +222,10 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         var entries = await dbContext.UserDictionaryEntries
             .AsNoTracking()
             .Where(x => x.UserId == userId)
-            .Include(x => x.SourceEntry)
-            .ThenInclude(x => x!.Translations)
+            .Include(x => x.SourceEntry).ThenInclude(x => x!.Senses)
+                .ThenInclude(s => s.Translations.OrderBy(t => t.Rank))
+                .ThenInclude(t => t.TargetSense)
+                .ThenInclude(s => s.DictionaryEntry)
             .OrderBy(x => x.UserInputTerm)
             .ToListAsync(cancellationToken);
 
@@ -236,9 +238,12 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
                 ?? entry.UserInputTranslation
                 ?? entry.UserInputTerm;
 
-            var russianText = entry.SourceEntry?.Translations
-                .Where(x => x.Language == "ru")
-                .Select(x => x.Text)
+            var russianText = entry.SourceEntry?.Senses
+                .OrderBy(s => s.SenseIndex)
+                .SelectMany(s => s.Translations)
+                .Select(t => t.TargetSense.DictionaryEntry)
+                .Where(e => e.Language == "ru")
+                .Select(e => e.Text)
                 .FirstOrDefault()
                 ?? entry.UserInputTerm;
 

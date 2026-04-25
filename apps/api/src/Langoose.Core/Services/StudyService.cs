@@ -62,15 +62,21 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
             .First();
 
         var entry = await dbContext.DictionaryEntries
-            .Include(x => x.Translations)
+            .Include(x => x.Senses)
+                .ThenInclude(s => s.Translations.OrderBy(t => t.Rank))
+                .ThenInclude(t => t.TargetSense)
+                .ThenInclude(s => s.DictionaryEntry)
             .FirstAsync(x => x.Id == next.DictionaryEntryId, cancellationToken);
 
         var context = await dbContext.EntryContexts
             .Include(x => x.Translations)
             .FirstOrDefaultAsync(x => x.DictionaryEntryId == next.DictionaryEntryId, cancellationToken);
 
-        var translations = entry.Translations
-            .Select(x => x.Text)
+        var translations = entry.Senses
+            .OrderBy(s => s.SenseIndex)
+            .SelectMany(s => s.Translations)
+            .Select(t => t.TargetSense.DictionaryEntry.Text)
+            .Distinct()
             .ToList();
 
         var sentenceTranslation = context?.Translations

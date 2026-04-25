@@ -18,8 +18,10 @@ public sealed class EnrichmentProcessor(
         var now = DateTimeOffset.UtcNow;
 
         var pendingItems = await dbContext.UserDictionaryEntries
-            .Include(x => x.SourceEntry).ThenInclude(x => x!.Translations)
-            .Include(x => x.TargetEntry)
+            .Include(x => x.SourceEntry).ThenInclude(x => x!.Senses)
+                .ThenInclude(x => x.Translations).ThenInclude(x => x.TargetSense)
+                .ThenInclude(x => x.DictionaryEntry)
+            .Include(x => x.TargetEntry).ThenInclude(x => x!.Senses)
             .Where(x => x.EnrichmentStatus == EnrichmentStatus.Pending
                 || (x.EnrichmentStatus == EnrichmentStatus.ProviderError && x.EnrichmentAttempts < maxRetries))
             .Where(x => x.EnrichmentNotBefore == null || x.EnrichmentNotBefore <= now)
@@ -52,7 +54,9 @@ public sealed class EnrichmentProcessor(
             var texts = lookupKeys.Select(x => x.Text).Distinct().ToArray();
 
             var dbEntries = await dbContext.DictionaryEntries
-                .Include(x => x.Translations)
+                .Include(x => x.Senses)
+                    .ThenInclude(x => x.Translations).ThenInclude(x => x.TargetSense)
+                    .ThenInclude(x => x.DictionaryEntry)
                 .Where(x => languages.Contains(x.Language) && texts.Contains(x.Text))
                 .ToArrayAsync(cancellationToken);
 
@@ -85,13 +89,17 @@ public sealed class EnrichmentProcessor(
                 }
                 else
                 {
-                    item.TargetEntry = item.SourceEntry?.Translations
-                        .FirstOrDefault(x => x.Language == item.TargetLanguage && x.PartOfSpeech == item.PartOfSpeech);
+                    item.TargetEntry = item.SourceEntry?.Senses
+                        .SelectMany(s => s.Translations)
+                        .Select(t => t.TargetSense.DictionaryEntry)
+                        .FirstOrDefault(e => e.Language == item.TargetLanguage && e.PartOfSpeech == item.PartOfSpeech);
                 }
             }
 
             var hasLink = item.SourceEntry is not null && item.TargetEntry is not null
-                && item.SourceEntry.Translations.Any(x => x.Id == item.TargetEntry.Id);
+                && item.SourceEntry.Senses
+                    .SelectMany(s => s.Translations)
+                    .Any(t => t.TargetSense.DictionaryEntryId == item.TargetEntry.Id);
 
             if (item.SourceEntry is not null && item.TargetEntry is not null && hasLink)
             {
@@ -156,8 +164,8 @@ public sealed class EnrichmentProcessor(
                         item.TargetEntry = CreateBaseEntryOrThrow(result.TargetEntries, lang, pos, now);
                         CreateDerivedEntries(result.TargetEntries, item.TargetEntry, lang, pos, now);
                     }
-                    
-                    item.SourceEntry.Translations.Add(item.TargetEntry);
+
+                    LinkSenses(item.SourceEntry, item.TargetEntry, now);
                     item.EnrichmentStatus = EnrichmentStatus.Enriched;
                     item.UpdatedAtUtc = now;
                 }
@@ -181,6 +189,17 @@ public sealed class EnrichmentProcessor(
         var entry = MakeEntry(baseSrc, language, partOfSpeech, null, now);
         dbContext.DictionaryEntries.Add(entry);
 
+        var sense = new Sense
+        {
+            Id = Guid.CreateVersion7(),
+            DictionaryEntryId = entry.Id,
+            SenseIndex = 0,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        };
+        entry.Senses.Add(sense);
+        dbContext.Senses.Add(sense);
+
         return entry;
     }
 
@@ -192,6 +211,33 @@ public sealed class EnrichmentProcessor(
 
         foreach (var src in enriched.Where(x => !x.IsBaseForm))
             dbContext.DictionaryEntries.Add(MakeEntry(src, language, partOfSpeech, baseEntry.Id, now));
+    }
+
+    private void LinkSenses(DictionaryEntry source, DictionaryEntry target, DateTimeOffset now)
+    {
+        var sourceSense = source.Senses.OrderBy(x => x.SenseIndex).FirstOrDefault()
+            ?? throw new InvalidOperationException($"Source entry {source.Id} has no senses to link.");
+        var targetSense = target.Senses.OrderBy(x => x.SenseIndex).FirstOrDefault()
+            ?? throw new InvalidOperationException($"Target entry {target.Id} has no senses to link.");
+
+        if (sourceSense.Translations.Any(x => x.TargetSenseId == targetSense.Id))
+            return;
+
+        dbContext.SenseTranslations.Add(new SenseTranslation
+        {
+            SourceSenseId = sourceSense.Id,
+            TargetSenseId = targetSense.Id,
+            Rank = 0,
+            CreatedAtUtc = now
+        });
+
+        dbContext.SenseTranslations.Add(new SenseTranslation
+        {
+            SourceSenseId = targetSense.Id,
+            TargetSenseId = sourceSense.Id,
+            Rank = 0,
+            CreatedAtUtc = now
+        });
     }
 
     private static DictionaryEntry MakeEntry(

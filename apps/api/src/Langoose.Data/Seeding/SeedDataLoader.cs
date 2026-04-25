@@ -12,6 +12,8 @@ public static class SeedDataLoader
             ?? throw new InvalidOperationException("Seed payload could not be deserialized.");
 
         var entries = new List<DictionaryEntry>();
+        var senses = new List<Sense>();
+        var senseTranslations = new List<SenseTranslation>();
         var contexts = new List<EntryContext>();
 
         var now = DateTimeOffset.UtcNow;
@@ -42,11 +44,45 @@ public static class SeedDataLoader
                 UpdatedAtUtc = now
             };
 
-            enEntry.Translations.Add(ruEntry);
-            ruEntry.Translations.Add(enEntry);
-
             entries.Add(enEntry);
             entries.Add(ruEntry);
+
+            var enSense = new Sense
+            {
+                Id = Guid.CreateVersion7(),
+                DictionaryEntryId = enEntry.Id,
+                SenseIndex = 0,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            };
+
+            var ruSense = new Sense
+            {
+                Id = Guid.CreateVersion7(),
+                DictionaryEntryId = ruEntry.Id,
+                SenseIndex = 0,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            };
+
+            senses.Add(enSense);
+            senses.Add(ruSense);
+
+            senseTranslations.Add(new SenseTranslation
+            {
+                SourceSenseId = enSense.Id,
+                TargetSenseId = ruSense.Id,
+                Rank = 0,
+                CreatedAtUtc = now
+            });
+
+            senseTranslations.Add(new SenseTranslation
+            {
+                SourceSenseId = ruSense.Id,
+                TargetSenseId = enSense.Id,
+                Rank = 0,
+                CreatedAtUtc = now
+            });
 
             var sentenceText = item.Cloze.Replace("____", item.English, StringComparison.Ordinal);
             var enContext = new EntryContext
@@ -76,7 +112,7 @@ public static class SeedDataLoader
             contexts.Add(ruContext);
         }
 
-        return new SeedBatch(entries, contexts);
+        return new SeedBatch(entries, senses, senseTranslations, contexts);
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -109,4 +145,6 @@ public static class SeedDataLoader
 
 public sealed record SeedBatch(
     IReadOnlyList<DictionaryEntry> Entries,
+    IReadOnlyList<Sense> Senses,
+    IReadOnlyList<SenseTranslation> SenseTranslations,
     IReadOnlyList<EntryContext> Contexts);

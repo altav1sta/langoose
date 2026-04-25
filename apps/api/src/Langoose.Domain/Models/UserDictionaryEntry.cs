@@ -19,7 +19,7 @@ public sealed class UserDictionaryEntry
     public string? Notes { get; set; }
     public List<string> Tags { get; set; } = [];
     public required DateTimeOffset CreatedAtUtc { get; init; }
-    public DateTimeOffset UpdatedAtUtc { get; set; }
+    public required DateTimeOffset UpdatedAtUtc { get; set; }
 
     public DictionaryEntry? SourceEntry { get; set; }
     public DictionaryEntry? TargetEntry { get; set; }

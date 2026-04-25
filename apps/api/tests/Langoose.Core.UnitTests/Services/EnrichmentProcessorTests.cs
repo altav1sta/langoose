@@ -51,7 +51,7 @@ public sealed class EnrichmentProcessorTests
     }
 
     [Fact]
-    public async Task ProcessPendingBatchAsync_LinksBaseFormsViaManyToMany()
+    public async Task ProcessPendingBatchAsync_LinksBaseFormsViaSenseTranslations()
     {
         var (processor, db) = CreateProcessor();
         db.UserDictionaryEntries.Add(CreatePendingItem("book", "книга"));
@@ -62,12 +62,17 @@ public sealed class EnrichmentProcessorTests
             DefaultBatchSize, DefaultMaxRetries, CancellationToken.None);
 
         var sourceBase = await db.DictionaryEntries
-            .Include(x => x.Translations)
+            .Include(x => x.Senses).ThenInclude(s => s.Translations)
             .FirstAsync(x => x.Language == "en" && x.BaseEntryId == null);
         var targetBase = await db.DictionaryEntries
+            .Include(x => x.Senses).ThenInclude(s => s.Translations)
             .FirstAsync(x => x.Language == "ru" && x.BaseEntryId == null);
 
-        sourceBase.Translations.Should().Contain(x => x.Id == targetBase.Id);
+        var targetSenseIds = targetBase.Senses.Select(s => s.Id).ToHashSet();
+        sourceBase.Senses.Should().NotBeEmpty();
+        sourceBase.Senses
+            .SelectMany(s => s.Translations)
+            .Should().Contain(t => targetSenseIds.Contains(t.TargetSenseId));
     }
 
     [Fact]
@@ -277,20 +282,43 @@ public sealed class EnrichmentProcessorTests
         AppDbContext db, string sourceText, string sourceLang,
         string targetText, string targetLang)
     {
+        var now = DateTimeOffset.UtcNow;
         var sourceEntry = new DictionaryEntry
         {
             Id = Guid.CreateVersion7(), Language = sourceLang, Text = sourceText,
             PartOfSpeech = "noun", IsPublic = true,
-            CreatedAtUtc = DateTimeOffset.UtcNow, UpdatedAtUtc = DateTimeOffset.UtcNow
+            CreatedAtUtc = now, UpdatedAtUtc = now
         };
         var targetEntry = new DictionaryEntry
         {
             Id = Guid.CreateVersion7(), Language = targetLang, Text = targetText,
             PartOfSpeech = "noun", IsPublic = true,
-            CreatedAtUtc = DateTimeOffset.UtcNow, UpdatedAtUtc = DateTimeOffset.UtcNow
+            CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+        var sourceSense = new Sense
+        {
+            Id = Guid.CreateVersion7(), DictionaryEntryId = sourceEntry.Id,
+            SenseIndex = 0,
+            CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+        var targetSense = new Sense
+        {
+            Id = Guid.CreateVersion7(), DictionaryEntryId = targetEntry.Id,
+            SenseIndex = 0,
+            CreatedAtUtc = now, UpdatedAtUtc = now
         };
         db.DictionaryEntries.AddRange(sourceEntry, targetEntry);
-        sourceEntry.Translations.Add(targetEntry);
-        targetEntry.Translations.Add(sourceEntry);
+        db.Senses.AddRange(sourceSense, targetSense);
+        db.SenseTranslations.AddRange(
+            new SenseTranslation
+            {
+                SourceSenseId = sourceSense.Id, TargetSenseId = targetSense.Id,
+                Rank = 0, CreatedAtUtc = now
+            },
+            new SenseTranslation
+            {
+                SourceSenseId = targetSense.Id, TargetSenseId = sourceSense.Id,
+                Rank = 0, CreatedAtUtc = now
+            });
     }
 }
