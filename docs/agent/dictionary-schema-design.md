@@ -152,7 +152,7 @@ before promotion.
 ```
 staging_entries
   Id              Guid (v7)
-  Source          enum   ('wiktionary', 'wordfreq', 'csv-import', 'user-suggest')
+  Source          enum   (EntrySource: 'Wiktionary', 'Manual', 'Import', 'UserSuggest')
   SourceRefId     text   -- e.g. corpus row id, csv row #, originating user id
   Language        text
   Text            text
@@ -168,9 +168,18 @@ staging_entries
   CreatedAtUtc    timestamptz
   UpdatedAtUtc    timestamptz
 
-index (Status)
-index (Source, Status)
+index (Status)                    -- worker polling by status
+index (Source, SourceRefId)       -- dedup at import; non-unique, app enforces no-duplicate-insert
 ```
+
+`EntrySource` is the same enum used elsewhere in the app's content
+provenance vocabulary (currently used only by `StagingEntry.Source`).
+`'Wiktionary'` covers the bulk corpus import path, `'Import'` covers
+CSV bulk imports, `'UserSuggest'` covers user-driven suggestions
+flowing into the public review queue, `'Manual'` covers admin-entered
+candidates. Adding a separate frequency-only source like wordfreq is
+unnecessary — wordfreq feeds into translation `Rank` on already-existing
+candidates rather than producing its own staging rows.
 
 `Payload` is the **bundle shape** for one candidate dictionary entry —
 the entry header plus all of its senses and their cross-language
