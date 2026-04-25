@@ -51,7 +51,7 @@ public sealed class EnrichmentProcessorTests
     }
 
     [Fact]
-    public async Task ProcessPendingBatchAsync_LinksBaseFormsViaManyToMany()
+    public async Task ProcessPendingBatchAsync_LinksBaseFormsViaSenseTranslations()
     {
         var (processor, db) = CreateProcessor();
         db.UserDictionaryEntries.Add(CreatePendingItem("book", "книга"));
@@ -62,12 +62,17 @@ public sealed class EnrichmentProcessorTests
             DefaultBatchSize, DefaultMaxRetries, CancellationToken.None);
 
         var sourceBase = await db.DictionaryEntries
-            .Include(x => x.Translations)
+            .Include(x => x.Senses).ThenInclude(s => s.Translations)
             .FirstAsync(x => x.Language == "en" && x.BaseEntryId == null);
         var targetBase = await db.DictionaryEntries
+            .Include(x => x.Senses).ThenInclude(s => s.Translations)
             .FirstAsync(x => x.Language == "ru" && x.BaseEntryId == null);
 
-        sourceBase.Translations.Should().Contain(x => x.Id == targetBase.Id);
+        var targetSenseIds = targetBase.Senses.Select(s => s.Id).ToHashSet();
+        sourceBase.Senses.Should().NotBeEmpty();
+        sourceBase.Senses
+            .SelectMany(s => s.Translations)
+            .Should().Contain(t => targetSenseIds.Contains(t.TargetSenseId));
     }
 
     [Fact]
@@ -106,6 +111,29 @@ public sealed class EnrichmentProcessorTests
         var updated = await db.UserDictionaryEntries.SingleAsync();
         updated.EnrichmentStatus.Should().Be(EnrichmentStatus.Enriched);
         updated.SourceEntryId.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task ProcessPendingBatchAsync_WhenUserInputMatchesDerivedForm_ResolvesToBaseEntry()
+    {
+        var (processor, db) = CreateProcessor();
+        var (enBase, _, ruBase) = SeedExistingTranslationWithDerivedForm(
+            db, baseText: "book", derivedText: "books", sourceLang: "en",
+            targetText: "книга", targetLang: "ru");
+        db.UserDictionaryEntries.Add(CreatePendingItem("books", "книга"));
+
+        await db.SaveChangesAsync();
+        var entriesBefore = await db.DictionaryEntries.CountAsync();
+
+        await processor.ProcessPendingBatchAsync(
+            DefaultBatchSize, DefaultMaxRetries, CancellationToken.None);
+
+        (await db.DictionaryEntries.CountAsync()).Should().Be(entriesBefore);
+
+        var updated = await db.UserDictionaryEntries.SingleAsync();
+        updated.EnrichmentStatus.Should().Be(EnrichmentStatus.Enriched);
+        updated.SourceEntryId.Should().Be(enBase.Id, "lookup must walk derived → base");
+        updated.TargetEntryId.Should().Be(ruBase.Id);
     }
 
     [Fact]
@@ -277,20 +305,97 @@ public sealed class EnrichmentProcessorTests
         AppDbContext db, string sourceText, string sourceLang,
         string targetText, string targetLang)
     {
+        var now = DateTimeOffset.UtcNow;
         var sourceEntry = new DictionaryEntry
         {
             Id = Guid.CreateVersion7(), Language = sourceLang, Text = sourceText,
             PartOfSpeech = "noun", IsPublic = true,
-            CreatedAtUtc = DateTimeOffset.UtcNow, UpdatedAtUtc = DateTimeOffset.UtcNow
+            CreatedAtUtc = now, UpdatedAtUtc = now
         };
         var targetEntry = new DictionaryEntry
         {
             Id = Guid.CreateVersion7(), Language = targetLang, Text = targetText,
             PartOfSpeech = "noun", IsPublic = true,
-            CreatedAtUtc = DateTimeOffset.UtcNow, UpdatedAtUtc = DateTimeOffset.UtcNow
+            CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+        var sourceSense = new Sense
+        {
+            Id = Guid.CreateVersion7(), DictionaryEntryId = sourceEntry.Id,
+            SenseIndex = 0,
+            CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+        var targetSense = new Sense
+        {
+            Id = Guid.CreateVersion7(), DictionaryEntryId = targetEntry.Id,
+            SenseIndex = 0,
+            CreatedAtUtc = now, UpdatedAtUtc = now
         };
         db.DictionaryEntries.AddRange(sourceEntry, targetEntry);
-        sourceEntry.Translations.Add(targetEntry);
-        targetEntry.Translations.Add(sourceEntry);
+        db.Senses.AddRange(sourceSense, targetSense);
+        db.SenseTranslations.AddRange(
+            new SenseTranslation
+            {
+                SourceSenseId = sourceSense.Id, TargetSenseId = targetSense.Id,
+                Rank = 0, CreatedAtUtc = now
+            },
+            new SenseTranslation
+            {
+                SourceSenseId = targetSense.Id, TargetSenseId = sourceSense.Id,
+                Rank = 0, CreatedAtUtc = now
+            });
+    }
+
+    private static (DictionaryEntry SourceBase, DictionaryEntry SourceDerived, DictionaryEntry TargetBase)
+        SeedExistingTranslationWithDerivedForm(
+            AppDbContext db, string baseText, string derivedText, string sourceLang,
+            string targetText, string targetLang)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var sourceBase = new DictionaryEntry
+        {
+            Id = Guid.CreateVersion7(), Language = sourceLang, Text = baseText,
+            PartOfSpeech = "noun", IsPublic = true,
+            CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+        var sourceDerived = new DictionaryEntry
+        {
+            Id = Guid.CreateVersion7(), Language = sourceLang, Text = derivedText,
+            BaseEntryId = sourceBase.Id,
+            PartOfSpeech = "noun", IsPublic = true,
+            CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+        var targetBase = new DictionaryEntry
+        {
+            Id = Guid.CreateVersion7(), Language = targetLang, Text = targetText,
+            PartOfSpeech = "noun", IsPublic = true,
+            CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+        var sourceBaseSense = new Sense
+        {
+            Id = Guid.CreateVersion7(), DictionaryEntryId = sourceBase.Id,
+            SenseIndex = 0,
+            CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+        var targetBaseSense = new Sense
+        {
+            Id = Guid.CreateVersion7(), DictionaryEntryId = targetBase.Id,
+            SenseIndex = 0,
+            CreatedAtUtc = now, UpdatedAtUtc = now
+        };
+        db.DictionaryEntries.AddRange(sourceBase, sourceDerived, targetBase);
+        db.Senses.AddRange(sourceBaseSense, targetBaseSense);
+        db.SenseTranslations.AddRange(
+            new SenseTranslation
+            {
+                SourceSenseId = sourceBaseSense.Id, TargetSenseId = targetBaseSense.Id,
+                Rank = 0, CreatedAtUtc = now
+            },
+            new SenseTranslation
+            {
+                SourceSenseId = targetBaseSense.Id, TargetSenseId = sourceBaseSense.Id,
+                Rank = 0, CreatedAtUtc = now
+            });
+
+        return (sourceBase, sourceDerived, targetBase);
     }
 }

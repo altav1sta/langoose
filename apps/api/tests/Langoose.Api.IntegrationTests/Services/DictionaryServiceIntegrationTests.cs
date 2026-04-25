@@ -25,8 +25,12 @@ public sealed class DictionaryServiceIntegrationTests
         Assert.Contains(batch.Entries, x => x.Language == "en" && x.Text == "book");
         Assert.Contains(batch.Entries, x => x.Language == "ru" && x.Text == "\u043A\u043D\u0438\u0433\u0430");
 
+        Assert.True(batch.Senses.Count > 0);
+        Assert.True(batch.SenseTranslations.Count > 0);
+
         var enBook = batch.Entries.First(x => x.Language == "en" && x.Text == "book");
-        Assert.NotEmpty(enBook.Translations);
+        var enBookSense = batch.Senses.First(s => s.DictionaryEntryId == enBook.Id);
+        Assert.Contains(batch.SenseTranslations, t => t.SourceSenseId == enBookSense.Id);
     }
 
     [Fact]

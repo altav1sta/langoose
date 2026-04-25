@@ -194,6 +194,165 @@ namespace Langoose.Data.Migrations
                     b.ToTable("import_records", (string)null);
                 });
 
+            modelBuilder.Entity("Langoose.Domain.Models.Sense", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<Guid>("DictionaryEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("dictionary_entry_id");
+
+                    b.Property<string>("Gloss")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("gloss");
+
+                    b.Property<int>("SenseIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("sense_index");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id")
+                        .HasName("pk_senses");
+
+                    b.HasIndex("DictionaryEntryId", "SenseIndex")
+                        .IsUnique()
+                        .HasDatabaseName("ix_senses_dictionary_entry_id_sense_index");
+
+                    b.ToTable("senses", (string)null);
+                });
+
+            modelBuilder.Entity("Langoose.Domain.Models.SenseTranslation", b =>
+                {
+                    b.Property<Guid>("SourceSenseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_sense_id");
+
+                    b.Property<Guid>("TargetSenseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_sense_id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<int>("Rank")
+                        .HasColumnType("integer")
+                        .HasColumnName("rank");
+
+                    b.HasKey("SourceSenseId", "TargetSenseId")
+                        .HasName("pk_sense_translations");
+
+                    b.HasIndex("TargetSenseId")
+                        .HasDatabaseName("ix_sense_translations_target_sense_id");
+
+                    b.ToTable("sense_translations", (string)null);
+                });
+
+            modelBuilder.Entity("Langoose.Domain.Models.StagingEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<float?>("AiConfidence")
+                        .HasColumnType("real")
+                        .HasColumnName("ai_confidence");
+
+                    b.Property<string>("AiReasoning")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("ai_reasoning");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("language");
+
+                    b.Property<string>("PartOfSpeech")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("part_of_speech");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<Guid?>("PromotedEntryId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("promoted_entry_id");
+
+                    b.Property<DateTimeOffset?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at_utc");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("SourceRefId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("source_ref_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("StatusReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("status_reason");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id")
+                        .HasName("pk_staging_entries");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_staging_entries_status");
+
+                    b.HasIndex("Source", "SourceRefId")
+                        .HasDatabaseName("ix_staging_entries_source_source_ref_id");
+
+                    b.ToTable("staging_entries", (string)null);
+                });
+
             modelBuilder.Entity("Langoose.Domain.Models.StudyEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -405,25 +564,6 @@ namespace Langoose.Data.Migrations
                     b.ToTable("user_progress", (string)null);
                 });
 
-            modelBuilder.Entity("dictionary_entries_translations", b =>
-                {
-                    b.Property<Guid>("source_id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("source_id");
-
-                    b.Property<Guid>("target_id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("target_id");
-
-                    b.HasKey("source_id", "target_id")
-                        .HasName("pk_dictionary_entries_translations");
-
-                    b.HasIndex("target_id")
-                        .HasDatabaseName("ix_dictionary_entries_translations_target_id");
-
-                    b.ToTable("dictionary_entries_translations", (string)null);
-                });
-
             modelBuilder.Entity("entry_contexts_translations", b =>
                 {
                     b.Property<Guid>("source_id")
@@ -478,6 +618,39 @@ namespace Langoose.Data.Migrations
                     b.Navigation("DictionaryEntry");
                 });
 
+            modelBuilder.Entity("Langoose.Domain.Models.Sense", b =>
+                {
+                    b.HasOne("Langoose.Domain.Models.DictionaryEntry", "DictionaryEntry")
+                        .WithMany("Senses")
+                        .HasForeignKey("DictionaryEntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_senses_dictionary_entries_dictionary_entry_id");
+
+                    b.Navigation("DictionaryEntry");
+                });
+
+            modelBuilder.Entity("Langoose.Domain.Models.SenseTranslation", b =>
+                {
+                    b.HasOne("Langoose.Domain.Models.Sense", "SourceSense")
+                        .WithMany("Translations")
+                        .HasForeignKey("SourceSenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_sense_translations_senses_source_sense_id");
+
+                    b.HasOne("Langoose.Domain.Models.Sense", "TargetSense")
+                        .WithMany()
+                        .HasForeignKey("TargetSenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_sense_translations_senses_target_sense_id");
+
+                    b.Navigation("SourceSense");
+
+                    b.Navigation("TargetSense");
+                });
+
             modelBuilder.Entity("Langoose.Domain.Models.StudyEvent", b =>
                 {
                     b.HasOne("Langoose.Domain.Models.DictionaryEntry", "DictionaryEntry")
@@ -529,23 +702,6 @@ namespace Langoose.Data.Migrations
                     b.Navigation("DictionaryEntry");
                 });
 
-            modelBuilder.Entity("dictionary_entries_translations", b =>
-                {
-                    b.HasOne("Langoose.Domain.Models.DictionaryEntry", null)
-                        .WithMany()
-                        .HasForeignKey("source_id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_dictionary_entries_translations_dictionary_entries_source_id");
-
-                    b.HasOne("Langoose.Domain.Models.DictionaryEntry", null)
-                        .WithMany()
-                        .HasForeignKey("target_id")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_dictionary_entries_translations_dictionary_entries_target_id");
-                });
-
             modelBuilder.Entity("entry_contexts_translations", b =>
                 {
                     b.HasOne("Langoose.Domain.Models.EntryContext", null)
@@ -568,6 +724,13 @@ namespace Langoose.Data.Migrations
                     b.Navigation("Contexts");
 
                     b.Navigation("DerivedForms");
+
+                    b.Navigation("Senses");
+                });
+
+            modelBuilder.Entity("Langoose.Domain.Models.Sense", b =>
+                {
+                    b.Navigation("Translations");
                 });
 #pragma warning restore 612, 618
         }

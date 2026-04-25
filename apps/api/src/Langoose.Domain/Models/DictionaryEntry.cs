@@ -11,10 +11,10 @@ public sealed class DictionaryEntry
     public string? Difficulty { get; set; }
     public required bool IsPublic { get; set; }
     public required DateTimeOffset CreatedAtUtc { get; init; }
-    public DateTimeOffset UpdatedAtUtc { get; set; }
+    public required DateTimeOffset UpdatedAtUtc { get; set; }
 
     public DictionaryEntry? BaseEntry { get; set; }
     public ICollection<DictionaryEntry> DerivedForms { get; set; } = [];
     public ICollection<EntryContext> Contexts { get; set; } = [];
-    public ICollection<DictionaryEntry> Translations { get; set; } = [];
+    public ICollection<Sense> Senses { get; set; } = [];
 }

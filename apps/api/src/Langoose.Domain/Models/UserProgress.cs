@@ -12,7 +12,7 @@ public sealed class UserProgress
     public double? Stability { get; set; }
     public double? Difficulty { get; set; }
     public required DateTimeOffset CreatedAtUtc { get; init; }
-    public DateTimeOffset UpdatedAtUtc { get; set; }
+    public required DateTimeOffset UpdatedAtUtc { get; set; }
 
     public DictionaryEntry DictionaryEntry { get; set; } = null!;
 }

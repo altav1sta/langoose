@@ -9,7 +9,9 @@ better for B-tree indexing in PostgreSQL). Mapping tables use composite primary 
 
 | Entity | Table | Key Relationships |
 |--------|-------|-------------------|
-| DictionaryEntry | dictionary_entries | Self-ref BaseEntryId, has many EntryContexts, M2M Translations |
+| DictionaryEntry | dictionary_entries | Self-ref BaseEntryId, has many EntryContexts, has many Senses |
+| Sense | senses | FK -> DictionaryEntry, has many SenseTranslations. Unique (DictionaryEntryId, SenseIndex) |
+| SenseTranslation | sense_translations | Composite PK (SourceSenseId, TargetSenseId). Carries Rank |
 | EntryContext | entry_contexts | FK -> DictionaryEntry, M2M Translations |
 | UserDictionaryEntry | user_dictionary_entries | FK SourceEntryId -> DictionaryEntry, FK TargetEntryId -> DictionaryEntry (both nullable) |
 | UserEntryContext | user_entry_contexts | FK -> UserDictionaryEntry |
@@ -17,6 +19,7 @@ better for B-tree indexing in PostgreSQL). Mapping tables use composite primary 
 | StudyEvent | study_events | FK -> DictionaryEntry, FK -> EntryContext (nullable) |
 | ContentFlag | content_flags | FK -> DictionaryEntry |
 | ImportRecord | import_records | No FKs to content tables |
+| StagingEntry | staging_entries | Pre-promotion holding table for the bulk-seed pipeline. JSONB Payload, status enum, AI fields, optional PromotedEntryId. See dictionary-schema-design.md |
 
 ### Auth Database (AuthDbContext)
 
@@ -31,19 +34,25 @@ Contains `AuthUser`, `AuthSession`, and OpenIddict tables. Unchanged by domain r
 - Use `ApplyConfigurationsFromAssembly` in `AppDbContext.OnModelCreating`.
 - Enum fields stored as strings via `HasConversion<string>()`.
 - PostgreSQL arrays (`text[]`) for `List<string>` properties (Tags, etc.).
-- Implicit many-to-many via `HasMany().WithMany().UsingEntity()` for translation
-  links. No explicit join entity classes — EF manages the join tables.
+- Use implicit many-to-many via `HasMany().WithMany().UsingEntity()` when the
+  join carries no extra data (e.g. `EntryContext.Translations`). When the join
+  needs columns of its own (rank, audit fields), define an explicit join
+  entity class — `SenseTranslation` is the canonical example (composite PK on
+  `(SourceSenseId, TargetSenseId)`, carries `Rank`).
 - Services use `AppDbContext` directly — no repository-per-entity abstraction.
 - Keep EF-specific concerns out of controllers.
 
 ## Key Indexes
 
 - `DictionaryEntry`: index on `(Language, Text, PartOfSpeech)`, index on `BaseEntryId`.
+- `Sense`: unique on `(DictionaryEntryId, SenseIndex)`.
+- `SenseTranslation`: composite PK `(SourceSenseId, TargetSenseId)` covers source-leading lookups; explicit index on `TargetSenseId` for the reverse FK and cascade-delete path.
 - `EntryContext`: index on `DictionaryEntryId`.
 - `UserDictionaryEntry`: index on `UserId`,
   index on `(EnrichmentStatus, CreatedAtUtc)` for worker polling.
 - `UserProgress`: unique on `(UserId, DictionaryEntryId)`.
 - `StudyEvent`: index on `(UserId, CreatedAtUtc)` for dashboard queries.
+- `StagingEntry`: index on `Status` (worker polling), `(Source, SourceRefId)` (dedup at import; not unique — application enforces no-duplicate-insert).
 
 ## Migrations
 
@@ -57,8 +66,13 @@ Contains `AuthUser`, `AuthSession`, and OpenIddict tables. Unchanged by domain r
 
 - `DatabaseSeeder` and `SeedDataLoader` in `Data/Seeding/`.
 - `base-store.json` contains DictionaryEntries (base forms + derived forms)
-  and EntryContexts. Translations use implicit M2M via navigation properties.
+  and EntryContexts. The seeder materializes one default `Sense` per entry
+  (`SenseIndex = 0`) and links cross-language pairs as `SenseTranslation`
+  rows in both directions.
 - Seeding is empty-database-only via `Langoose.DbTool seed-app`.
+- The hardcoded JSON seed is a placeholder that will be replaced by the
+  bulk-seed pipeline (#57) once that pipeline ships. See
+  `dictionary-schema-design.md` for the staged-pipeline design.
 
 ## Review Checklist
 
