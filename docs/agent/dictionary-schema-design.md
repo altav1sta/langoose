@@ -120,7 +120,7 @@ the audit trail (who/what/when produced this) is reachable via
 `StagingEntry.PromotedEntryId`.
 
 ```
-StagingEntry.Source : enum  ('wiktionary', 'manual', 'import', 'user-suggest')
+StagingEntry.Source : enum EntrySource (Wiktionary, Manual, Import, UserSuggest)
                             -- pipeline routing identifier; part of the row's identity
 ```
 
@@ -292,7 +292,7 @@ schema. If their term has no public sense:
 
 - For now: the entry stays in a terminal Invalid* status.
 - Later (out of scope here): an auto-staging path can create a
-  `StagingEntry { Source = 'user-suggest', Payload = {...} }` that joins
+  `StagingEntry { Source = UserSuggest, Payload = {...} }` that joins
   the bulk-seed review queue. Once promoted, the user's entry can be
   retried and linked.
 
@@ -380,7 +380,7 @@ that adds tables and drops the old translation join.
 - Real-time enrichment for user adds — `UserDictionaryEntry` keeps its
   current async lifecycle.
 - Per-user crowdsourcing of public entries — possible later via
-  `Source = 'user-suggest'`, not in this scope.
+  `Source = UserSuggest`, not in this scope.
 - Sense disambiguation in the study engine UI (asking the user "which
   meaning?") — that's a product feature on top of the schema, tracked
   separately.
