@@ -20,7 +20,8 @@ public sealed class WiktionaryImporter(
     string langCode,
     string sourceVersion,
     long? entryLimit = null,
-    bool deferIndexes = false) : ICorpusImporter
+    bool deferIndexes = false,
+    int? frequencyFilterTop = null) : ICorpusImporter
 {
     private const long ProgressIntervalEntries = 50_000;
 
@@ -78,15 +79,37 @@ public sealed class WiktionaryImporter(
                 connection, transaction, ct);
         }
 
-        // 3. Stream JSONL and bulk-COPY entries.
+        // 3. Optionally load a frequency-ranked allowlist. Used by mini-dump
+        //    builds to keep entries representative of everyday vocabulary
+        //    instead of taking the first N entries (which Kaikki publishes
+        //    in roughly alphabetical order, biased toward `a-`/`ab-`).
+        HashSet<string>? frequencyAllowlist = null;
+        if (frequencyFilterTop is { } topN)
+        {
+            frequencyAllowlist = await LoadFrequencyAllowlistAsync(
+                connection, transaction, topN, ct);
+            Console.WriteLine(
+                $"[{Name}] Frequency filter active: keeping only entries whose word is in the top {topN:N0} of wordfreq_rankings ({frequencyAllowlist.Count:N0} distinct words loaded).");
+
+            if (frequencyAllowlist.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"--frequency-filter-top {topN} was requested but wordfreq_rankings " +
+                    $"has no rows for lang_code='{langCode}'. Run import-wordfreq for " +
+                    $"this language first, or omit the flag to import without filtering.");
+            }
+        }
+
+        // 4. Stream JSONL and bulk-COPY entries.
         Console.WriteLine($"[{Name}] Streaming {sourcePath}...");
         var copyStopwatch = Stopwatch.StartNew();
-        var entriesImported = await CopyEntriesAsync(connection, transaction, sourcePath, ct);
+        var entriesImported = await CopyEntriesAsync(
+            connection, transaction, sourcePath, frequencyAllowlist, ct);
         var copyElapsed = copyStopwatch.Elapsed;
         Console.WriteLine(
             $"[{Name}] COPY complete: {entriesImported:N0} entries in {FormatDuration(copyElapsed)} ({RateOrDash(entriesImported, copyElapsed)})");
 
-        // 4. Rebuild indexes — unless the caller is running a multi-language
+        // 5. Rebuild indexes — unless the caller is running a multi-language
         //    bulk build and will call `rebuild-indexes` once at the end.
         //    See #97 for the per-language partition follow-up that would
         //    localise the rebuild cost when many languages are loaded.
@@ -105,7 +128,7 @@ public sealed class WiktionaryImporter(
                 $"[{Name}] Skipping index rebuild (--defer-indexes set). Run `rebuild-indexes` after all languages are imported.");
         }
 
-        // 5. Record provenance.
+        // 6. Record provenance.
         var metadataStopwatch = Stopwatch.StartNew();
         await using (var metadataCommand = connection.CreateCommand())
         {
@@ -123,7 +146,7 @@ public sealed class WiktionaryImporter(
         }
         var metadataElapsed = metadataStopwatch.Elapsed;
 
-        // 6. Commit the transaction.
+        // 7. Commit the transaction.
         var commitStopwatch = Stopwatch.StartNew();
         await transaction.CommitAsync(ct);
         var commitElapsed = commitStopwatch.Elapsed;
@@ -161,6 +184,7 @@ public sealed class WiktionaryImporter(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         string sourcePath,
+        HashSet<string>? frequencyAllowlist,
         CancellationToken ct)
     {
         // BeginBinaryImport doesn't enrol in the transaction directly, but
@@ -178,6 +202,10 @@ public sealed class WiktionaryImporter(
 
         await foreach (var entry in StreamEntriesAsync(sourcePath, ct))
         {
+            if (frequencyAllowlist is not null
+                && !frequencyAllowlist.Contains(entry.Data.Word))
+                continue;
+
             await importer.StartRowAsync(ct);
             // langCode (the constructor argument) is the single source of
             // truth for the stored column. The source entry's lang_code is
@@ -211,6 +239,34 @@ public sealed class WiktionaryImporter(
         await importer.CompleteAsync(ct);
 
         return count;
+    }
+
+    private async Task<HashSet<string>> LoadFrequencyAllowlistAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        int topN,
+        CancellationToken ct)
+    {
+        // DISTINCT collapses the same word ranked under multiple sources
+        // (e.g. wordfreq-large + a future SUBTLEX import). The set is
+        // tiny — even N=100k is < 5 MB in memory — so a HashSet lookup
+        // per Wiktionary entry is the cheap path.
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = """
+            SELECT DISTINCT word FROM wordfreq_rankings
+            WHERE lang_code = @lang_code AND rank <= @top_n
+            """;
+        command.Parameters.AddWithValue("lang_code", langCode);
+        command.Parameters.AddWithValue("top_n", topN);
+        command.CommandTimeout = 0;
+
+        var allowlist = new HashSet<string>(StringComparer.Ordinal);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            allowlist.Add(reader.GetString(0));
+
+        return allowlist;
     }
 
     private async IAsyncEnumerable<RawWiktionaryEntry> StreamEntriesAsync(

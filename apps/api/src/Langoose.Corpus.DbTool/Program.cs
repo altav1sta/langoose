@@ -17,14 +17,37 @@ if (args.Length == 0)
                                             Use at the start of a full bulk build so
                                             languages removed from the LANGUAGES list
                                             don't linger in the dump.
+          reset-wordfreq                    Truncate wordfreq_rankings and clear all
+                                            source_version_wordfreq_* metadata rows.
+                                            Wordfreq counterpart of reset-wiktionary.
+                                            Required at the start of a rebuild — the
+                                            per-import (lang, source) DELETE alone
+                                            doesn't catch rows from prior dates or
+                                            languages dropped from LANGUAGES, which
+                                            would pollute --frequency-filter-top and
+                                            the published dump.
           import-wiktionary --lang <code>   Import a Kaikki Wiktionary JSONL extract.
                             --source <path>
                             [--source-version <ver>]
                             [--limit <n>]   Stop after <n> imported entries (mini dump).
+                            [--frequency-filter-top <n>]
+                                            Skip entries whose headword isn't in the
+                                            top <n> of wordfreq_rankings for this
+                                            language. Requires `import-wordfreq` to
+                                            have run first. Used by mini-dump builds
+                                            instead of --limit so the snapshot is
+                                            representative of everyday vocabulary.
                             [--defer-indexes]
                                             Skip the post-COPY index rebuild. Use when
                                             importing multiple languages in sequence;
                                             follow with `rebuild-indexes` at the end.
+          import-wordfreq   --lang <code>   Import a wordfreq frequency-ranking TSV
+                            --source <path> (word\trank\tzipf_score, gz allowed).
+                            [--source-version <ver>]
+                                            Defaults to wordfreq-<UTC date>. Stored in
+                                            the `source` column so multiple frequency
+                                            sources (wordfreq, SUBTLEX, ...) can
+                                            coexist for the same language.
           rebuild-indexes                   Drop and recreate the wiktionary_entries
                                             indexes. Idempotent. Typically the final
                                             step of a bulk multi-language build.
@@ -51,7 +74,9 @@ return command switch
 {
     "init" => await RunInitAsync(dataSource),
     "reset-wiktionary" => await RunResetWiktionaryAsync(dataSource),
+    "reset-wordfreq" => await RunResetWordfreqAsync(dataSource),
     "import-wiktionary" => await RunImportWiktionaryAsync(dataSource, commandArgs),
+    "import-wordfreq" => await RunImportWordfreqAsync(dataSource, commandArgs),
     "rebuild-indexes" => await RunRebuildIndexesAsync(dataSource),
     _ => UnknownCommand(command)
 };
@@ -107,6 +132,42 @@ static async Task<int> RunResetWiktionaryAsync(NpgsqlDataSource dataSource)
     return 0;
 }
 
+static async Task<int> RunResetWordfreqAsync(NpgsqlDataSource dataSource)
+{
+    var stopwatch = Stopwatch.StartNew();
+    Console.WriteLine("Resetting wordfreq data (truncate + clear metadata)...");
+
+    await using var connection = await dataSource.OpenConnectionAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+
+    await using (var command = connection.CreateCommand())
+    {
+        command.Transaction = transaction;
+        command.CommandTimeout = 0;
+        // import-wordfreq deletes per-(lang_code, source) before its
+        // COPY, so a same-day re-import is already idempotent. This
+        // reset exists for the "rebuild" case: cross-date rebuilds
+        // would otherwise accumulate one (lang, wordfreq-<old-date>)
+        // row set per run, and dropping a language from LANGUAGES
+        // would leave its prior rows behind. Both would silently
+        // pollute --frequency-filter-top (which unions ranks across
+        // all sources for a language) and the published dump.
+        // Wordfreq's only index (lang_code, rank) is cheap to maintain
+        // during COPY, so we don't bother dropping it here.
+        command.CommandText = """
+            TRUNCATE TABLE wordfreq_rankings;
+            DELETE FROM corpus_metadata
+                WHERE key LIKE 'source_version_wordfreq_%';
+            """;
+        await command.ExecuteNonQueryAsync();
+    }
+
+    await transaction.CommitAsync();
+
+    Console.WriteLine($"Done in {FormatDuration(stopwatch.Elapsed)}.");
+    return 0;
+}
+
 static async Task<int> RunImportWiktionaryAsync(NpgsqlDataSource dataSource, string[] commandArgs)
 {
     var langCode = GetRequiredOption(commandArgs, "--lang");
@@ -116,15 +177,36 @@ static async Task<int> RunImportWiktionaryAsync(NpgsqlDataSource dataSource, str
     var limit = GetOption(commandArgs, "--limit") is { } limitText
         ? long.Parse(limitText)
         : (long?)null;
+    var frequencyFilterTop = GetOption(commandArgs, "--frequency-filter-top") is { } topText
+        ? int.Parse(topText)
+        : (int?)null;
     var deferIndexes = HasFlag(commandArgs, "--defer-indexes");
 
     var importer = new WiktionaryImporter(
-        dataSource, langCode, sourceVersion, limit, deferIndexes);
+        dataSource, langCode, sourceVersion, limit, deferIndexes, frequencyFilterTop);
     var summary = await importer.ImportAsync(sourcePath);
 
     Console.WriteLine(
         $"""
         Imported {summary.EntriesImported} entries from {summary.Source} (version {summary.SourceVersion}).
+        """);
+
+    return 0;
+}
+
+static async Task<int> RunImportWordfreqAsync(NpgsqlDataSource dataSource, string[] commandArgs)
+{
+    var langCode = GetRequiredOption(commandArgs, "--lang");
+    var sourcePath = GetRequiredOption(commandArgs, "--source");
+    var sourceVersion = GetOption(commandArgs, "--source-version")
+        ?? $"wordfreq-{DateTime.UtcNow:yyyy-MM-dd}";
+
+    var importer = new WordfreqImporter(dataSource, langCode, sourceVersion);
+    var summary = await importer.ImportAsync(sourcePath);
+
+    Console.WriteLine(
+        $"""
+        Imported {summary.EntriesImported} rankings from {summary.Source} (source {summary.SourceVersion}).
         """);
 
     return 0;

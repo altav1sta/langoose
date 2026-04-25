@@ -1,7 +1,7 @@
 # Langoose.Corpus.DbTool
 
 CLI for initialising the `langoose_corpus` database schema and running
-per-source importers (Wiktionary today; wordfreq, CEFR-J, Tatoeba etc. as
+per-source importers (Wiktionary, wordfreq today; CEFR-J, Tatoeba etc. as
 they're added in follow-up sub-issues of #92).
 
 > **Data comes from upstream projects under copyleft licenses.** Every
@@ -43,25 +43,53 @@ dotnet run --project apps/api/src/Langoose.Corpus.DbTool -- init
 
 Idempotent — re-run safely after pulling schema changes.
 
-### 3. Download a Kaikki extract
+### 3. Download source data per language
+
+Two parallel sources, one pair per language. Both are cached locally
+under `data/corpus/`; later steps assume the files are present.
 
 ```bash
-scripts/download-kaikki.sh English ./data/corpus
-scripts/download-kaikki.sh Russian ./data/corpus
-```
+# Kaikki Wiktionary JSONL extracts. Compressed sizes: English ~450 MB,
+# Russian ~75 MB. Uncompressed is 3–4x larger — make sure the
+# destination has free space.
+scripts/download-kaikki.sh en
+scripts/download-kaikki.sh ru
 
-Compressed sizes vary per language: English ~450 MB, Russian ~75 MB.
-Uncompressed is roughly 3-4x larger. Choose a destination with enough
-free space (e.g. on the same drive you bind-mounted Postgres data to).
+# wordfreq frequency rankings. Runs the upstream Python package inside
+# python:3-slim via Docker by default, so no local Python install is
+# required. Output is small (~5–10 MB per language). Set PYTHON=python3
+# to use a local interpreter instead (must have `wordfreq` installed).
+scripts/download-wordfreq.sh en
+scripts/download-wordfreq.sh ru
+```
 
 ### 4. Import
 
+Import wordfreq first so `import-wiktionary` can filter against it
+(`--frequency-filter-top <N>` is optional — omit it for a full import):
+
+```bash
+# Frequency rankings (small, fast).
+dotnet run --project apps/api/src/Langoose.Corpus.DbTool -- \
+    import-wordfreq --lang en --source ./data/corpus/wordfreq-en.tsv
+dotnet run --project apps/api/src/Langoose.Corpus.DbTool -- \
+    import-wordfreq --lang ru --source ./data/corpus/wordfreq-ru.tsv
+
+# Wiktionary entries — full import, no filter.
+dotnet run --project apps/api/src/Langoose.Corpus.DbTool -- \
+    import-wiktionary --lang en --source ./data/corpus/wiktionary-en.jsonl.gz
+dotnet run --project apps/api/src/Langoose.Corpus.DbTool -- \
+    import-wiktionary --lang ru --source ./data/corpus/wiktionary-ru.jsonl.gz
+```
+
+For an iterative/staging slice, add `--frequency-filter-top <N>` to the
+`import-wiktionary` step — it keeps only headwords whose word is in the
+top N of `wordfreq_rankings` for that language:
+
 ```bash
 dotnet run --project apps/api/src/Langoose.Corpus.DbTool -- \
-    import-wiktionary --lang en --source ./data/corpus/wiktionary-english.jsonl.gz
-
-dotnet run --project apps/api/src/Langoose.Corpus.DbTool -- \
-    import-wiktionary --lang ru --source ./data/corpus/wiktionary-russian.jsonl.gz
+    import-wiktionary --lang en --source ./data/corpus/wiktionary-en.jsonl.gz \
+    --frequency-filter-top 2000
 ```
 
 The importer prints progress every 50k entries during COPY plus a per-step
@@ -90,7 +118,7 @@ languages are loaded.
 **Multi-language bulk builds**: pass `--defer-indexes` to each
 `import-wiktionary` call, then run `rebuild-indexes` once at the end.
 This avoids N-1 intermediate rebuilds across the growing corpus. The
-`build-full-corpus-dump.sh` / `build-test-corpus-dump.sh` scripts do
+`rebuild-full-corpus-dump.sh` / `rebuild-test-corpus-dump.sh` scripts do
 this automatically. For an incremental re-import of one language on a
 corpus that's already indexed, just run `import-wiktionary` without the
 flag — the default behaviour drops/rebuilds around the COPY atomically.
@@ -111,49 +139,73 @@ langoose_corpus=> SELECT * FROM corpus_metadata;
 
 ## Producing and deploying dump artifacts
 
-Two local steps (build, then publish) plus one GitHub Actions step
-(restore). The build and publish are separate so you can inspect the
-local DB before shipping the dump anywhere.
+Three local steps (download, rebuild, publish) plus one GitHub Actions
+step (restore). Each step is separate and idempotent: download is
+network-bound, rebuild is DB-bound and re-runnable without network,
+publish ships the dump to GitHub Releases.
 
-### Step 1 — Build the dump locally
+### Step 1 — Download source data per language
 
-> **What "build" actually does.** The build script is an end-to-end
+```bash
+# One pair per language. Skips if files already cached under data/corpus/.
+scripts/download-kaikki.sh    en
+scripts/download-wordfreq.sh  en   # uses Docker by default (PYTHON=python3 to opt out)
+
+scripts/download-kaikki.sh    ru
+scripts/download-wordfreq.sh  ru
+```
+
+The rebuild scripts in step 2 fail fast if either file is missing for
+any language in `LANGUAGES`, with a pointer to the right download
+command per missing file.
+
+### Step 2 — Rebuild the dump locally
+
+> **What "rebuild" actually does.** The rebuild script is an end-to-end
 > pipeline, not just a `pg_dump` call. It runs, in order:
 >
 > 1. Starts local Postgres (`docker compose up -d postgres`)
 > 2. Applies the corpus schema (`init`, idempotent)
-> 3. Resets wiktionary data (`reset-wiktionary`): TRUNCATEs
->    `wiktionary_entries`, clears `source_version_wiktionary_*` metadata
->    rows, drops the JSONB GIN and lookup indexes. The dump is thereby
->    deterministic from the `LANGUAGES` list — languages removed from
->    the list compared to a previous build are gone from the new dump.
-> 4. Downloads the Kaikki extracts for each language in `LANGUAGES`
->    (skipped if already cached under `data/corpus/`)
-> 5. Imports each language with `--defer-indexes` (COPY + metadata only;
->    indexes stay dropped)
+> 3. Resets both source tables (`reset-wiktionary` + `reset-wordfreq`):
+>    TRUNCATEs `wiktionary_entries` and `wordfreq_rankings`, clears
+>    `source_version_*` metadata rows, drops the wiktionary indexes.
+>    Both resets are required: `import-wordfreq` only deletes per
+>    `(lang, source)`, so a cross-date rebuild or a language dropped
+>    from `LANGUAGES` would otherwise leave stale rankings behind. The
+>    dump is thereby deterministic from the `LANGUAGES` list — anything
+>    removed from the list since a previous rebuild is gone from the
+>    new dump.
+> 4. Imports the wordfreq TSV per language via `import-wordfreq`.
+>    Required by the test rebuild (drives the frequency filter);
+>    included in the full rebuild so the published dump ships rankings.
+> 5. Imports each language's Kaikki extract with `--defer-indexes`
+>    (COPY + metadata only; indexes stay dropped). The test rebuild
+>    adds `--frequency-filter-top $LIMIT` so only headwords in the top
+>    N of wordfreq for that language land. The full rebuild imports
+>    everything.
 > 6. `rebuild-indexes` once, over all imported data at once
 > 7. `pg_dump -Fc` of the whole `langoose_corpus` DB → `data/dump/…`
 >
 > So the dump contains exactly `LANGUAGES` — nothing more, nothing
 > less — regardless of what was in the DB before. The reset step makes
-> the build idempotent from the user's perspective.
+> the rebuild idempotent from the user's perspective.
 
-Full (production): everything imported, no limit.
+Full (production): everything imported, no filter.
 
 ```bash
-scripts/build-full-corpus-dump.sh
+scripts/rebuild-full-corpus-dump.sh
 # → data/dump/corpus-full-YYYY-MM-DD.dump
 # Runtime: ~5-10 min for EN+RU on a fast SSD; longer on slower disks or
 # under Docker Desktop overhead. Size: ~600-800 MB.
 ```
 
-Test (staging / iterative): first N entries per language imported.
+Test (staging / iterative): top-N-by-wordfreq entries per language imported.
 
 ```bash
-scripts/build-test-corpus-dump.sh
+scripts/rebuild-test-corpus-dump.sh
 # → data/dump/test-corpus.dump
 # Runtime: ~1-3 min. Size: ~5-15 MB. Filename has no date — test dumps
-# are rolling and overwritten on each build.
+# are rolling and overwritten on each rebuild.
 ```
 
 Both scripts prompt for confirmation before touching the DB. Skip the
@@ -163,17 +215,17 @@ Env overrides:
 ```bash
 # LANGUAGES is a comma-separated list of ISO 639 codes.
 # Unsupported codes fail fast with a pointer to that file. Default: "en,ru".
-LANGUAGES="ang,enm,de" scripts/build-full-corpus-dump.sh
-LIMIT=2000 LANGUAGES="en" scripts/build-test-corpus-dump.sh
-DATE_STAMP=2026-04-15 scripts/build-full-corpus-dump.sh
-FORCE=1 scripts/build-test-corpus-dump.sh   # no confirmation prompt
+LANGUAGES="ang,enm,de" scripts/rebuild-full-corpus-dump.sh
+LIMIT=2000 LANGUAGES="en" scripts/rebuild-test-corpus-dump.sh
+DATE_STAMP=2026-04-15 scripts/rebuild-full-corpus-dump.sh
+FORCE=1 scripts/rebuild-test-corpus-dump.sh   # no confirmation prompt
 ```
 
-After the build, the local `langoose_corpus` database holds exactly
+After the rebuild, the local `langoose_corpus` database holds exactly
 what the dump contains. Inspect it (`docker compose exec -it postgres psql -U langoose -d langoose_corpus`)
 before shipping.
 
-### Step 2 — Publish when ready
+### Step 3 — Publish when ready
 
 Flavour-specific scripts — each one knows its own tagging policy and
 target:
@@ -189,14 +241,14 @@ scripts/publish-test-corpus-dump.sh
 ```
 
 Both scripts `--target main`, so tags always land on preserved history
-even if you were on a feature branch while running the build. Make sure
+even if you were on a feature branch while running the rebuild. Make sure
 `main` is up to date on the remote before publishing.
 
 The test script deletes and recreates its release each time so the
 rolling tag actually moves to current main — `gh release edit --target`
 is a no-op on already-published tags.
 
-### Step 3 — Restore to an environment → GitHub UI → Actions → "Corpus Restore" → Run workflow
+### Step 4 — Restore to an environment → GitHub UI → Actions → "Corpus Restore" → Run workflow
 
 Inputs:
 
@@ -230,10 +282,14 @@ each.
 | Command | Purpose |
 |---------|---------|
 | `init` | Apply embedded SQL schema files in order. Idempotent. |
-| `import-wiktionary --lang <code> --source <jsonl> [--source-version <ver>]` | Bulk-load a Kaikki Wiktionary JSONL extract. Replaces existing rows for that language. |
+| `import-wiktionary --lang <code> --source <jsonl> [--source-version <ver>] [--limit <n>] [--frequency-filter-top <n>] [--defer-indexes]` | Bulk-load a Kaikki Wiktionary JSONL extract. Replaces existing rows for that language. `--frequency-filter-top` keeps only headwords in the top N of `wordfreq_rankings` (run `import-wordfreq` first). |
+| `import-wordfreq --lang <code> --source <tsv> [--source-version <ver>]` | Bulk-load a wordfreq frequency-ranking TSV (`word\trank\tzipf_score`, `.gz` allowed). Replaces existing rows for that (lang, source). Fetch the TSV with `scripts/download-wordfreq.sh`. |
+| `reset-wiktionary` | Truncate `wiktionary_entries`, clear `source_version_wiktionary_*` metadata, drop indexes. Use at the start of a bulk multi-language rebuild. |
+| `reset-wordfreq` | Truncate `wordfreq_rankings`, clear `source_version_wordfreq_*` metadata. Required at the start of a rebuild — `import-wordfreq` only deletes per `(lang, source)`, so cross-date rebuilds or dropped languages would otherwise accumulate stale rankings. |
+| `rebuild-indexes` | Drop and recreate the `wiktionary_entries` indexes. Idempotent. |
 
-Future commands tracked under #92: `import-wordfreq`, `import-cefrj`,
-`import-tatoeba`, `dump`, `restore`.
+Future commands tracked under #92: `import-cefrj`, `import-tatoeba`,
+`dump`, `restore`.
 
 ## Configuration
 

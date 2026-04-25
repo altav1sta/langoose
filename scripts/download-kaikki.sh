@@ -15,7 +15,7 @@
 #
 # Notes:
 #   - Output filename uses the ISO code verbatim:
-#     wiktionary-<code>.jsonl.gz. Downstream build scripts expect that
+#     wiktionary-<code>.jsonl.gz. Downstream rebuild scripts expect that
 #     exact pattern.
 #   - Compressed sizes vary per language: English ~450 MB, Russian ~75 MB.
 #     Uncompressed is roughly 3-4x larger. Make sure the destination has
@@ -87,7 +87,7 @@ mkdir -p "$OUT_DIR"
 
 # Kaikki's URL uses the language name (URL-encoded if it contains
 # spaces, e.g. "Old English" → "Old%20English"). Our local filename
-# uses the ISO code directly so build scripts can compute the path
+# uses the ISO code directly so rebuild scripts can compute the path
 # deterministically from the same code.
 LANG_URL_SEGMENT="${LANG_NAME// /%20}"
 OUT_FILE="$OUT_DIR/wiktionary-${LANG_CODE}.jsonl.gz"

@@ -56,7 +56,12 @@ echo "Publishing $DUMP_FILE ($SIZE) as release $RELEASE_TAG (targeting main)..."
 RELEASE_NOTES=$(cat <<EOF
 Built locally on $(date -u +%Y-%m-%dT%H:%M:%SZ).
 
-**Data sources & licensing.** This dump contains data derived from [Wiktionary](https://www.wiktionary.org/) via [Kaikki.org](https://kaikki.org/), both distributed under [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). The dump is therefore also available under CC-BY-SA 4.0. See the \`ATTRIBUTION.md\` asset attached to this release for the full notice and list of all sources evaluated for the Langoose corpus pipeline.
+**Data sources & licensing.** This dump contains data derived from:
+
+- [Wiktionary](https://www.wiktionary.org/) via [Kaikki.org](https://kaikki.org/) — dictionary entries, forms, senses, translations.
+- [wordfreq](https://github.com/rspeer/wordfreq) — per-language frequency rankings (rank, Zipf score) used for translation ranking and for filtering mini dumps.
+
+All sources are distributed under [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), so the dump itself is too. See the \`ATTRIBUTION.md\` asset attached to this release for the full notice and the list of all sources evaluated for the Langoose corpus pipeline.
 EOF
 )
 

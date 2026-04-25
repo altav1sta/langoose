@@ -16,6 +16,7 @@ DbTool's `init` command.
 
 Each source's tables mirror its native shape rather than fitting a unified
 schema. Wiktionary entries use a hybrid Postgres + JSONB shape (structured
-columns for indexed lookups, JSONB for the document body). Future sources
-(wordfreq, CEFR-J, Tatoeba) will use whatever shape best preserves their
-native structure.
+columns for indexed lookups, JSONB for the document body). Wordfreq
+rankings use a flat tabular shape — wordfreq is inherently a list of
+`(word, rank, zipf_score)` tuples, so no JSONB. Future sources (CEFR-J,
+Tatoeba) will use whatever shape best preserves their native structure.

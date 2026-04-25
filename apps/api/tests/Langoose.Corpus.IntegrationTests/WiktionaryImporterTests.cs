@@ -12,6 +12,7 @@ public sealed class WiktionaryImporterTests(PostgresFixture postgres)
 {
     private const string FixtureEnPath = "fixtures/wiktionary-en-sample.jsonl";
     private const string FixtureRuPath = "fixtures/wiktionary-ru-sample.jsonl";
+    private const string FixtureWordfreqEnPath = "fixtures/wordfreq-en-sample.tsv";
 
     public async Task InitializeAsync()
     {
@@ -28,6 +29,7 @@ public sealed class WiktionaryImporterTests(PostgresFixture postgres)
         await using var command = connection.CreateCommand();
         command.CommandText = """
             TRUNCATE TABLE wiktionary_entries;
+            TRUNCATE TABLE wordfreq_rankings;
             DELETE FROM corpus_metadata;
             """;
         await command.ExecuteNonQueryAsync();
@@ -349,5 +351,44 @@ public sealed class WiktionaryImporterTests(PostgresFixture postgres)
             "SELECT value FROM corpus_metadata WHERE key = 'source_version_wiktionary_en'");
 
         version.Should().Be("v2026.04.15");
+    }
+
+    [Fact]
+    public async Task ImportAsync_WithFrequencyFilterTop_KeepsOnlyTopRankedHeadwords()
+    {
+        // Wordfreq fixture ranks: book=5, run=6, good=7, London=8, lead=9.
+        // With --frequency-filter-top 7, only book/run/good should land —
+        // London and both `lead` etymology rows must be filtered out.
+        var wordfreq = new WordfreqImporter(postgres.DataSource, "en", "wordfreq-test");
+        await wordfreq.ImportAsync(FixtureWordfreqEnPath);
+
+        var importer = new WiktionaryImporter(
+            postgres.DataSource, "en", "v1", frequencyFilterTop: 7);
+
+        var summary = await importer.ImportAsync(FixtureEnPath);
+
+        summary.EntriesImported.Should().Be(3);
+
+        await using var connection = await postgres.DataSource.OpenConnectionAsync();
+        var words = (await connection.QueryAsync<string>(
+            "SELECT word FROM wiktionary_entries WHERE lang_code = 'en' ORDER BY word")).ToArray();
+
+        words.Should().Equal("book", "good", "run");
+    }
+
+    [Fact]
+    public async Task ImportAsync_WithFrequencyFilterTop_FailsFastWhenWordfreqIsEmpty()
+    {
+        // Asking for a frequency filter without any wordfreq data is a
+        // misconfigured pipeline — the silent alternative would be a dump
+        // with zero entries, which looks identical to a successful tiny
+        // import.
+        var importer = new WiktionaryImporter(
+            postgres.DataSource, "en", "v1", frequencyFilterTop: 100);
+
+        var act = async () => await importer.ImportAsync(FixtureEnPath);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*--frequency-filter-top 100*wordfreq_rankings*no rows for lang_code='en'*");
     }
 }

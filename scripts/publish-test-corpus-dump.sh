@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Publish the test corpus dump (data/dump/test-corpus.dump, built by
-# scripts/build-test-corpus-dump.sh) to GitHub Releases under a rolling
+# scripts/rebuild-test-corpus-dump.sh) to GitHub Releases under a rolling
 # tag. Each publish replaces the previous one so git history doesn't
 # accumulate a tag per staging rebuild.
 #
@@ -24,7 +24,7 @@ ATTRIBUTION_FILE="ATTRIBUTION.md"
 
 if [[ ! -f "$DUMP_FILE" ]]; then
     echo "Dump file not found: $DUMP_FILE" >&2
-    echo "Build it first with scripts/build-test-corpus-dump.sh." >&2
+    echo "Build it first with scripts/rebuild-test-corpus-dump.sh." >&2
     exit 1
 fi
 
@@ -44,7 +44,7 @@ echo "Publishing $DUMP_FILE ($SIZE) as rolling release $RELEASE_TAG (targeting m
 RELEASE_NOTES=$(cat <<EOF
 Rolling staging dump, rebuilt and overwritten on every publish. Built on $(date -u +%Y-%m-%dT%H:%M:%SZ). Use \`corpus-full-*\` releases for production.
 
-Derived from [Wiktionary](https://www.wiktionary.org/) via [Kaikki.org](https://kaikki.org/), subset of ~2000 entries/language. Available under [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); see the \`ATTRIBUTION.md\` asset for the full notice.
+Derived from [Wiktionary](https://www.wiktionary.org/) via [Kaikki.org](https://kaikki.org/) (subset of ~2000 entries/language, frequency-filtered) plus [wordfreq](https://github.com/rspeer/wordfreq) frequency rankings. All sources are distributed under [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), so the dump itself is too; see the \`ATTRIBUTION.md\` asset for the full notice.
 EOF
 )
 
