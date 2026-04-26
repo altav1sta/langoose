@@ -13,8 +13,8 @@ erDiagram
     DictionaryEntry }o--o| DictionaryEntry : "BaseEntryId (self-ref)"
     DictionaryEntry }o--o{ DictionaryEntry : "Translations (M2M)"
     EntryContext }o--o{ EntryContext : "Translations (M2M)"
-    UserDictionaryEntry }o--o| DictionaryEntry : "SourceEntryId"
-    UserDictionaryEntry }o--o| DictionaryEntry : "TargetEntryId"
+    UserEntry }o--o| DictionaryEntry : "SourceEntryId"
+    UserEntry }o--o| DictionaryEntry : "TargetEntryId"
     UserProgress }o--|| DictionaryEntry : tracks
     StudyEvent }o--|| DictionaryEntry : references
     StudyEvent }o--o| EntryContext : tested_with
@@ -42,7 +42,7 @@ erDiagram
         datetime CreatedAtUtc
     }
 
-    UserDictionaryEntry {
+    UserEntry {
         guid Id PK
         guid UserId
         guid SourceEntryId FK "nullable"
@@ -95,7 +95,7 @@ erDiagram
         datetime CreatedAtUtc
     }
 
-    ImportRecord {
+    UserImport {
         guid Id PK
         guid UserId
         int RowCount
@@ -168,7 +168,7 @@ study card rotation.
 - `ExpectedAnswer` = linked DictionaryEntry.Text
 - `GrammarHint` = combined from DictionaryEntry.PartOfSpeech and GrammarLabel
 
-### UserDictionaryEntry
+### UserEntry
 
 A per-user dictionary entry. Owns the enrichment lifecycle (pending/failed state).
 
@@ -246,7 +246,7 @@ Reports quality issues with shared content.
 | IsResolved | bool | |
 | CreatedAtUtc | DateTimeOffset | |
 
-### ImportRecord
+### UserImport
 
 Tracks CSV import history.
 
@@ -262,7 +262,7 @@ Tracks CSV import history.
 
 | Enum | Values | Used on |
 |------|--------|---------|
-| EnrichmentStatus | Pending, Enriched, Failed | UserDictionaryEntry |
+| EnrichmentStatus | Pending, Enriched, Failed | UserEntry |
 | StudyVerdict | Correct, AlmostCorrect, Incorrect | StudyEvent |
 | FeedbackCode | ExactMatch, AcceptedVariant, MissingArticle, InflectionMismatch, MinorTypo, MeaningMismatch | StudyEvent |
 
@@ -273,7 +273,7 @@ Tracks CSV import history.
 | DictionaryEntry | `(Language, Text)` | Fast lookup by word |
 | DictionaryEntry | `BaseEntryId` | Find all forms of a base entry |
 | EntryContext | `DictionaryEntryId` | Find contexts for an entry |
-| UserDictionaryEntry | `(UserId, DictionaryEntryId)` | User's dictionary + dedup |
-| UserDictionaryEntry | `(EnrichmentStatus, CreatedAtUtc)` | Worker polling |
+| UserEntry | `(UserId, DictionaryEntryId)` | User's dictionary + dedup |
+| UserEntry | `(EnrichmentStatus, CreatedAtUtc)` | Worker polling |
 | UserProgress | Unique `(UserId, DictionaryEntryId)` | One progress per user per entry |
 | StudyEvent | `(UserId, CreatedAtUtc)` | Dashboard daily count |

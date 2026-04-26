@@ -63,7 +63,7 @@ Complete the core product loop for a returning learner.
 
 - Async background enrichment for custom words added by users
 - DictionaryEntry is the shared content layer: only enriched/validated content lives there, reusable across users
-- UserDictionaryEntry owns the enrichment lifecycle (pending/failed state); linked to DictionaryEntry once enriched
+- UserEntry owns the enrichment lifecycle (pending/failed state); linked to DictionaryEntry once enriched
 - Form dedup: inflected variants resolved to canonical lemma via the corpus, cached for instant lookup
 - Provider: self-hosted corpus database (Wiktionary via Kaikki, supplementary sources), abstracted behind IEnrichmentProvider. Replaces the original LLM-based direction (#56), which hit blocking issues with free-tier Gemini quotas.
 - Batch processing within the worker for CSV imports and bulk operations

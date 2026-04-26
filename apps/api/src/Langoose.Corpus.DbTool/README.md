@@ -170,7 +170,7 @@ command per missing file.
 > 2. Applies the corpus schema (`init`, idempotent)
 > 3. Resets both source tables (`reset-wiktionary` + `reset-wordfreq`):
 >    drops every `wiktionary_entries_<lang>` partition, TRUNCATEs
->    `wordfreq_rankings`, and clears `source_version_*` metadata rows.
+>    `wordfreq_rankings`, and clears `source_*` metadata rows.
 >    Both resets are required: `import-wordfreq` only deletes per
 >    `(lang, source)`, so a cross-date rebuild or a language dropped
 >    from `LANGUAGES` would otherwise leave stale rankings behind, and
@@ -287,8 +287,8 @@ each.
 | `init` | Apply embedded SQL schema files in order. Idempotent. |
 | `import-wiktionary --lang <code> --source <jsonl> [--source-version <ver>] [--limit <n>] [--frequency-filter-top <n>] [--defer-indexes]` | Bulk-load a Kaikki Wiktionary JSONL extract. Replaces existing rows for that language. `--frequency-filter-top` keeps only headwords in the top N of `wordfreq_rankings` (run `import-wordfreq` first). |
 | `import-wordfreq --lang <code> --source <tsv> [--source-version <ver>]` | Bulk-load a wordfreq frequency-ranking TSV (`word\trank\tzipf_score`, `.gz` allowed). Replaces existing rows for that (lang, source). Fetch the TSV with `scripts/download-wordfreq.sh`. |
-| `reset-wiktionary` | Drop every `wiktionary_entries_<lang>` partition (and its indexes) and clear `source_version_wiktionary_*` metadata. Use at the start of a bulk multi-language rebuild — partitions for languages no longer in `LANGUAGES` are removed, not just emptied. |
-| `reset-wordfreq` | Truncate `wordfreq_rankings`, clear `source_version_wordfreq_*` metadata. Required at the start of a rebuild — `import-wordfreq` only deletes per `(lang, source)`, so cross-date rebuilds or dropped languages would otherwise accumulate stale rankings. |
+| `reset-wiktionary` | Drop every `wiktionary_entries_<lang>` partition (and its indexes) and clear `source_wiktionary_*` metadata. Use at the start of a bulk multi-language rebuild — partitions for languages no longer in `LANGUAGES` are removed, not just emptied. |
+| `reset-wordfreq` | Truncate `wordfreq_rankings`, clear `source_wordfreq_*` metadata. Required at the start of a rebuild — `import-wordfreq` only deletes per `(lang, source)`, so cross-date rebuilds or dropped languages would otherwise accumulate stale rankings. |
 | `rebuild-indexes` | Iterate every `wiktionary_entries_<lang>` partition and drop+recreate its two indexes. Idempotent. Used as the final step of a multi-language `--defer-indexes` build. |
 
 Future commands tracked under #92: `import-cefrj`, `import-tatoeba`,

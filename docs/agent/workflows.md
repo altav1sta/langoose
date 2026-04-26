@@ -27,3 +27,25 @@
 
 See [efcore-structure.md](efcore-structure.md) for migration commands, EF
 conventions, entity details, and seeding.
+
+## Bulk dictionary pipeline
+
+The bulk-seed pipeline (corpus → import → AI validation → review →
+promotion, see [dictionary-schema-design.md](dictionary-schema-design.md))
+is driven by `Langoose.DbTool` job-submission commands and executed
+asynchronously by `Langoose.Worker`'s generic `BackgroundJobService`. The
+CLI inserts a `Pending` row into `background_jobs`; the worker picks it
+up, dispatches to the matching handler (`BulkImportJobHandler` for
+`BulkImport`), streams corpus rows in batches, and persists progress +
+cursor in `ExecutionState` so a worker restart resumes mid-job.
+
+- Submit a bulk import:
+  - `dotnet run --project apps/api/src/Langoose.DbTool -- submit-bulk-import --lang en --source <id>`
+- List jobs:
+  - `dotnet run --project apps/api/src/Langoose.DbTool -- list-jobs [--type BulkImport] [--status Running] [--limit N]`
+- Inspect a job:
+  - `dotnet run --project apps/api/src/Langoose.DbTool -- show-job <id>`
+- Cancel a Pending or Running job:
+  - `dotnet run --project apps/api/src/Langoose.DbTool -- cancel-job <id>`
+- Re-run a Failed or Cancelled job from its saved cursor:
+  - `dotnet run --project apps/api/src/Langoose.DbTool -- resubmit-job <id>`

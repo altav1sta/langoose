@@ -25,6 +25,11 @@ public static class Program
             "apply-app-migrations" => await ApplyAppMigrationsAsync(commandArgs),
             "apply-auth-migrations" => await ApplyAuthMigrationsAsync(commandArgs),
             "seed-app" => await SeedAppAsync(commandArgs),
+            "submit-bulk-import" => await BulkImportCommands.SubmitBulkImportAsync(commandArgs),
+            "list-jobs" => await JobCommands.ListJobsAsync(commandArgs),
+            "show-job" => await JobCommands.ShowJobAsync(commandArgs),
+            "cancel-job" => await JobCommands.CancelJobAsync(commandArgs),
+            "resubmit-job" => await JobCommands.ResubmitJobAsync(commandArgs),
             _ => RunHostForTooling(args)
         };
     }

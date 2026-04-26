@@ -10,5 +10,5 @@ public sealed record WiktionaryEntryRow(
     string LangCode,
     string Word,
     string Pos,
-    string SourceVersion,
+    string Source,
     string DataJson);

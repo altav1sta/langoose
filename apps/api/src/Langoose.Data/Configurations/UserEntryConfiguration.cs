@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Langoose.Data.Configurations;
 
-public sealed class UserDictionaryEntryConfiguration : IEntityTypeConfiguration<UserDictionaryEntry>
+public sealed class UserEntryConfiguration : IEntityTypeConfiguration<UserEntry>
 {
-    public void Configure(EntityTypeBuilder<UserDictionaryEntry> builder)
+    public void Configure(EntityTypeBuilder<UserEntry> builder)
     {
         builder.HasKey(x => x.Id);
         builder.Property(x => x.EnrichmentStatus).HasConversion<string>();

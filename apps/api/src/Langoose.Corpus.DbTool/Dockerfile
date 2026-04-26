@@ -5,6 +5,7 @@ WORKDIR /src
 COPY ["apps/api/NuGet.Config", "apps/api/"]
 COPY ["apps/api/src/Langoose.Corpus.DbTool/Langoose.Corpus.DbTool.csproj", "apps/api/src/Langoose.Corpus.DbTool/"]
 COPY ["apps/api/src/Langoose.Corpus.Data/Langoose.Corpus.Data.csproj", "apps/api/src/Langoose.Corpus.Data/"]
+COPY ["apps/api/src/Langoose.Domain/Langoose.Domain.csproj", "apps/api/src/Langoose.Domain/"]
 
 RUN dotnet restore "apps/api/src/Langoose.Corpus.DbTool/Langoose.Corpus.DbTool.csproj" --configfile apps/api/NuGet.Config
 

@@ -42,7 +42,7 @@ export function DictionaryPanel({
       </div>
       <div className="dictionary-list">
         {dictionary.map(entry => (
-          <article key={entry.userDictionaryEntryId ?? entry.dictionaryEntryId} className="dictionary-row">
+          <article key={entry.userEntryId ?? entry.dictionaryEntryId} className="dictionary-row">
             <div>
               <strong>{entry.text}</strong>
             </div>

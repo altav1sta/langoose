@@ -28,6 +28,7 @@ services:
     container_name: langoose-worker
     environment:
       ConnectionStrings__AppDatabase: Host=postgres;Port=5432;Database=langoose_app;Username=langoose;Password=langoose
+      ConnectionStrings__CorpusDatabase: Host=postgres;Port=5432;Database=langoose_corpus;Username=langoose;Password=langoose
     depends_on:
       postgres:
         condition: service_healthy

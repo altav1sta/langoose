@@ -44,7 +44,7 @@ const dictionary: DictionaryListItem[] = [
     language: 'en',
     difficulty: 'A2',
     isPublic: true,
-    userDictionaryEntryId: null,
+    userEntryId: null,
     enrichmentStatus: null,
     partOfSpeech: 'phrase',
     notes: null,

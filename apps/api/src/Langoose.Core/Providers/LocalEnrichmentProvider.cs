@@ -7,7 +7,7 @@ namespace Langoose.Core.Providers;
 public sealed class LocalEnrichmentProvider : IEnrichmentProvider
 {
     public Task<EnrichmentResult[]> EnrichBatchAsync(
-        UserDictionaryEntry[] batch, CancellationToken cancellationToken)
+        UserEntry[] batch, CancellationToken cancellationToken)
     {
         var results = new EnrichmentResult[batch.Length];
 
@@ -17,7 +17,7 @@ public sealed class LocalEnrichmentProvider : IEnrichmentProvider
         return Task.FromResult(results);
     }
 
-    private static EnrichmentResult Enrich(UserDictionaryEntry item)
+    private static EnrichmentResult Enrich(UserEntry item)
     {
         EnrichedEntry[]? sourceEntries = item.SourceEntry == null
             ? [new EnrichedEntry(item.UserInputTerm.Trim(), IsBaseForm: true, null, null)]

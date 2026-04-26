@@ -19,7 +19,7 @@ export type DictionaryListItem = {
   language: string;
   difficulty?: string | null;
   isPublic: boolean;
-  userDictionaryEntryId?: string | null;
+  userEntryId?: string | null;
   enrichmentStatus?: 'pending' | 'enriched' | 'invalidSource' | 'invalidTarget' | 'invalidLink' | 'providerError' | null;
   partOfSpeech?: string | null;
   notes?: string | null;

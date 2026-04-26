@@ -20,7 +20,7 @@ namespace Langoose.Corpus.DbTool.Importers;
 public sealed class WordfreqImporter(
     NpgsqlDataSource dataSource,
     string langCode,
-    string sourceVersion) : ICorpusImporter
+    string source) : ICorpusImporter
 {
     public string Name => $"wordfreq_{langCode}";
 
@@ -39,14 +39,14 @@ public sealed class WordfreqImporter(
         //    string would otherwise hit a uniqueness violation.
         var deleteStopwatch = Stopwatch.StartNew();
         long deletedRows;
-        Console.WriteLine($"[{Name}] Clearing existing rows for lang_code={langCode}, source={sourceVersion}...");
+        Console.WriteLine($"[{Name}] Clearing existing rows for lang_code={langCode}, source={source}...");
         await using (var deleteCommand = connection.CreateCommand())
         {
             deleteCommand.Transaction = transaction;
             deleteCommand.CommandText =
                 "DELETE FROM wordfreq_rankings WHERE lang_code = @lang_code AND source = @source";
             deleteCommand.Parameters.AddWithValue("lang_code", langCode);
-            deleteCommand.Parameters.AddWithValue("source", sourceVersion);
+            deleteCommand.Parameters.AddWithValue("source", source);
             deleteCommand.CommandTimeout = 0;
 
             deletedRows = await deleteCommand.ExecuteNonQueryAsync(ct);
@@ -76,8 +76,8 @@ public sealed class WordfreqImporter(
                 ON CONFLICT (key) DO UPDATE
                 SET value = EXCLUDED.value, updated_at_utc = NOW()
                 """;
-            metadataCommand.Parameters.AddWithValue("key", $"source_version_{Name}");
-            metadataCommand.Parameters.AddWithValue("value", sourceVersion);
+            metadataCommand.Parameters.AddWithValue("key", $"source_{Name}");
+            metadataCommand.Parameters.AddWithValue("value", source);
 
             await metadataCommand.ExecuteNonQueryAsync(ct);
         }
@@ -86,7 +86,7 @@ public sealed class WordfreqImporter(
 
         Console.WriteLine($"[{Name}] Done in {FormatDuration(totalStopwatch.Elapsed)}.");
 
-        return new ImportSummary(Name, sourceVersion, rowsImported);
+        return new ImportSummary(Name, source, rowsImported);
     }
 
     private static string FormatDuration(TimeSpan elapsed) =>
@@ -119,7 +119,7 @@ public sealed class WordfreqImporter(
             await importer.WriteAsync(row.Word, NpgsqlDbType.Varchar, ct);
             await importer.WriteAsync(row.Rank, NpgsqlDbType.Integer, ct);
             await importer.WriteAsync(row.ZipfScore, NpgsqlDbType.Numeric, ct);
-            await importer.WriteAsync(sourceVersion, NpgsqlDbType.Varchar, ct);
+            await importer.WriteAsync(source, NpgsqlDbType.Varchar, ct);
             count++;
         }
 

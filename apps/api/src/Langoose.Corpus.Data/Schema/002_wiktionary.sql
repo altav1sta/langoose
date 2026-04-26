@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS wiktionary_entries (
     lang_code VARCHAR(10) NOT NULL,
     word VARCHAR(300) NOT NULL,
     pos VARCHAR(50) NOT NULL,
-    source_version VARCHAR(32) NOT NULL,
+    source VARCHAR(50) NOT NULL,   -- e.g. 'wiktionary-2026-04-25'
     data JSONB NOT NULL
 ) PARTITION BY LIST (lang_code);
 

@@ -32,12 +32,12 @@ controllers don't go through Core services.
 - The frontend request helper treats `202` and `204` as no-body responses and handles
   CSV as `text/csv`.
 - Controllers return flat DTOs (not raw domain models). The frontend never needs to
-  understand the DictionaryEntry/UserDictionaryEntry/Translations split — the API
+  understand the DictionaryEntry/UserEntry/Translations split — the API
   flattens it.
 
 ## Key Response Shapes
 
-- **Dictionary items**: flat DTO combining DictionaryEntry + UserDictionaryEntry +
+- **Dictionary items**: flat DTO combining DictionaryEntry + UserEntry +
   translation data. Includes `enrichmentStatus` (pending, enriched, invalidSource,
   invalidTarget, invalidLink, providerError) and `partOfSpeech`.
 - **Study cards**: includes `cloze` (from EntryContext), sentence translation

@@ -21,7 +21,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         CancellationToken cancellationToken)
     {
         // User's own entries (pending, enriched, failed, etc.)
-        var userItems = await dbContext.UserDictionaryEntries
+        var userItems = await dbContext.UserEntries
             .Where(x => x.UserId == userId)
             .Select(x => new DictionaryListItem(
                 x.SourceEntryId ?? x.Id,
@@ -52,7 +52,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         return [.. publicItems.Concat(userItems).OrderBy(x => x.Text)];
     }
 
-    public async Task<UserDictionaryEntry> AddUserEntryAsync(
+    public async Task<UserEntry> AddUserEntryAsync(
         Guid userId,
         AddUserEntryInput input,
         CancellationToken cancellationToken)
@@ -62,7 +62,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             ? TextNormalizer.CleanInput(input.UserInputTranslation)
             : null;
 
-        var userEntries = await dbContext.UserDictionaryEntries
+        var userEntries = await dbContext.UserEntries
             .AsNoTracking()
             .Where(x => x.UserId == userId
                 && x.SourceLanguage == input.SourceLanguage
@@ -77,7 +77,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
         if (existing is not null)
             return existing;
 
-        var entry = new UserDictionaryEntry
+        var entry = new UserEntry
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
@@ -93,7 +93,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };
 
-        dbContext.UserDictionaryEntries.Add(entry);
+        dbContext.UserEntries.Add(entry);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -162,7 +162,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
                 Math.Max(0, rows.Length - 1), 0, errors);
         }
 
-        var existingKeys = (await dbContext.UserDictionaryEntries
+        var existingKeys = (await dbContext.UserEntries
             .Where(x => x.UserId == userId)
             .Select(x => new { x.UserInputTerm, x.UserInputTranslation, x.PartOfSpeech })
             .ToListAsync(cancellationToken))
@@ -182,7 +182,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             if (!existingKeys.Add((cleanedTerm, cleanedTranslation, pos)))
                 continue;
 
-            dbContext.UserDictionaryEntries.Add(new UserDictionaryEntry
+            dbContext.UserEntries.Add(new UserEntry
             {
                 Id = Guid.CreateVersion7(),
                 UserId = userId,
@@ -201,7 +201,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             pendingCount++;
         }
 
-        dbContext.ImportRecords.Add(new ImportRecord
+        dbContext.UserImports.Add(new UserImport
         {
             Id = Guid.CreateVersion7(),
             UserId = userId,
@@ -219,7 +219,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
     public async Task<string> ExportCsvAsync(
         Guid userId, CancellationToken cancellationToken)
     {
-        var entries = await dbContext.UserDictionaryEntries
+        var entries = await dbContext.UserEntries
             .AsNoTracking()
             .Where(x => x.UserId == userId)
             .Include(x => x.SourceEntry).ThenInclude(x => x!.Senses)
@@ -262,7 +262,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
     public async Task ClearUserDataAsync(
         Guid userId, CancellationToken cancellationToken)
     {
-        var userEntries = await dbContext.UserDictionaryEntries
+        var userEntries = await dbContext.UserEntries
             .Where(x => x.UserId == userId)
             .ToListAsync(cancellationToken);
 
@@ -286,7 +286,7 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             .Where(x => !publicEntryIdSet.Contains(x.DictionaryEntryId))
             .ToList();
 
-        var imports = await dbContext.ImportRecords
+        var imports = await dbContext.UserImports
             .Where(x => x.UserId == userId)
             .ToListAsync(cancellationToken);
 
@@ -294,10 +294,10 @@ public sealed class DictionaryService(AppDbContext dbContext) : IDictionaryServi
             .Where(x => x.ReportedByUserId == userId)
             .ToListAsync(cancellationToken);
 
-        dbContext.UserDictionaryEntries.RemoveRange(userEntries);
+        dbContext.UserEntries.RemoveRange(userEntries);
         dbContext.UserProgress.RemoveRange(customProgress);
         dbContext.StudyEvents.RemoveRange(customStudyEvents);
-        dbContext.ImportRecords.RemoveRange(imports);
+        dbContext.UserImports.RemoveRange(imports);
         dbContext.ContentFlags.RemoveRange(userFlags);
 
         await dbContext.SaveChangesAsync(cancellationToken);

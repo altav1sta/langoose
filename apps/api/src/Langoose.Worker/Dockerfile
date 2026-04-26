@@ -5,6 +5,7 @@ COPY ["apps/api/NuGet.Config", "apps/api/"]
 COPY ["apps/api/src/Langoose.Worker/Langoose.Worker.csproj", "apps/api/src/Langoose.Worker/"]
 COPY ["apps/api/src/Langoose.Core/Langoose.Core.csproj", "apps/api/src/Langoose.Core/"]
 COPY ["apps/api/src/Langoose.Data/Langoose.Data.csproj", "apps/api/src/Langoose.Data/"]
+COPY ["apps/api/src/Langoose.Corpus.Data/Langoose.Corpus.Data.csproj", "apps/api/src/Langoose.Corpus.Data/"]
 COPY ["apps/api/src/Langoose.Domain/Langoose.Domain.csproj", "apps/api/src/Langoose.Domain/"]
 RUN dotnet restore "apps/api/src/Langoose.Worker/Langoose.Worker.csproj" --configfile apps/api/NuGet.Config
 

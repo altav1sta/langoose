@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Langoose.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260425161624_InitialFoundation")]
+    [Migration("20260426125445_InitialFoundation")]
     partial class InitialFoundation
     {
         /// <inheritdoc />
@@ -25,6 +25,56 @@ namespace Langoose.Data.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("Langoose.Domain.Models.BackgroundJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<string>("ExecutionState")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("execution_state");
+
+                    b.Property<DateTimeOffset?>("FinishedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("finished_at_utc");
+
+                    b.Property<string>("Settings")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("settings");
+
+                    b.Property<DateTimeOffset?>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at_utc");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("type");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
+
+                    b.HasKey("Id")
+                        .HasName("pk_background_jobs");
+
+                    b.ToTable("background_jobs", (string)null);
+                });
 
             modelBuilder.Entity("Langoose.Domain.Models.ContentFlag", b =>
                 {
@@ -165,36 +215,99 @@ namespace Langoose.Data.Migrations
                     b.ToTable("entry_contexts", (string)null);
                 });
 
-            modelBuilder.Entity("Langoose.Domain.Models.ImportRecord", b =>
+            modelBuilder.Entity("Langoose.Domain.Models.ImportEntry", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<float?>("AiConfidence")
+                        .HasColumnType("real")
+                        .HasColumnName("ai_confidence");
+
+                    b.Property<string>("AiReasoning")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("ai_reasoning");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at_utc");
 
-                    b.Property<int>("PendingCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("pending_count");
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("language");
 
-                    b.Property<int>("RowCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("row_count");
+                    b.Property<string>("PartOfSpeech")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("part_of_speech");
 
-                    b.Property<Guid>("UserId")
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<Guid?>("PromotedEntryId")
                         .HasColumnType("uuid")
-                        .HasColumnName("user_id");
+                        .HasColumnName("promoted_entry_id");
+
+                    b.Property<DateTimeOffset?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at_utc");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("SourceRefId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_ref_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("StatusReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("status_reason");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at_utc");
 
                     b.HasKey("Id")
-                        .HasName("pk_import_records");
+                        .HasName("pk_import_entries");
 
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_import_records_user_id");
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_import_entries_status");
 
-                    b.ToTable("import_records", (string)null);
+                    b.HasIndex("Source", "SourceRefId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_import_entries_source_source_ref_id");
+
+                    b.ToTable("import_entries", (string)null);
                 });
 
             modelBuilder.Entity("Langoose.Domain.Models.Sense", b =>
@@ -262,100 +375,6 @@ namespace Langoose.Data.Migrations
                     b.ToTable("sense_translations", (string)null);
                 });
 
-            modelBuilder.Entity("Langoose.Domain.Models.StagingEntry", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<float?>("AiConfidence")
-                        .HasColumnType("real")
-                        .HasColumnName("ai_confidence");
-
-                    b.Property<string>("AiReasoning")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)")
-                        .HasColumnName("ai_reasoning");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at_utc");
-
-                    b.Property<string>("Language")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("language");
-
-                    b.Property<string>("PartOfSpeech")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("part_of_speech");
-
-                    b.Property<string>("Payload")
-                        .IsRequired()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("payload");
-
-                    b.Property<Guid?>("PromotedEntryId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("promoted_entry_id");
-
-                    b.Property<DateTimeOffset?>("ReviewedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("reviewed_at_utc");
-
-                    b.Property<Guid?>("ReviewedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("reviewed_by_user_id");
-
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("source");
-
-                    b.Property<string>("SourceRefId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("source_ref_id");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)")
-                        .HasColumnName("status");
-
-                    b.Property<string>("StatusReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("status_reason");
-
-                    b.Property<string>("Text")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("text");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at_utc");
-
-                    b.HasKey("Id")
-                        .HasName("pk_staging_entries");
-
-                    b.HasIndex("Status")
-                        .HasDatabaseName("ix_staging_entries_status");
-
-                    b.HasIndex("Source", "SourceRefId")
-                        .HasDatabaseName("ix_staging_entries_source_source_ref_id");
-
-                    b.ToTable("staging_entries", (string)null);
-                });
-
             modelBuilder.Entity("Langoose.Domain.Models.StudyEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -408,7 +427,7 @@ namespace Langoose.Data.Migrations
                     b.ToTable("study_events", (string)null);
                 });
 
-            modelBuilder.Entity("Langoose.Domain.Models.UserDictionaryEntry", b =>
+            modelBuilder.Entity("Langoose.Domain.Models.UserEntry", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -487,21 +506,53 @@ namespace Langoose.Data.Migrations
                         .HasColumnName("user_input_translation");
 
                     b.HasKey("Id")
-                        .HasName("pk_user_dictionary_entries");
+                        .HasName("pk_user_entries");
 
                     b.HasIndex("SourceEntryId")
-                        .HasDatabaseName("ix_user_dictionary_entries_source_entry_id");
+                        .HasDatabaseName("ix_user_entries_source_entry_id");
 
                     b.HasIndex("TargetEntryId")
-                        .HasDatabaseName("ix_user_dictionary_entries_target_entry_id");
+                        .HasDatabaseName("ix_user_entries_target_entry_id");
 
                     b.HasIndex("UserId")
-                        .HasDatabaseName("ix_user_dictionary_entries_user_id");
+                        .HasDatabaseName("ix_user_entries_user_id");
 
                     b.HasIndex("EnrichmentStatus", "CreatedAtUtc")
-                        .HasDatabaseName("ix_user_dictionary_entries_enrichment_status_created_at_utc");
+                        .HasDatabaseName("ix_user_entries_enrichment_status_created_at_utc");
 
-                    b.ToTable("user_dictionary_entries", (string)null);
+                    b.ToTable("user_entries", (string)null);
+                });
+
+            modelBuilder.Entity("Langoose.Domain.Models.UserImport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at_utc");
+
+                    b.Property<int>("PendingCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("pending_count");
+
+                    b.Property<int>("RowCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("row_count");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_user_imports");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_user_imports_user_id");
+
+                    b.ToTable("user_imports", (string)null);
                 });
 
             modelBuilder.Entity("Langoose.Domain.Models.UserProgress", b =>
@@ -674,19 +725,19 @@ namespace Langoose.Data.Migrations
                     b.Navigation("EntryContext");
                 });
 
-            modelBuilder.Entity("Langoose.Domain.Models.UserDictionaryEntry", b =>
+            modelBuilder.Entity("Langoose.Domain.Models.UserEntry", b =>
                 {
                     b.HasOne("Langoose.Domain.Models.DictionaryEntry", "SourceEntry")
                         .WithMany()
                         .HasForeignKey("SourceEntryId")
                         .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_user_dictionary_entries_dictionary_entries_source_entry_id");
+                        .HasConstraintName("fk_user_entries_dictionary_entries_source_entry_id");
 
                     b.HasOne("Langoose.Domain.Models.DictionaryEntry", "TargetEntry")
                         .WithMany()
                         .HasForeignKey("TargetEntryId")
                         .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_user_dictionary_entries_dictionary_entries_target_entry_id");
+                        .HasConstraintName("fk_user_entries_dictionary_entries_target_entry_id");
 
                     b.Navigation("SourceEntry");
 

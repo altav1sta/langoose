@@ -98,7 +98,7 @@ public sealed class StudyService(AppDbContext dbContext) : IStudyService
         return await dbContext.DictionaryEntries
             .Where(x => x.BaseEntryId == null)
             .Where(x => x.IsPublic
-                || dbContext.UserDictionaryEntries.Any(u =>
+                || dbContext.UserEntries.Any(u =>
                     u.UserId == userId
                     && u.SourceEntryId == x.Id
                     && u.EnrichmentStatus == EnrichmentStatus.Enriched))

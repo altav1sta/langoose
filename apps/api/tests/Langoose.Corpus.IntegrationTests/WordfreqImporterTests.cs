@@ -100,7 +100,7 @@ public sealed class WordfreqImporterTests(PostgresFixture postgres)
         await using var connection = await postgres.DataSource.OpenConnectionAsync();
 
         var version = await connection.QuerySingleOrDefaultAsync<string>(
-            "SELECT value FROM corpus_metadata WHERE key = 'source_version_wordfreq_en'");
+            "SELECT value FROM corpus_metadata WHERE key = 'source_wordfreq_en'");
 
         version.Should().Be("wordfreq-large-3.1.1");
     }
@@ -166,10 +166,10 @@ public sealed class WordfreqImporterTests(PostgresFixture postgres)
         var beforeRows = await connection.ExecuteScalarAsync<long>(
             "SELECT COUNT(*) FROM wordfreq_rankings");
         var beforeMetadataKeys = (await connection.QueryAsync<string>(
-            "SELECT key FROM corpus_metadata WHERE key LIKE 'source_version_wordfreq_%' ORDER BY key")).ToArray();
+            "SELECT key FROM corpus_metadata WHERE key LIKE 'source_wordfreq_%' ORDER BY key")).ToArray();
 
         beforeRows.Should().Be(20);
-        beforeMetadataKeys.Should().Equal("source_version_wordfreq_en", "source_version_wordfreq_ru");
+        beforeMetadataKeys.Should().Equal("source_wordfreq_en", "source_wordfreq_ru");
 
         // Invoke the same SQL the reset-wordfreq subcommand runs.
         await using (var resetCmd = connection.CreateCommand())
@@ -177,7 +177,7 @@ public sealed class WordfreqImporterTests(PostgresFixture postgres)
             resetCmd.CommandText = """
                 TRUNCATE TABLE wordfreq_rankings;
                 DELETE FROM corpus_metadata
-                    WHERE key LIKE 'source_version_wordfreq_%';
+                    WHERE key LIKE 'source_wordfreq_%';
                 """;
             await resetCmd.ExecuteNonQueryAsync();
         }
@@ -185,7 +185,7 @@ public sealed class WordfreqImporterTests(PostgresFixture postgres)
         var afterRows = await connection.ExecuteScalarAsync<long>(
             "SELECT COUNT(*) FROM wordfreq_rankings");
         var afterMetadataKeys = (await connection.QueryAsync<string>(
-            "SELECT key FROM corpus_metadata WHERE key LIKE 'source_version_wordfreq_%'")).ToArray();
+            "SELECT key FROM corpus_metadata WHERE key LIKE 'source_wordfreq_%'")).ToArray();
 
         afterRows.Should().Be(0);
         afterMetadataKeys.Should().BeEmpty();

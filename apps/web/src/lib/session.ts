@@ -112,7 +112,7 @@ export function buildRefreshNotice(previousCard: StudyCard | undefined, snapshot
 }
 
 export function getCustomEntryCount(entries: DictionaryListItem[]) {
-  return entries.filter(e => e.userDictionaryEntryId).length;
+  return entries.filter(e => e.userEntryId).length;
 }
 
 export function buildQuickAddPayload(form: QuickAddFormState): AddUserEntryRequest {

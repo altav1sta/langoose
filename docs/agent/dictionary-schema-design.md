@@ -114,13 +114,13 @@ frequency).
 
 ### 4. Provenance
 
-Provenance lives on the **staging row** that records the approval — not
+Provenance lives on the **import-entry row** that records the approval — not
 on the canonical tables. Once content is promoted, it's verified content;
 the audit trail (who/what/when produced this) is reachable via
-`StagingEntry.PromotedEntryId`.
+`ImportEntry.PromotedEntryId`.
 
 ```
-StagingEntry.Source : enum EntrySource (Wiktionary, Manual, Import, UserSuggest)
+ImportEntry.Source : enum EntrySource (Wiktionary, Manual, Import, UserSuggest)
                             -- pipeline routing identifier; part of the row's identity
 ```
 
@@ -131,26 +131,26 @@ carry `Source`. Reasoning:
   senses from multiple sources can attach to it, so an entry-level
   `Source` would be either duplicative or ambiguous.
 - `Sense.Source` and `SenseTranslation.Source` would duplicate
-  information already captured by the staging row that produced the
+  information already captured by the import-entry row that produced the
   promotion. After approval, the content is canonical — provenance
   matters for the *decision history*, not the *current state*.
 - For "selectively re-import refreshed Wiktionary data": the bulk
   pipeline re-stages incoming rows. Dedup against canonical rows happens
-  via `(Source, SourceRefId)` on the staging side, not by reading
+  via `(Source, SourceRefId)` on the import side, not by reading
   provenance off canonical rows.
 
 Future flexibility: if a concrete need shows up (e.g. form-level
 provenance for selective inflection refresh), add a *nullable* `Source`
 column at that point. Don't speculate.
 
-### 5. Staging tables
+### 5. Import tables
 
 Raw imports do **not** write directly into `DictionaryEntry`. They land
-in a staging table inside `langoose_app` and pass through quality gates
+in a import table inside `langoose_app` and pass through quality gates
 before promotion.
 
 ```
-staging_entries
+import_entries
   Id              Guid (v7)
   Source          enum   (EntrySource: 'Wiktionary', 'Manual', 'Import', 'UserSuggest')
   SourceRefId     text   -- e.g. corpus row id, csv row #, originating user id
@@ -173,13 +173,13 @@ index (Source, SourceRefId)       -- dedup at import; non-unique, app enforces n
 ```
 
 `EntrySource` is the same enum used elsewhere in the app's content
-provenance vocabulary (currently used only by `StagingEntry.Source`).
+provenance vocabulary (currently used only by `ImportEntry.Source`).
 `'Wiktionary'` covers the bulk corpus import path, `'Import'` covers
 CSV bulk imports, `'UserSuggest'` covers user-driven suggestions
 flowing into the public review queue, `'Manual'` covers admin-entered
 candidates. Adding a separate frequency-only source like wordfreq is
 unnecessary — wordfreq feeds into translation `Rank` on already-existing
-candidates rather than producing its own staging rows.
+candidates rather than producing its own import-entry rows.
 
 `Payload` is the **bundle shape** for one candidate dictionary entry —
 the entry header plus all of its senses and their cross-language
@@ -188,37 +188,40 @@ unit; the promotion job parses the payload and creates
 `DictionaryEntry + Sense[] + SenseTranslation[]` atomically.
 
 ```jsonc
-// staging_entries.payload (jsonb)
+// import_entries.payload (jsonb)
 {
-  "entry": { "language": "en", "text": "bank", "pos": "noun", "grammar_label": null },
+  "entry": { "language": "en", "text": "bank", "pos": "noun" },
   "senses": [
     {
       "sense_index": 0,
       "gloss": "a financial institution",
       "translations": [
-        { "language": "ru", "text": "банк", "pos": "noun", "rank": 0 }
+        { "language": "ru", "text": "банк", "pos": "noun" }
       ]
     },
     {
       "sense_index": 1,
       "gloss": "the land alongside a river",
       "translations": [
-        { "language": "ru", "text": "берег", "pos": "noun", "rank": 0 }
+        { "language": "ru", "text": "берег", "pos": "noun" }
       ]
     }
-  ],
-  "raw": { /* original source row, preserved for re-runs */ }
+  ]
 }
 ```
 
-Why bundle, not separate `staging_senses` / `staging_sense_translations`
+The shape is fixed at the typed model level: each `IImportSourceReader`
+produces `ImportPayload` instances (header + flattened senses + sense-scoped
+translations) regardless of source format. There is no source-specific
+`raw` blob — if a downstream stage needs source-only fields not captured
+by the typed payload, it re-queries the source instead. Re-querying is
+cheap (corpus is local) and keeps `import_entries.payload` self-describing.
+
+Why bundle, not separate `import_senses` / `import_sense_translations`
 tables: source dictionaries (Wiktionary especially) emit senses nested
 under their entry; reviewers think about a word's meanings together;
-splitting the staging schema would force the reviewer to manage
+splitting the import schema would force the reviewer to manage
 cross-table relationships during review for no real gain.
-
-`raw` keeps the source row so a re-run of any pipeline stage can
-reconsult the original without going back to the corpus DB.
 
 #### Status enum
 
@@ -241,8 +244,7 @@ creates a new row. This keeps the audit trail clean.
 ### Bulk-seed flow (the new pipeline)
 
 ```
-corpus.wiktionary_entries  ┐
-corpus.wordfreq_rankings   ┘  →  app.staging_entries (Imported)
+corpus.wiktionary_entries     →  app.import_entries (Imported)
                                        │
                               [heuristic filter]
                                        ├→ HeuristicAccepted
@@ -265,11 +267,11 @@ corpus.wordfreq_rankings   ┘  →  app.staging_entries (Imported)
 
 ### User-add flow (existing, lightly adapted)
 
-User adds a custom word → `UserDictionaryEntry` (Pending, visible to the
+User adds a custom word → `UserEntry` (Pending, visible to the
 user with status) → enrichment worker looks up the corpus / canonical
 tables for an existing public Sense matching the user's term + POS.
 
-- **Match found.** Link `UserDictionaryEntry.SourceEntry` (and
+- **Match found.** Link `UserEntry.SourceEntry` (and
   `TargetEntry`) to the existing public `DictionaryEntry`. Status
   advances to `Enriched`. The user can study it.
 - **No match.** Status transitions to a terminal Invalid* status
@@ -291,14 +293,77 @@ tables for an existing public Sense matching the user's term + POS.
 schema. If their term has no public sense:
 
 - For now: the entry stays in a terminal Invalid* status.
-- Later (out of scope here): an auto-staging path can create a
-  `StagingEntry { Source = UserSuggest, Payload = {...} }` that joins
+- Later (out of scope here): an auto-import path can create a
+  `ImportEntry { Source = UserSuggest, Payload = {...} }` that joins
   the bulk-seed review queue. Once promoted, the user's entry can be
   retried and linked.
 
 Why no private senses: a parallel schema (`UserSense`,
 `UserSenseTranslation`) doubles the model for marginal MVP value.
 Defer until users actually hit the gap and complain.
+
+## Background jobs
+
+Each pipeline stage (bulk import, AI validation, promotion, …) runs as a
+worker-driven asynchronous job rather than a synchronous CLI invocation.
+A single universal `background_jobs` table backs all of them — and any
+future async work that doesn't belong to the dictionary pipeline (search
+reindex, digest emails, …) lives there too. Per-type shapes live inside
+two `jsonb` columns.
+
+```
+background_jobs
+  Id              Guid (v7)
+  Type            enum (BulkImport, AiValidation, Promotion, …)
+  Status          enum (Pending, Running, Completed, Failed, Cancelled)
+  Settings        jsonb        -- per-invocation inputs, type-specific
+  ExecutionState  jsonb        -- cursor, counters, error info; updated per batch
+  CreatedAtUtc / StartedAtUtc / FinishedAtUtc / UpdatedAtUtc
+```
+
+Each job type defines its own `Settings` and `ExecutionState` records,
+serialised via `System.Text.Json`. Worker tunables (poll interval, batch
+size, heuristic thresholds) live in `appsettings.json`, not the job row,
+because they're not per-invocation choices.
+
+**Submission**: a CLI command (e.g., `submit-bulk-import --lang en --top 5000`)
+inserts a `Pending` row and exits. The worker picks it up on its next
+poll. CLI also exposes `list-jobs`, `show-job`, `cancel-job`.
+
+**Lifecycle**: forward-only.
+`Pending` → `Running` → (`Completed` | `Failed` | `Cancelled`). All three
+end states are terminal — there is no automatic retry. The worker claims
+only `Pending` rows of its type (oldest first by `Id`, which is
+`Guid.CreateVersion7` and therefore time-ordered), marks them `Running`,
+runs to completion, and writes the terminal status. One hosted service
+per job type so different types run in parallel; within a type, jobs run
+serially (a second `Pending` row of the same type waits its turn).
+
+**Per-batch durability**: the runner reads input in batches and commits
+each batch atomically with `ExecutionState` updates (cursor + counters),
+so a `Failed` or `Cancelled` row carries a cursor that points to a
+valid resume position. A crash mid-batch leaves the row in `Running`
+with the same property — operator marks it `Failed` in DB to recover.
+
+**Resubmission with checkpoint**: a `Failed` or `Cancelled` job is
+re-run via `resubmit-job <id>`, which creates a *new* `Pending` row
+with a fresh `Id` but the original job's `Settings` and the saved
+cursor (counters reset to zero). The new run picks up where the old
+left off; the original row stays as audit. `ON CONFLICT DO NOTHING`
+on `(Source, SourceRefId)` makes any overlap idempotent.
+
+**Snapshot pinning**: jobs that read corpus data store the source
+snapshot identifier (e.g. `Source = "wiktionary-2026-04-25"`) in `Settings` at submit
+time. The worker validates it against the corpus at job start — if a
+re-import has rotated it, the job moves to `Failed`. This makes corpus
+mutability explicit in the contract instead of trying to make cursors
+stable across re-imports.
+
+**Why custom over Hangfire**: we have one job family today and three more
+on the roadmap (validation, promotion, dump rebuild), all "batch
+processing with a cursor." Hangfire's value (heterogeneous job types,
+scheduling, recurring patterns) doesn't apply, and its multi-table
+internal schema would sit alongside ours for no real gain.
 
 ## Pipeline stage details
 
@@ -311,11 +376,22 @@ Rejects entries that:
 - Contain digits or non-letter symbols beyond apostrophe / hyphen / space
 - Fall outside length bounds (1 < len ≤ 300, configurable)
 - Have POS in a hard blocklist (`name` / proper noun, `abbrev`, `symbol`)
-- Already exist in `DictionaryEntry` with the same `(Language, Text, PartOfSpeech)`
-  → not technically a reject, just skipped from staging
 
-Accepted rows land as `HeuristicAccepted`. Tunable via configuration so
-the allow-list can change without re-importing.
+Accepted rows land as `HeuristicAccepted`, rejected ones as
+`HeuristicRejected` (terminal). Tunable via configuration so the allow-list
+can change without re-importing.
+
+**Import is decoupled from canonical state.** The importer does not
+consult `DictionaryEntry` at insert time. Every corpus row that passes the
+heuristic gets staged; dedup against existing canonical entries is the
+promotion stage's job. Reasoning: keeping the importer state-free makes
+re-runs simpler, lets the pipeline be reasoned about as a pure buffer, and
+removes a coupling that would silently make the same input behave
+differently depending on what's already public. The cost — one extra
+import-entry row per already-promoted entry — is negligible relative to the
+heuristic-rejected volume, and the AI/manual stages would catch them as
+duplicates regardless. Idempotency at the import boundary is enforced by
+a unique `(Source, SourceRefId)` index: `INSERT ... ON CONFLICT DO NOTHING`.
 
 ### AI batch validation
 
@@ -334,7 +410,7 @@ Output per row: a verdict (`accept` / `reject`), confidence ∈ [0,1], and
 short reasoning. Stored in `AiConfidence` / `AiReasoning`. Verdict
 advances the status to `AiAccepted` or `AiRejected`.
 
-Vendor-neutral interface (`IStagingValidator`) so a future swap to
+Vendor-neutral interface (`IImportValidator`) so a future swap to
 another provider — or to a heuristic fallback — is mechanical.
 
 ### Manual review and promotion
@@ -348,7 +424,7 @@ language / POS / confidence. The reviewer can:
 
 The promotion job reads `Approved` rows, writes `DictionaryEntry` +
 `Sense` + `sense_translations`, sets `PromotedEntryId`, marks the
-staging row `Promoted`. Promotion is idempotent on `(Source, SourceRefId)`.
+import-entry row `Promoted`. Promotion is idempotent on `(Source, SourceRefId)`.
 
 A web UI for review is out of scope for this ADR; the CLI is enough to
 run the initial seed. #65 (admin tooling) can pick up the UI later.
@@ -360,7 +436,7 @@ viable strategies:
 
 1. **Drop and re-seed.** Acceptable because the seed is small and
    replaceable. Cleanest schema. Loses no production user data
-   (UserDictionaryEntry is empty in practice for early users).
+   (UserEntry is empty in practice for early users).
 2. **Backfill senses 1:1.** Each existing `DictionaryEntry` gets one
    `Sense` row with `SenseIndex=0` and the existing translations move
    into `sense_translations`. Then drop the entry-level translation join.
@@ -377,7 +453,7 @@ that adds tables and drops the old translation join.
 - The shape of the AI validation prompt — that's an implementation
   decision in the AI batch validation issue.
 - Web admin UI for review — tracked separately under #65.
-- Real-time enrichment for user adds — `UserDictionaryEntry` keeps its
+- Real-time enrichment for user adds — `UserEntry` keeps its
   current async lifecycle.
 - Per-user crowdsourcing of public entries — possible later via
   `Source = UserSuggest`, not in this scope.
@@ -390,8 +466,9 @@ that adds tables and drops the old translation join.
 The ADR is the spec; the work splits as:
 
 - **#94** — Schema implementation (this doc → migrations + entities).
-- **#57 child A** — Bulk import from corpus into staging with heuristic filter.
-- **#57 child B** — AI batch validation pass.
-- **#57 child C** — Admin review CLI + promotion job.
-- **#57 child D** — Initial bulk seed run, ship the resulting dump.
+- **#105** — Bulk import from corpus into import_entries with heuristic filter
+  (also adds the universal `background_jobs` table and worker dispatch).
+- **#106** — AI batch validation pass.
+- **#107** — Admin review CLI + promotion job.
+- **#108** — Initial bulk seed run, ship the resulting dump.
 - **#91** — Context generation, after schema lands.
