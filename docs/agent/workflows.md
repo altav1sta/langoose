@@ -40,7 +40,7 @@ up, dispatches to the matching handler (`BulkImportJobHandler` for
 cursor in `ExecutionState` so a worker restart resumes mid-job.
 
 - Submit a bulk import:
-  - `dotnet run --project apps/api/src/Langoose.DbTool -- submit-bulk-import --lang en --wiktionary-source <id> --wordfreq-source <id> [--top-rank N] [--limit N]`
+  - `dotnet run --project apps/api/src/Langoose.DbTool -- submit-bulk-import --lang en --source <id>`
 - List jobs:
   - `dotnet run --project apps/api/src/Langoose.DbTool -- list-jobs [--type BulkImport] [--status Running] [--limit N]`
 - Inspect a job:

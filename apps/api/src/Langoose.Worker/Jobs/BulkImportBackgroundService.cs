@@ -1,6 +1,6 @@
-using Langoose.Core.Configuration;
 using Langoose.Data;
 using Langoose.Domain.Enums;
+using Langoose.Worker.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -22,7 +22,7 @@ namespace Langoose.Worker.Jobs;
 public sealed class BulkImportBackgroundService(
     IServiceScopeFactory scopeFactory,
     IDbContextFactory<AppDbContext> dbFactory,
-    IOptions<BackgroundJobsSettings> options,
+    IOptions<BulkImportSettings> options,
     ILogger<BulkImportBackgroundService> logger) : BackgroundService
 {
     private const JobType ServiceJobType = JobType.BulkImport;

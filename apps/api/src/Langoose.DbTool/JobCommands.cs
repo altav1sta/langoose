@@ -189,8 +189,8 @@ internal static class JobCommands
         switch (type)
         {
             case JobType.BulkImport:
-                var prior = JsonSerializer.Deserialize(
-                    sourceExecutionState, BackgroundJobJsonContext.Default.BulkImportState);
+                var prior = JsonSerializer.Deserialize<BulkImportState>(
+                    sourceExecutionState, AppJsonOptions.Default);
                 if (prior?.Cursor is null)
                     return null;
 
@@ -200,7 +200,7 @@ internal static class JobCommands
                     HeuristicAcceptedCount: 0,
                     HeuristicRejectedCount: 0,
                     ErrorMessage: null);
-                return JsonSerializer.Serialize(resumed, BackgroundJobJsonContext.Default.BulkImportState);
+                return JsonSerializer.Serialize(resumed, AppJsonOptions.Default);
             default:
                 return null;
         }

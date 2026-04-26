@@ -1,4 +1,4 @@
-using Langoose.Core.Configuration;
+using Langoose.Worker.Configuration;
 using Langoose.Domain.Services;
 using Microsoft.Extensions.Options;
 using Microsoft.FeatureManagement;

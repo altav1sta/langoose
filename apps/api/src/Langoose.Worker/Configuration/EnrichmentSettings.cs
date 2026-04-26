@@ -1,4 +1,4 @@
-namespace Langoose.Core.Configuration;
+namespace Langoose.Worker.Configuration;
 
 public sealed class EnrichmentSettings
 {

@@ -14,18 +14,9 @@ internal static class BulkImportCommands
     public static async Task<int> SubmitBulkImportAsync(string[] args)
     {
         var language = GetRequiredOption(args, "--lang");
-        var wiktionarySource = GetRequiredOption(args, "--wiktionary-source");
-        var wordfreqSource = GetRequiredOption(args, "--wordfreq-source");
-        var topRank = GetIntOption(args, "--top-rank");
-        var limit = GetIntOption(args, "--limit");
+        var source = GetRequiredOption(args, "--source");
 
-        var settings = new BulkImportParams(
-            language,
-            wiktionarySource,
-            wordfreqSource,
-            topRank,
-            limit,
-            RequestedByUserId: null);
+        var settings = new BulkImportParams(language, source);
 
         using var host = Program.BuildHost(args, configureAppDatabase: true, configureAuthDatabase: false);
         var contextFactory = host.Services.GetRequiredService<IDbContextFactory<AppDbContext>>();
@@ -37,7 +28,7 @@ internal static class BulkImportCommands
             Id = Guid.CreateVersion7(),
             Type = JobType.BulkImport,
             Status = JobStatus.Pending,
-            Settings = JsonSerializer.Serialize(settings, BackgroundJobJsonContext.Default.BulkImportParams),
+            Settings = JsonSerializer.Serialize(settings, AppJsonOptions.Default),
             ExecutionState = null,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
@@ -46,7 +37,8 @@ internal static class BulkImportCommands
         db.BackgroundJobs.Add(job);
         await db.SaveChangesAsync();
 
-        Console.WriteLine($"Submitted bulk-import job {job.Id} (lang={language}, wiktionary={wiktionarySource}, wordfreq={wordfreqSource}).");
+        Console.WriteLine(
+            $"Submitted bulk-import job {job.Id} (lang={language}, source={source}).");
 
         return 0;
     }
@@ -65,7 +57,4 @@ internal static class BulkImportCommands
 
         return null;
     }
-
-    private static int? GetIntOption(string[] args, string name) =>
-        GetOption(args, name) is { } value ? int.Parse(value) : null;
 }

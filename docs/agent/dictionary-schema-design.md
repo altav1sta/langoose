@@ -190,35 +190,38 @@ unit; the promotion job parses the payload and creates
 ```jsonc
 // import_entries.payload (jsonb)
 {
-  "entry": { "language": "en", "text": "bank", "pos": "noun", "grammar_label": null },
+  "entry": { "language": "en", "text": "bank", "pos": "noun" },
   "senses": [
     {
       "sense_index": 0,
       "gloss": "a financial institution",
       "translations": [
-        { "language": "ru", "text": "банк", "pos": "noun", "rank": 0 }
+        { "language": "ru", "text": "банк", "pos": "noun" }
       ]
     },
     {
       "sense_index": 1,
       "gloss": "the land alongside a river",
       "translations": [
-        { "language": "ru", "text": "берег", "pos": "noun", "rank": 0 }
+        { "language": "ru", "text": "берег", "pos": "noun" }
       ]
     }
-  ],
-  "raw": { /* original source row, preserved for re-runs */ }
+  ]
 }
 ```
+
+The shape is fixed at the typed model level: each `IImportSourceReader`
+produces `ImportPayload` instances (header + flattened senses + sense-scoped
+translations) regardless of source format. There is no source-specific
+`raw` blob — if a downstream stage needs source-only fields not captured
+by the typed payload, it re-queries the source instead. Re-querying is
+cheap (corpus is local) and keeps `import_entries.payload` self-describing.
 
 Why bundle, not separate `import_senses` / `import_sense_translations`
 tables: source dictionaries (Wiktionary especially) emit senses nested
 under their entry; reviewers think about a word's meanings together;
 splitting the import schema would force the reviewer to manage
 cross-table relationships during review for no real gain.
-
-`raw` keeps the source row so a re-run of any pipeline stage can
-reconsult the original without going back to the corpus DB.
 
 #### Status enum
 
@@ -241,8 +244,7 @@ creates a new row. This keeps the audit trail clean.
 ### Bulk-seed flow (the new pipeline)
 
 ```
-corpus.wiktionary_entries  ┐
-corpus.wordfreq_rankings   ┘  →  app.import_entries (Imported)
+corpus.wiktionary_entries     →  app.import_entries (Imported)
                                        │
                               [heuristic filter]
                                        ├→ HeuristicAccepted
@@ -350,12 +352,12 @@ cursor (counters reset to zero). The new run picks up where the old
 left off; the original row stays as audit. `ON CONFLICT DO NOTHING`
 on `(Source, SourceRefId)` makes any overlap idempotent.
 
-**Snapshot pinning**: jobs that read corpus data store
-`WiktionarySource` / `WordfreqSource` in `Settings` at submit time. The
-worker validates these against the corpus tables at job start — if a
-re-import has rotated them, the job is moved to `Failed`. This makes
-corpus mutability explicit in the contract instead of trying to make
-cursors stable across re-imports.
+**Snapshot pinning**: jobs that read corpus data store the source
+snapshot identifier (e.g. `Source = "wiktionary-2026-04-25"`) in `Settings` at submit
+time. The worker validates it against the corpus at job start — if a
+re-import has rotated it, the job moves to `Failed`. This makes corpus
+mutability explicit in the contract instead of trying to make cursors
+stable across re-imports.
 
 **Why custom over Hangfire**: we have one job family today and three more
 on the roadmap (validation, promotion, dump rebuild), all "batch

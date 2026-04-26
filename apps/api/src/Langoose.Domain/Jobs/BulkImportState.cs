@@ -1,7 +1,7 @@
 namespace Langoose.Domain.Jobs;
 
 public sealed record BulkImportState(
-    BulkImportCursor? Cursor,
+    string? Cursor,
     int ProcessedCount,
     int HeuristicAcceptedCount,
     int HeuristicRejectedCount,

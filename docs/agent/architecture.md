@@ -17,12 +17,11 @@ flowchart LR
   Worker --> CorpusData
   Core --> Domain
   Core --> Data
-  Core --> CorpusData
   Data --> Domain
   AuthData --> Domain
   DbTool["Langoose.DbTool"] --> Data
   DbTool --> Domain
-  CorpusData["Langoose.Corpus.Data"]
+  CorpusData["Langoose.Corpus.Data"] --> Domain
   CorpusDbTool["Langoose.Corpus.DbTool"] --> CorpusData
   UnitTests["Core.UnitTests"] --> Core
   UnitTests --> Domain
@@ -57,9 +56,14 @@ added to the `NestedProjects` section under the existing `tests` folder.
 Contains:
 - **Entities**: `DictionaryEntry`, `EntryContext`, `UserEntry`,
   `UserProgress`, `StudyEvent`, `ContentFlag`, `UserImport`
-- **Enums**: `EnrichmentStatus`, `StudyVerdict`, `FeedbackCode`
+- **Enums**: `EnrichmentStatus`, `StudyVerdict`, `FeedbackCode`,
+  `JobType`, `JobStatus`
 - **Constants**: `ProgressDefaults`
 - **Service interfaces**: `IDictionaryService`, `IStudyService`, `IContentService`
+- **Imports**: `IImportSourceReader` interface + `ImportSourceBundle`
+  record — source-agnostic contract for the bulk-import pipeline.
+  Each source (wiktionary today, CSV / further corpora later)
+  implements the interface in its respective infrastructure project.
 
 Service interfaces use only domain model types — no DTOs.
 
@@ -75,18 +79,19 @@ Contains:
 
 ### Core
 
-`apps/api/src/Langoose.Core/` — depends on Domain, Data, and Corpus.Data.
+`apps/api/src/Langoose.Core/` — depends on Domain and Data.
 
 Contains:
 - **Services**: `DictionaryService`, `StudyService`, `ContentService`
   — implement interfaces from Domain
 - **Providers**: `LocalEnrichmentProvider` — implements `IEnrichmentProvider`
   from Domain. The corpus-based provider is tracked under #92.
-- **BulkImport**: `HeuristicFilter`, `ImportPayloadFactory` — pure
-  building blocks for the bulk-seed import; depend on Corpus.Data for
-  source-shape parsing.
+- **BulkImport**: `HeuristicFilter` — pure rule-application for the
+  bulk-seed import. Source-shape parsing lives in the per-source
+  `IImportSourceReader` implementation (e.g.
+  `Corpus.Data/WiktionaryImportSourceReader`).
 - **Utilities**: `TextNormalizer` — static utility, no interface
-- **Configuration**: settings classes (`EnrichmentSettings`, `BackgroundJobsSettings`, `BulkImportSettings`)
+- **Configuration**: `HeuristicFilterSettings` (consumed by `HeuristicFilter`). Per-service tunables (`EnrichmentSettings`, `BulkImportSettings`) live in Worker — each background service owns its own settings (poll interval, batch size, etc.).
 
 Services accept and return domain models. They use `AppDbContext` directly — no
 repository-per-entity abstraction.
@@ -134,10 +139,13 @@ CLI for applying migrations, seeding, and managing background jobs
 
 ### Corpus.Data
 
-`apps/api/src/Langoose.Corpus.Data/` — no project references; uses Dapper +
-Npgsql directly. Read-only access layer for the `langoose_corpus` database.
-Schema is defined in embedded SQL files (no EF migrations). Hybrid
-Postgres + JSONB tables preserve each source's native shape.
+`apps/api/src/Langoose.Corpus.Data/` — depends on Domain (for the
+`IImportSourceReader` contract); uses Dapper + Npgsql directly. Read-only
+access layer for the `langoose_corpus` database. Schema is defined in
+embedded SQL files (no EF migrations). Hybrid Postgres + JSONB tables
+preserve each source's native shape. Hosts `WiktionaryImportSourceReader`
+which implements the Domain `IImportSourceReader` contract for the
+bulk-import pipeline.
 
 ### Corpus.DbTool
 

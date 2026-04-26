@@ -4,7 +4,9 @@ using Langoose.Core.Providers;
 using Langoose.Core.Services;
 using Langoose.Corpus.Data.Readers;
 using Langoose.Data;
+using Langoose.Domain.Imports;
 using Langoose.Domain.Services;
+using Langoose.Worker.Configuration;
 using Langoose.Worker.Jobs;
 using Langoose.Worker.Services;
 using Microsoft.EntityFrameworkCore;
@@ -29,15 +31,13 @@ var corpusConnectionString = builder.Configuration.GetConnectionString("CorpusDa
     ?? throw new InvalidOperationException("Connection string 'CorpusDatabase' is not configured.");
 
 builder.Services.AddSingleton(NpgsqlDataSource.Create(corpusConnectionString));
-builder.Services.AddSingleton<IBulkImportCorpusReader, BulkImportCorpusReader>();
+builder.Services.AddSingleton<IImportSourceReader, WiktionaryImportSourceReader>();
 
 builder.Services.AddScoped<IEnrichmentProvider, LocalEnrichmentProvider>();
 builder.Services.AddScoped<IEnrichmentProcessor, EnrichmentProcessor>();
 
 builder.Services.Configure<EnrichmentSettings>(
     builder.Configuration.GetSection(EnrichmentSettings.SectionName));
-builder.Services.Configure<BackgroundJobsSettings>(
-    builder.Configuration.GetSection(BackgroundJobsSettings.SectionName));
 builder.Services.Configure<BulkImportSettings>(
     builder.Configuration.GetSection(BulkImportSettings.SectionName));
 
@@ -47,7 +47,6 @@ builder.Services.AddSingleton(sp =>
 
     return new HeuristicFilter(bulkImportOptions.Value.Heuristic);
 });
-builder.Services.AddSingleton<ImportPayloadFactory>();
 builder.Services.AddScoped<BulkImportJobHandler>();
 
 builder.Services.AddFeatureManagement();

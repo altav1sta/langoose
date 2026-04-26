@@ -1,16 +1,18 @@
 using System.Text.Json;
 using FluentAssertions;
-using Langoose.Core.Configuration;
 using Langoose.Core.BulkImport;
+using Langoose.Core.Configuration;
+using Langoose.Worker.Configuration;
 using Langoose.Corpus.Data.Readers;
 using Langoose.Corpus.DbTool;
 using Langoose.Corpus.DbTool.Importers;
 using Langoose.Corpus.IntegrationTests.Infrastructure;
 using Langoose.Data;
-using Langoose.Domain.Enums;
-using Langoose.Domain.Models;
 using Langoose.Data.Json;
+using Langoose.Domain.Enums;
+using Langoose.Domain.Imports;
 using Langoose.Domain.Jobs;
+using Langoose.Domain.Models;
 using Langoose.Worker.Jobs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -32,7 +34,7 @@ public sealed class BulkImportJobHandlerTests(PostgresFixture postgres)
 {
     private const string FixtureEnPath = "fixtures/wiktionary-en-sample.jsonl";
     private const string FixtureWordfreqEnPath = "fixtures/wordfreq-en-sample.tsv";
-    private const string WiktionarySource = "wiktionary-test-1";
+    private const string Source = "wiktionary-test-1";
     private const string WordfreqSource = "wordfreq-test-1";
 
     private DbContextOptions<AppDbContext> _appDbOptions = null!;
@@ -84,7 +86,7 @@ public sealed class BulkImportJobHandlerTests(PostgresFixture postgres)
         }
 
         // Seed corpus.
-        var wikt = new WiktionaryImporter(postgres.DataSource, "en", WiktionarySource);
+        var wikt = new WiktionaryImporter(postgres.DataSource, "en", Source);
         await wikt.ImportAsync(FixtureEnPath);
 
         var wf = new WordfreqImporter(postgres.DataSource, "en", WordfreqSource);
@@ -126,16 +128,17 @@ public sealed class BulkImportJobHandlerTests(PostgresFixture postgres)
         staged.Single(x => x.Text == "London").StatusReason.Should().Contain("blocklist");
         staged.Where(x => x.Text != "London").Should().OnlyContain(x => x.Status == ImportEntryStatus.HeuristicAccepted);
 
-        // The "lead" import-entry row should bundle both etymology rows under one payload.
+        // The "lead" import-entry row bundles both etymology rows under
+        // one payload — the typed payload concatenates senses across the
+        // two source rows into a single Senses[] array.
         var lead = staged.Single(x => x.Text == "lead");
         using var leadDoc = JsonDocument.Parse(lead.Payload);
         leadDoc.RootElement.GetProperty("senses").GetArrayLength().Should().Be(2);
-        leadDoc.RootElement.GetProperty("raw").GetArrayLength().Should().Be(2);
 
         var job = await db.BackgroundJobs.AsNoTracking().FirstAsync(x => x.Id == jobId);
         job.Status.Should().Be(JobStatus.Completed);
 
-        var state = JsonSerializer.Deserialize(job.ExecutionState!, BackgroundJobJsonContext.Default.BulkImportState)!;
+        var state = JsonSerializer.Deserialize<BulkImportState>(job.ExecutionState!, AppJsonOptions.Default)!;
         state.ProcessedCount.Should().Be(5);
         state.HeuristicAcceptedCount.Should().Be(4);
         state.HeuristicRejectedCount.Should().Be(1);
@@ -163,8 +166,7 @@ public sealed class BulkImportJobHandlerTests(PostgresFixture postgres)
     [Fact]
     public async Task RunAsync_FailsCleanly_WhenCorpusSnapshotMissing()
     {
-        var settings = new BulkImportParams(
-            "en", "missing-version", WordfreqSource, null, null, null);
+        var settings = new BulkImportParams("en", "wiktionary-missing-version");
         var jobId = await SubmitJobAsync(settings);
 
         var handler = BuildHandler(batchSize: 100);
@@ -175,8 +177,8 @@ public sealed class BulkImportJobHandlerTests(PostgresFixture postgres)
 
         job.Status.Should().Be(JobStatus.Failed);
 
-        var state = JsonSerializer.Deserialize(job.ExecutionState!, BackgroundJobJsonContext.Default.BulkImportState)!;
-        state.ErrorMessage.Should().Contain("snapshots no longer present");
+        var state = JsonSerializer.Deserialize<BulkImportState>(job.ExecutionState!, AppJsonOptions.Default)!;
+        state.ErrorMessage.Should().Contain("no longer present");
     }
 
     [Fact]
@@ -197,8 +199,7 @@ public sealed class BulkImportJobHandlerTests(PostgresFixture postgres)
 
     private async Task<Guid> SubmitJobAsync(BulkImportParams? settings = null)
     {
-        settings ??= new BulkImportParams(
-            "en", WiktionarySource, WordfreqSource, null, null, null);
+        settings ??= new BulkImportParams("en", Source);
 
         await using var db = new AppDbContext(_appDbOptions);
         var now = DateTimeOffset.UtcNow;
@@ -207,7 +208,7 @@ public sealed class BulkImportJobHandlerTests(PostgresFixture postgres)
             Id = Guid.CreateVersion7(),
             Type = JobType.BulkImport,
             Status = JobStatus.Pending,
-            Settings = JsonSerializer.Serialize(settings, BackgroundJobJsonContext.Default.BulkImportParams),
+            Settings = JsonSerializer.Serialize(settings, AppJsonOptions.Default),
             ExecutionState = null,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
@@ -222,9 +223,8 @@ public sealed class BulkImportJobHandlerTests(PostgresFixture postgres)
     private BulkImportJobHandler BuildHandler(int batchSize)
     {
         var dbFactory = new TestDbContextFactory(_appDbOptions);
-        var reader = new BulkImportCorpusReader(postgres.DataSource);
+        var reader = new WiktionaryImportSourceReader(postgres.DataSource);
         var heuristic = new HeuristicFilter(new HeuristicFilterSettings());
-        var payloadFactory = new ImportPayloadFactory();
         var options = Options.Create(new BulkImportSettings
         {
             BatchSize = batchSize,
@@ -232,7 +232,7 @@ public sealed class BulkImportJobHandlerTests(PostgresFixture postgres)
         });
 
         return new BulkImportJobHandler(
-            dbFactory, reader, heuristic, payloadFactory, options,
+            dbFactory, reader, heuristic, options,
             NullLogger<BulkImportJobHandler>.Instance);
     }
 

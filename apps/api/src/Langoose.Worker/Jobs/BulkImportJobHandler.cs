@@ -1,29 +1,30 @@
 using System.Text.Json;
 using Langoose.Core.BulkImport;
-using Langoose.Core.Configuration;
 using Langoose.Corpus.Data.Readers;
 using Langoose.Data;
 using Langoose.Data.Json;
 using Langoose.Domain.Enums;
+using Langoose.Domain.Imports;
 using Langoose.Domain.Jobs;
 using Langoose.Domain.Models;
+using Langoose.Worker.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Langoose.Worker.Jobs;
 
 /// <summary>
-/// Executes one <see cref="JobType.BulkImport"/> job end to end:
-/// streams ranked Wiktionary bundles from the corpus, applies the
-/// heuristic filter, and writes <see cref="ImportEntry"/> rows. Cursor
-/// and counters live inside the job's <c>ExecutionState</c>; commits are
-/// per-batch so a crash mid-batch leaves a valid resume point.
+/// Executes one <see cref="JobType.BulkImport"/> job end to end: fetches
+/// batches of typed payloads from the configured
+/// <see cref="IImportSourceReader"/>, applies the heuristic filter, and
+/// writes <see cref="ImportEntry"/> rows. Cursor and counters live inside
+/// the job's <c>ExecutionState</c>; commits are per-batch so a crash
+/// mid-batch leaves a valid resume point.
 /// </summary>
 public sealed class BulkImportJobHandler(
     IDbContextFactory<AppDbContext> dbFactory,
-    IBulkImportCorpusReader reader,
+    IImportSourceReader reader,
     HeuristicFilter heuristic,
-    ImportPayloadFactory payloadFactory,
     IOptions<BulkImportSettings> options,
     ILogger<BulkImportJobHandler> logger)
 {
@@ -37,56 +38,35 @@ public sealed class BulkImportJobHandler(
         await using (var db = await dbFactory.CreateDbContextAsync(ct))
         {
             var job = await db.BackgroundJobs.FirstAsync(x => x.Id == jobId, ct);
-            settings = JsonSerializer.Deserialize(job.Settings, BackgroundJobJsonContext.Default.BulkImportParams)
+            settings = JsonSerializer.Deserialize<BulkImportParams>(job.Settings, AppJsonOptions.Default)
                 ?? throw new InvalidOperationException($"Job {jobId} has empty BulkImport params.");
             state = job.ExecutionState is null
                 ? new BulkImportState(null, 0, 0, 0, null)
-                : JsonSerializer.Deserialize(job.ExecutionState, BackgroundJobJsonContext.Default.BulkImportState)
+                : JsonSerializer.Deserialize<BulkImportState>(job.ExecutionState, AppJsonOptions.Default)
                   ?? new BulkImportState(null, 0, 0, 0, null);
         }
 
-        var snapshotsPresent = await reader.SnapshotsExistAsync(
-            settings.Language, settings.WiktionarySource, settings.WordfreqSource, ct);
-
-        if (!snapshotsPresent)
+        if (!await reader.SnapshotExistsAsync(settings.Source, ct))
         {
             await MarkFailedAsync(
                 jobId,
-                "Corpus snapshots no longer present (re-import detected). Submit a fresh job.",
+                $"Source snapshot '{settings.Source}' no longer present (re-import detected). Submit a fresh job.",
                 state,
                 ct);
             return;
         }
 
-        var query = new BulkImportCorpusQuery(
-            settings.Language,
-            settings.WiktionarySource,
-            settings.WordfreqSource,
-            settings.TopFrequencyRank,
-            state.Cursor?.LastRank,
-            state.Cursor?.LastWord,
-            state.Cursor?.LastPos);
-
-        var batch = new List<ImportCandidate>(_config.BatchSize);
-
         try
         {
-            await foreach (var bundle in reader.StreamBundlesAsync(query, ct))
+            while (!ct.IsCancellationRequested)
             {
-                ct.ThrowIfCancellationRequested();
+                var batch = await reader.FetchBatchAsync(
+                    settings.Language, settings.Source, _config.BatchSize, state.Cursor, ct);
 
-                var verdict = heuristic.Evaluate(bundle.Word, bundle.Pos);
-                var payload = payloadFactory.Build(bundle);
-                batch.Add(new ImportCandidate(bundle, verdict, payload));
-
-                if (batch.Count < _config.BatchSize && !LimitReached(state, batch, settings.Limit))
-                    continue;
+                if (batch.Length == 0)
+                    break;
 
                 state = await CommitBatchAsync(jobId, batch, state, ct);
-                batch.Clear();
-
-                if (LimitReached(state, batch, settings.Limit))
-                    break;
 
                 if (await IsCancelledAsync(jobId, ct))
                 {
@@ -94,9 +74,6 @@ public sealed class BulkImportJobHandler(
                     return;
                 }
             }
-
-            if (batch.Count > 0)
-                state = await CommitBatchAsync(jobId, batch, state, ct);
 
             await MarkCompletedAsync(jobId, state, ct);
         }
@@ -112,19 +89,16 @@ public sealed class BulkImportJobHandler(
         }
     }
 
-    private static bool LimitReached(BulkImportState state, List<ImportCandidate> batch, int? limit) =>
-        limit is { } cap && state.ProcessedCount + batch.Count >= cap;
-
     private async Task<BulkImportState> CommitBatchAsync(
         Guid jobId,
-        List<ImportCandidate> batch,
+        ImportPayload[] batch,
         BulkImportState state,
         CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
-        var sourceRefIds = batch.Select(x => SourceRefId(x.Bundle)).ToHashSet();
+        var sourceRefIds = batch.Select(SourceRefId).ToHashSet();
         var existing = await db.ImportEntries
             .Where(x => x.Source == EntrySource.Wiktionary && sourceRefIds.Contains(x.SourceRefId))
             .Select(x => x.SourceRefId)
@@ -135,46 +109,49 @@ public sealed class BulkImportJobHandler(
         var accepted = 0;
         var rejected = 0;
 
-        foreach (var candidate in batch)
+        foreach (var payload in batch)
         {
-            var refId = SourceRefId(candidate.Bundle);
+            var refId = SourceRefId(payload);
             if (existingSet.Contains(refId))
                 continue;
+
+            var verdict = heuristic.Evaluate(payload.Entry.Text, payload.Entry.Pos);
+            var payloadJson = JsonSerializer.Serialize(payload, AppJsonOptions.Default);
 
             db.ImportEntries.Add(new ImportEntry
             {
                 Id = Guid.CreateVersion7(),
                 Source = EntrySource.Wiktionary,
                 SourceRefId = refId,
-                Language = candidate.Bundle.Language,
-                Text = candidate.Bundle.Word,
-                PartOfSpeech = candidate.Bundle.Pos,
-                Payload = candidate.Payload,
-                Status = candidate.Verdict.Accepted
+                Language = payload.Entry.Language,
+                Text = payload.Entry.Text,
+                PartOfSpeech = payload.Entry.Pos,
+                Payload = payloadJson,
+                Status = verdict.Accepted
                     ? ImportEntryStatus.HeuristicAccepted
                     : ImportEntryStatus.HeuristicRejected,
-                StatusReason = candidate.Verdict.Reason,
+                StatusReason = verdict.Reason,
                 CreatedAtUtc = now,
                 UpdatedAtUtc = now
             });
 
-            if (candidate.Verdict.Accepted)
+            if (verdict.Accepted)
                 accepted++;
             else
                 rejected++;
         }
 
         var last = batch[^1];
-        var newCursor = new BulkImportCursor(last.Bundle.Rank, last.Bundle.Word, last.Bundle.Pos);
+        var newCursor = WiktionaryImportSourceReader.EncodeCursor(last.Entry.Text, last.Entry.Pos);
         var newState = new BulkImportState(
             newCursor,
-            state.ProcessedCount + batch.Count,
+            state.ProcessedCount + batch.Length,
             state.HeuristicAcceptedCount + accepted,
             state.HeuristicRejectedCount + rejected,
             null);
 
         var job = await db.BackgroundJobs.FirstAsync(x => x.Id == jobId, ct);
-        job.ExecutionState = JsonSerializer.Serialize(newState, BackgroundJobJsonContext.Default.BulkImportState);
+        job.ExecutionState = JsonSerializer.Serialize(newState, AppJsonOptions.Default);
         job.UpdatedAtUtc = now;
 
         await db.SaveChangesAsync(ct);
@@ -209,7 +186,7 @@ public sealed class BulkImportJobHandler(
         job.UpdatedAtUtc = now;
         job.ExecutionState = JsonSerializer.Serialize(
             state with { Cursor = null, ErrorMessage = null },
-            BackgroundJobJsonContext.Default.BulkImportState);
+            AppJsonOptions.Default);
 
         await db.SaveChangesAsync(ct);
     }
@@ -225,7 +202,7 @@ public sealed class BulkImportJobHandler(
         job.UpdatedAtUtc = now;
         job.ExecutionState = JsonSerializer.Serialize(
             state with { ErrorMessage = error },
-            BackgroundJobJsonContext.Default.BulkImportState);
+            AppJsonOptions.Default);
 
         await db.SaveChangesAsync(ct);
     }
@@ -235,14 +212,12 @@ public sealed class BulkImportJobHandler(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var job = await db.BackgroundJobs.FirstAsync(x => x.Id == jobId, ct);
 
-        job.ExecutionState = JsonSerializer.Serialize(state, BackgroundJobJsonContext.Default.BulkImportState);
+        job.ExecutionState = JsonSerializer.Serialize(state, AppJsonOptions.Default);
         job.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
         await db.SaveChangesAsync(ct);
     }
 
-    private static string SourceRefId(WiktionaryBundle bundle) =>
-        $"{bundle.Language}:{bundle.Word}:{bundle.Pos}";
-
-    private sealed record ImportCandidate(WiktionaryBundle Bundle, HeuristicVerdict Verdict, string Payload);
+    private static string SourceRefId(ImportPayload payload) =>
+        $"{payload.Entry.Language}:{payload.Entry.Text}:{payload.Entry.Pos}";
 }

@@ -233,7 +233,7 @@ Uses `Microsoft.FeatureManagement` NuGet package (v4.4+) with the standard
 
 ### Configuration
 
-`EnrichmentSettings` (`Core/Configuration/`) bound from the `"Enrichment"` section:
+`EnrichmentSettings` (`Worker/Configuration/`) bound from the `"Enrichment"` section:
 - `PollIntervalSeconds` (default 5)
 - `BatchSize` (default 10)
 - `MaxRetries` (default 3)
