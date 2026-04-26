@@ -63,7 +63,7 @@ namespace Langoose.Data.Migrations
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
                     source = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: false),
-                    source_ref_id = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    source_ref_id = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     language = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
                     text = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
                     part_of_speech = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),

@@ -22,16 +22,17 @@ public sealed class WiktionaryImportSourceReader(NpgsqlDataSource dataSource) : 
 {
     public string SourceName => "wiktionary";
 
-    public async Task<bool> SnapshotExistsAsync(string snapshot, CancellationToken ct)
+    public async Task<bool> SnapshotExistsAsync(string language, string snapshot, CancellationToken ct)
     {
         await using var connection = await dataSource.OpenConnectionAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT EXISTS (
                 SELECT 1 FROM wiktionary_entries
-                WHERE source = @snapshot
+                WHERE lang_code = @lang AND source = @snapshot
                 LIMIT 1)
             """;
+        command.Parameters.AddWithValue("lang", language);
         command.Parameters.AddWithValue("snapshot", snapshot);
 
         return (bool)(await command.ExecuteScalarAsync(ct))!;

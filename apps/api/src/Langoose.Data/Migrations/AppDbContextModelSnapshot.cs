@@ -269,8 +269,8 @@ namespace Langoose.Data.Migrations
 
                     b.Property<string>("SourceRefId")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("source_ref_id");
 
                     b.Property<string>("Status")

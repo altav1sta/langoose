@@ -11,7 +11,7 @@ public sealed class ImportEntryConfiguration : IEntityTypeConfiguration<ImportEn
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Source).HasConversion<string>().HasMaxLength(30);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(30);
-        builder.Property(x => x.SourceRefId).HasMaxLength(200);
+        builder.Property(x => x.SourceRefId).HasMaxLength(64);
         builder.Property(x => x.Language).HasMaxLength(10);
         builder.Property(x => x.Text).HasMaxLength(300);
         builder.Property(x => x.PartOfSpeech).HasMaxLength(50);

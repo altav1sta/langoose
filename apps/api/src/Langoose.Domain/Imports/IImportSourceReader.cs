@@ -17,10 +17,13 @@ public interface IImportSourceReader
     string SourceName { get; }
 
     /// <summary>
-    /// Validate that the snapshot identified by <paramref name="snapshot"/>
-    /// still exists at the source. Returning false moves the job to Failed.
+    /// Validate that the source has at least one row for
+    /// <paramref name="language"/> at the snapshot identified by
+    /// <paramref name="snapshot"/>. Returning false moves the job to
+    /// Failed — guards against typos, languages that were never imported
+    /// for this snapshot, or a snapshot that has been rotated out.
     /// </summary>
-    Task<bool> SnapshotExistsAsync(string snapshot, CancellationToken ct);
+    Task<bool> SnapshotExistsAsync(string language, string snapshot, CancellationToken ct);
 
     /// <summary>
     /// Fetch the next batch of typed payloads for the given language and

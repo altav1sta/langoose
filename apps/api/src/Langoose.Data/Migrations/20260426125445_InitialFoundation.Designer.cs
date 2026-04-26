@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Langoose.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260426095702_InitialFoundation")]
+    [Migration("20260426125445_InitialFoundation")]
     partial class InitialFoundation
     {
         /// <inheritdoc />
@@ -272,8 +272,8 @@ namespace Langoose.Data.Migrations
 
                     b.Property<string>("SourceRefId")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("source_ref_id");
 
                     b.Property<string>("Status")

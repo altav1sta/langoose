@@ -46,11 +46,11 @@ public sealed class BulkImportJobHandler(
                   ?? new BulkImportState(null, 0, 0, 0, null);
         }
 
-        if (!await reader.SnapshotExistsAsync(settings.Source, ct))
+        if (!await reader.SnapshotExistsAsync(settings.Language, settings.Source, ct))
         {
             await MarkFailedAsync(
                 jobId,
-                $"Source snapshot '{settings.Source}' no longer present (re-import detected). Submit a fresh job.",
+                $"No corpus rows for language '{settings.Language}' at source '{settings.Source}' — typo, language not yet imported, or snapshot rotated. Submit a fresh job.",
                 state,
                 ct);
             return;
@@ -218,6 +218,14 @@ public sealed class BulkImportJobHandler(
         await db.SaveChangesAsync(ct);
     }
 
-    private static string SourceRefId(ImportPayload payload) =>
-        $"{payload.Entry.Language}:{payload.Entry.Text}:{payload.Entry.Pos}";
+    // SourceRefId is the dedup key for ON CONFLICT DO NOTHING; we hash
+    // (language, text, pos) so the column stays a fixed 64-char string
+    // even when wiktionary publishes very long phrases as headwords.
+    private static string SourceRefId(ImportPayload payload)
+    {
+        var raw = $"{payload.Entry.Language} {payload.Entry.Text} {payload.Entry.Pos}";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(raw);
+        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
 }

@@ -178,7 +178,28 @@ public sealed class BulkImportJobHandlerTests(PostgresFixture postgres)
         job.Status.Should().Be(JobStatus.Failed);
 
         var state = JsonSerializer.Deserialize<BulkImportState>(job.ExecutionState!, AppJsonOptions.Default)!;
-        state.ErrorMessage.Should().Contain("no longer present");
+        state.ErrorMessage.Should().Contain("wiktionary-missing-version");
+    }
+
+    [Fact]
+    public async Task RunAsync_FailsCleanly_WhenLanguageNotImportedForSource()
+    {
+        // Source exists with rows for 'en', but the operator asked for 'fr'.
+        // Without the language filter the existence check would pass and the
+        // job would silently complete with zero rows.
+        var settings = new BulkImportParams("fr", Source);
+        var jobId = await SubmitJobAsync(settings);
+
+        var handler = BuildHandler(batchSize: 100);
+        await handler.RunAsync(jobId, default);
+
+        await using var db = new AppDbContext(_appDbOptions);
+        var job = await db.BackgroundJobs.AsNoTracking().FirstAsync(x => x.Id == jobId);
+
+        job.Status.Should().Be(JobStatus.Failed);
+
+        var state = JsonSerializer.Deserialize<BulkImportState>(job.ExecutionState!, AppJsonOptions.Default)!;
+        state.ErrorMessage.Should().Contain("'fr'");
     }
 
     [Fact]
