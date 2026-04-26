@@ -11,10 +11,10 @@ internal static class TestDataSnapshot
         {
             DictionaryEntries = await dbContext.DictionaryEntries.ToListAsync(cancellationToken),
             EntryContexts = await dbContext.EntryContexts.ToListAsync(cancellationToken),
-            UserDictionaryEntries = await dbContext.UserDictionaryEntries.ToListAsync(cancellationToken),
+            UserEntries = await dbContext.UserEntries.ToListAsync(cancellationToken),
             UserProgress = await dbContext.UserProgress.ToListAsync(cancellationToken),
             StudyEvents = await dbContext.StudyEvents.ToListAsync(cancellationToken),
-            ImportRecords = await dbContext.ImportRecords.ToListAsync(cancellationToken),
+            UserImports = await dbContext.UserImports.ToListAsync(cancellationToken),
             ContentFlags = await dbContext.ContentFlags.ToListAsync(cancellationToken)
         };
     }

@@ -17,7 +17,7 @@ public sealed class EnrichmentProcessor(
     {
         var now = DateTimeOffset.UtcNow;
 
-        var pendingItems = await dbContext.UserDictionaryEntries
+        var pendingItems = await dbContext.UserEntries
             .Include(x => x.SourceEntry).ThenInclude(x => x!.Senses)
                 .ThenInclude(x => x.Translations).ThenInclude(x => x.TargetSense)
                 .ThenInclude(x => x.DictionaryEntry)
@@ -71,7 +71,7 @@ public sealed class EnrichmentProcessor(
         }
 
         // Step 2: resolve navigations from lookup, split into resolved vs needing enrichment
-        var itemsToEnrich = new List<UserDictionaryEntry>();
+        var itemsToEnrich = new List<UserEntry>();
 
         foreach (var item in pendingItems)
         {
@@ -256,7 +256,7 @@ public sealed class EnrichmentProcessor(
         UpdatedAtUtc = now
     };
 
-    private void HandleItemFailure(UserDictionaryEntry item, int maxRetries, DateTimeOffset now)
+    private void HandleItemFailure(UserEntry item, int maxRetries, DateTimeOffset now)
     {
         item.EnrichmentAttempts++;
         item.UpdatedAtUtc = now;

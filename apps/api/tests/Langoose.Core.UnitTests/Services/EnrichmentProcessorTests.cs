@@ -32,14 +32,14 @@ public sealed class EnrichmentProcessorTests
     public async Task ProcessPendingBatchAsync_WhenPendingItem_EnrichesAndLinksEntry()
     {
         var (processor, db) = CreateProcessor();
-        db.UserDictionaryEntries.Add(CreatePendingItem("book", "книга"));
+        db.UserEntries.Add(CreatePendingItem("book", "книга"));
 
         await db.SaveChangesAsync();
 
         await processor.ProcessPendingBatchAsync(
             DefaultBatchSize, DefaultMaxRetries, CancellationToken.None);
 
-        var updated = await db.UserDictionaryEntries.SingleAsync();
+        var updated = await db.UserEntries.SingleAsync();
         updated.EnrichmentStatus.Should().Be(EnrichmentStatus.Enriched);
         updated.SourceEntryId.Should().NotBeNull();
 
@@ -54,7 +54,7 @@ public sealed class EnrichmentProcessorTests
     public async Task ProcessPendingBatchAsync_LinksBaseFormsViaSenseTranslations()
     {
         var (processor, db) = CreateProcessor();
-        db.UserDictionaryEntries.Add(CreatePendingItem("book", "книга"));
+        db.UserEntries.Add(CreatePendingItem("book", "книга"));
 
         await db.SaveChangesAsync();
 
@@ -79,14 +79,14 @@ public sealed class EnrichmentProcessorTests
     public async Task ProcessPendingBatchAsync_SetsSourceAndTargetEntryIds()
     {
         var (processor, db) = CreateProcessor();
-        db.UserDictionaryEntries.Add(CreatePendingItem("book", "книга"));
+        db.UserEntries.Add(CreatePendingItem("book", "книга"));
 
         await db.SaveChangesAsync();
 
         await processor.ProcessPendingBatchAsync(
             DefaultBatchSize, DefaultMaxRetries, CancellationToken.None);
 
-        var updated = await db.UserDictionaryEntries.SingleAsync();
+        var updated = await db.UserEntries.SingleAsync();
         updated.SourceEntryId.Should().NotBeNull();
         updated.TargetEntryId.Should().NotBeNull();
         updated.SourceEntryId.Value.Should().NotBe(updated.TargetEntryId!.Value);
@@ -97,7 +97,7 @@ public sealed class EnrichmentProcessorTests
     {
         var (processor, db) = CreateProcessor();
         SeedExistingTranslation(db, "book", "en", "книга", "ru");
-        db.UserDictionaryEntries.Add(CreatePendingItem("book", "книга"));
+        db.UserEntries.Add(CreatePendingItem("book", "книга"));
 
         await db.SaveChangesAsync();
 
@@ -108,7 +108,7 @@ public sealed class EnrichmentProcessorTests
 
         (await db.DictionaryEntries.CountAsync()).Should().Be(entriesBefore);
 
-        var updated = await db.UserDictionaryEntries.SingleAsync();
+        var updated = await db.UserEntries.SingleAsync();
         updated.EnrichmentStatus.Should().Be(EnrichmentStatus.Enriched);
         updated.SourceEntryId.Should().NotBeNull();
     }
@@ -120,7 +120,7 @@ public sealed class EnrichmentProcessorTests
         var (enBase, _, ruBase) = SeedExistingTranslationWithDerivedForm(
             db, baseText: "book", derivedText: "books", sourceLang: "en",
             targetText: "книга", targetLang: "ru");
-        db.UserDictionaryEntries.Add(CreatePendingItem("books", "книга"));
+        db.UserEntries.Add(CreatePendingItem("books", "книга"));
 
         await db.SaveChangesAsync();
         var entriesBefore = await db.DictionaryEntries.CountAsync();
@@ -130,7 +130,7 @@ public sealed class EnrichmentProcessorTests
 
         (await db.DictionaryEntries.CountAsync()).Should().Be(entriesBefore);
 
-        var updated = await db.UserDictionaryEntries.SingleAsync();
+        var updated = await db.UserEntries.SingleAsync();
         updated.EnrichmentStatus.Should().Be(EnrichmentStatus.Enriched);
         updated.SourceEntryId.Should().Be(enBase.Id, "lookup must walk derived → base");
         updated.TargetEntryId.Should().Be(ruBase.Id);
@@ -142,14 +142,14 @@ public sealed class EnrichmentProcessorTests
         var (processor, db) = CreateProcessor();
         var item = CreatePendingItem("book", "книга");
         item.EnrichmentNotBefore = DateTimeOffset.UtcNow.AddHours(1);
-        db.UserDictionaryEntries.Add(item);
+        db.UserEntries.Add(item);
 
         await db.SaveChangesAsync();
 
         await processor.ProcessPendingBatchAsync(
             DefaultBatchSize, DefaultMaxRetries, CancellationToken.None);
 
-        (await db.UserDictionaryEntries.SingleAsync()).EnrichmentStatus.Should().Be(EnrichmentStatus.Pending);
+        (await db.UserEntries.SingleAsync()).EnrichmentStatus.Should().Be(EnrichmentStatus.Pending);
     }
 
     [Fact]
@@ -158,13 +158,13 @@ public sealed class EnrichmentProcessorTests
         var (processor, db) = CreateProcessor();
 
         for (var i = 0; i < 5; i++)
-            db.UserDictionaryEntries.Add(CreatePendingItem($"word{i}", $"слово{i}"));
+            db.UserEntries.Add(CreatePendingItem($"word{i}", $"слово{i}"));
 
         await db.SaveChangesAsync();
 
         await processor.ProcessPendingBatchAsync(2, DefaultMaxRetries, CancellationToken.None);
 
-        var enrichedCount = await db.UserDictionaryEntries
+        var enrichedCount = await db.UserEntries
             .CountAsync(x => x.EnrichmentStatus == EnrichmentStatus.Enriched);
         enrichedCount.Should().Be(2);
     }
@@ -173,14 +173,14 @@ public sealed class EnrichmentProcessorTests
     public async Task ProcessPendingBatchAsync_WhenItemHasNoTranslation_ProviderGeneratesTarget()
     {
         var (processor, db) = CreateProcessor();
-        db.UserDictionaryEntries.Add(CreatePendingItem("book", null));
+        db.UserEntries.Add(CreatePendingItem("book", null));
 
         await db.SaveChangesAsync();
 
         await processor.ProcessPendingBatchAsync(
             DefaultBatchSize, DefaultMaxRetries, CancellationToken.None);
 
-        var updated = await db.UserDictionaryEntries.SingleAsync();
+        var updated = await db.UserEntries.SingleAsync();
         updated.EnrichmentStatus.Should().Be(EnrichmentStatus.Enriched);
         updated.SourceEntryId.Should().NotBeNull();
         updated.TargetEntryId.Should().NotBeNull();
@@ -191,18 +191,18 @@ public sealed class EnrichmentProcessorTests
     {
         var providerMock = new Mock<IEnrichmentProvider>();
         providerMock
-            .Setup(x => x.EnrichBatchAsync(It.IsAny<UserDictionaryEntry[]>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.EnrichBatchAsync(It.IsAny<UserEntry[]>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Provider failure"));
 
         var (processor, db) = CreateProcessor(providerMock.Object);
-        db.UserDictionaryEntries.Add(CreatePendingItem("book", "книга"));
+        db.UserEntries.Add(CreatePendingItem("book", "книга"));
 
         await db.SaveChangesAsync();
 
         await processor.ProcessPendingBatchAsync(
             DefaultBatchSize, DefaultMaxRetries, CancellationToken.None);
 
-        var updated = await db.UserDictionaryEntries.SingleAsync();
+        var updated = await db.UserEntries.SingleAsync();
         updated.EnrichmentStatus.Should().Be(EnrichmentStatus.Pending);
         updated.EnrichmentAttempts.Should().Be(1);
         updated.EnrichmentNotBefore.Should().NotBeNull().And.BeAfter(DateTimeOffset.UtcNow);
@@ -213,19 +213,19 @@ public sealed class EnrichmentProcessorTests
     {
         var providerMock = new Mock<IEnrichmentProvider>();
         providerMock
-            .Setup(x => x.EnrichBatchAsync(It.IsAny<UserDictionaryEntry[]>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.EnrichBatchAsync(It.IsAny<UserEntry[]>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Provider failure"));
 
         var (processor, db) = CreateProcessor(providerMock.Object);
         var item = CreatePendingItem("book", "книга");
         item.EnrichmentAttempts = 2;
-        db.UserDictionaryEntries.Add(item);
+        db.UserEntries.Add(item);
 
         await db.SaveChangesAsync();
 
         await processor.ProcessPendingBatchAsync(DefaultBatchSize, 3, CancellationToken.None);
 
-        var updated = await db.UserDictionaryEntries.SingleAsync();
+        var updated = await db.UserEntries.SingleAsync();
         updated.EnrichmentStatus.Should().Be(EnrichmentStatus.ProviderError);
         updated.EnrichmentAttempts.Should().Be(3);
     }
@@ -235,20 +235,20 @@ public sealed class EnrichmentProcessorTests
     {
         var providerMock = new Mock<IEnrichmentProvider>();
         providerMock
-            .Setup(x => x.EnrichBatchAsync(It.IsAny<UserDictionaryEntry[]>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((UserDictionaryEntry[] items, CancellationToken _) =>
+            .Setup(x => x.EnrichBatchAsync(It.IsAny<UserEntry[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((UserEntry[] items, CancellationToken _) =>
                 items.Select(x => new EnrichmentResult(
                     x.Id, EnrichmentStatus.InvalidSource, null, null)).ToArray());
 
         var (processor, db) = CreateProcessor(providerMock.Object);
-        db.UserDictionaryEntries.Add(CreatePendingItem("asdfgh", "книга"));
+        db.UserEntries.Add(CreatePendingItem("asdfgh", "книга"));
 
         await db.SaveChangesAsync();
 
         await processor.ProcessPendingBatchAsync(
             DefaultBatchSize, DefaultMaxRetries, CancellationToken.None);
 
-        var updated = await db.UserDictionaryEntries.SingleAsync();
+        var updated = await db.UserEntries.SingleAsync();
         updated.EnrichmentStatus.Should().Be(EnrichmentStatus.InvalidSource);
     }
 
@@ -257,20 +257,20 @@ public sealed class EnrichmentProcessorTests
     {
         var providerMock = new Mock<IEnrichmentProvider>();
         providerMock
-            .Setup(x => x.EnrichBatchAsync(It.IsAny<UserDictionaryEntry[]>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((UserDictionaryEntry[] items, CancellationToken _) =>
+            .Setup(x => x.EnrichBatchAsync(It.IsAny<UserEntry[]>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((UserEntry[] items, CancellationToken _) =>
                 items.Select(x => new EnrichmentResult(
                     x.Id, EnrichmentStatus.InvalidLink, null, null)).ToArray());
 
         var (processor, db) = CreateProcessor(providerMock.Object);
-        db.UserDictionaryEntries.Add(CreatePendingItem("book", "кот"));
+        db.UserEntries.Add(CreatePendingItem("book", "кот"));
 
         await db.SaveChangesAsync();
 
         await processor.ProcessPendingBatchAsync(
             DefaultBatchSize, DefaultMaxRetries, CancellationToken.None);
 
-        var updated = await db.UserDictionaryEntries.SingleAsync();
+        var updated = await db.UserEntries.SingleAsync();
         updated.EnrichmentStatus.Should().Be(EnrichmentStatus.InvalidLink);
     }
 
@@ -287,7 +287,7 @@ public sealed class EnrichmentProcessorTests
         return (new EnrichmentProcessor(db, provider ?? new LocalEnrichmentProvider(), logger), db);
     }
 
-    private static UserDictionaryEntry CreatePendingItem(string term, string? translation) => new()
+    private static UserEntry CreatePendingItem(string term, string? translation) => new()
     {
         Id = Guid.CreateVersion7(),
         UserId = Guid.CreateVersion7(),

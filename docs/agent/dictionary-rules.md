@@ -17,13 +17,13 @@ The dictionary uses a two-layer model:
   `PartOfSpeech` is required. `IsPublic` controls visibility.
 - **Translations** (implicit M2M) — links base forms across languages
   (source → target). Join table: `dictionary_entries_translations`.
-- **UserDictionaryEntry** — per-user custom entries with `SourceEntryId` and
+- **UserEntry** — per-user custom entries with `SourceEntryId` and
   `TargetEntryId` FKs (both nullable, set by the enrichment worker).
 
 ## Visibility Rules
 
-- Users see all public base DictionaryEntries plus their own UserDictionaryEntries.
-- Pending UserDictionaryEntries (SourceEntryId is null) are visible in the
+- Users see all public base DictionaryEntries plus their own UserEntries.
+- Pending UserEntries (SourceEntryId is null) are visible in the
   dictionary list but excluded from study cards.
 - Enrichment-created DictionaryEntries have `IsPublic = false` — they don't appear
   for other users. Admin validation can promote them to public.
@@ -33,7 +33,7 @@ The dictionary uses a two-layer model:
 1. User provides term, optional translation, source/target languages, and POS.
 2. Check if user already has a matching entry (same user, sourceLang, targetLang,
    POS, term, translation) — if so, return existing.
-3. Otherwise create UserDictionaryEntry with `EnrichmentStatus = Pending`.
+3. Otherwise create UserEntry with `EnrichmentStatus = Pending`.
 4. Worker handles lookup, validation, entry creation, and linking.
 
 ## Duplicate Handling
@@ -55,14 +55,14 @@ The dictionary uses a two-layer model:
 
 ## CSV Export
 
-- Returns the user's UserDictionaryEntries joined with SourceEntry and
+- Returns the user's UserEntries joined with SourceEntry and
   translation data (via Translations navigation).
 - Header: English term, Russian translation(s), Part of Speech, Notes, Tags.
 
 ## Clear Custom Data
 
-- Deletes all UserDictionaryEntries, UserProgress, StudyEvents for non-public
-  items, ImportRecords, and ContentFlags for the user.
+- Deletes all UserEntries, UserProgress, StudyEvents for non-public
+  items, UserImports, and ContentFlags for the user.
 - Preserves DictionaryEntries (shared content layer).
 - Preserves UserProgress for public items (base dictionary study progress).
 - Does not revoke active sessions.

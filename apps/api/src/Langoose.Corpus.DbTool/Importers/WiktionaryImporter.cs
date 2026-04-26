@@ -24,7 +24,7 @@ namespace Langoose.Corpus.DbTool.Importers;
 public sealed class WiktionaryImporter(
     NpgsqlDataSource dataSource,
     string langCode,
-    string sourceVersion,
+    string source,
     long? entryLimit = null,
     bool deferIndexes = false,
     int? frequencyFilterTop = null) : ICorpusImporter
@@ -138,8 +138,8 @@ public sealed class WiktionaryImporter(
                 ON CONFLICT (key) DO UPDATE
                 SET value = EXCLUDED.value, updated_at_utc = NOW()
                 """;
-            metadataCommand.Parameters.AddWithValue("key", $"source_version_{Name}");
-            metadataCommand.Parameters.AddWithValue("value", sourceVersion);
+            metadataCommand.Parameters.AddWithValue("key", $"source_{Name}");
+            metadataCommand.Parameters.AddWithValue("value", source);
 
             await metadataCommand.ExecuteNonQueryAsync(ct);
         }
@@ -164,7 +164,7 @@ public sealed class WiktionaryImporter(
         Console.WriteLine($"[{Name}]   metadata      {FormatDuration(metadataElapsed),10}");
         Console.WriteLine($"[{Name}]   commit        {FormatDuration(commitElapsed),10}");
 
-        return new ImportSummary(Name, sourceVersion, entriesImported);
+        return new ImportSummary(Name, source, entriesImported);
     }
 
     private static string FormatDuration(TimeSpan elapsed) =>
@@ -190,7 +190,7 @@ public sealed class WiktionaryImporter(
         // because it shares the connection that's already in a transaction,
         // the writes are part of the same transaction.
         await using var importer = await connection.BeginBinaryImportAsync(
-            "COPY wiktionary_entries (lang_code, word, pos, source_version, data) FROM STDIN (FORMAT BINARY)",
+            "COPY wiktionary_entries (lang_code, word, pos, source, data) FROM STDIN (FORMAT BINARY)",
             ct);
 
         long count = 0;
@@ -214,7 +214,7 @@ public sealed class WiktionaryImporter(
             await importer.WriteAsync(langCode, NpgsqlDbType.Varchar, ct);
             await importer.WriteAsync(entry.Data.Word, NpgsqlDbType.Varchar, ct);
             await importer.WriteAsync(entry.Data.Pos, NpgsqlDbType.Varchar, ct);
-            await importer.WriteAsync(sourceVersion, NpgsqlDbType.Varchar, ct);
+            await importer.WriteAsync(source, NpgsqlDbType.Varchar, ct);
             await importer.WriteAsync(entry.RawJson, NpgsqlDbType.Jsonb, ct);
 
             count++;

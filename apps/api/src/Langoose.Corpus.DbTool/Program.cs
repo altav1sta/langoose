@@ -14,13 +14,13 @@ if (args.Length == 0)
           init                              Apply embedded SQL schema to the corpus database.
           reset-wiktionary                  Drop every wiktionary_entries_<lang>
                                             partition (and its indexes) and clear
-                                            all source_version_wiktionary_* metadata
+                                            all source_wiktionary_* metadata
                                             rows. Use at the start of a full bulk
                                             build so languages removed from the
                                             LANGUAGES list don't linger in the dump
                                             as empty partitions.
           reset-wordfreq                    Truncate wordfreq_rankings and clear all
-                                            source_version_wordfreq_* metadata rows.
+                                            source_wordfreq_* metadata rows.
                                             Wordfreq counterpart of reset-wiktionary.
                                             Required at the start of a rebuild — the
                                             per-import (lang, source) DELETE alone
@@ -129,7 +129,7 @@ static async Task<int> RunResetWiktionaryAsync(NpgsqlDataSource dataSource)
         command.CommandTimeout = 0;
         command.CommandText = """
             DELETE FROM corpus_metadata
-                WHERE key LIKE 'source_version_wiktionary_%';
+                WHERE key LIKE 'source_wiktionary_%';
             """;
         await command.ExecuteNonQueryAsync();
     }
@@ -166,7 +166,7 @@ static async Task<int> RunResetWordfreqAsync(NpgsqlDataSource dataSource)
         command.CommandText = """
             TRUNCATE TABLE wordfreq_rankings;
             DELETE FROM corpus_metadata
-                WHERE key LIKE 'source_version_wordfreq_%';
+                WHERE key LIKE 'source_wordfreq_%';
             """;
         await command.ExecuteNonQueryAsync();
     }
@@ -181,8 +181,8 @@ static async Task<int> RunImportWiktionaryAsync(NpgsqlDataSource dataSource, str
 {
     var langCode = GetRequiredOption(commandArgs, "--lang");
     var sourcePath = GetRequiredOption(commandArgs, "--source");
-    var sourceVersion = GetOption(commandArgs, "--source-version")
-        ?? DateTime.UtcNow.ToString("yyyy-MM-dd");
+    var source = GetOption(commandArgs, "--source-version")
+        ?? $"wiktionary-{DateTime.UtcNow:yyyy-MM-dd}";
     var limit = GetOption(commandArgs, "--limit") is { } limitText
         ? long.Parse(limitText)
         : (long?)null;
@@ -192,12 +192,12 @@ static async Task<int> RunImportWiktionaryAsync(NpgsqlDataSource dataSource, str
     var deferIndexes = HasFlag(commandArgs, "--defer-indexes");
 
     var importer = new WiktionaryImporter(
-        dataSource, langCode, sourceVersion, limit, deferIndexes, frequencyFilterTop);
+        dataSource, langCode, source, limit, deferIndexes, frequencyFilterTop);
     var summary = await importer.ImportAsync(sourcePath);
 
     Console.WriteLine(
         $"""
-        Imported {summary.EntriesImported} entries from {summary.Source} (version {summary.SourceVersion}).
+        Imported {summary.EntriesImported} entries from {summary.Source} (source {summary.SourceVersion}).
         """);
 
     return 0;
@@ -207,10 +207,10 @@ static async Task<int> RunImportWordfreqAsync(NpgsqlDataSource dataSource, strin
 {
     var langCode = GetRequiredOption(commandArgs, "--lang");
     var sourcePath = GetRequiredOption(commandArgs, "--source");
-    var sourceVersion = GetOption(commandArgs, "--source-version")
+    var source = GetOption(commandArgs, "--source-version")
         ?? $"wordfreq-{DateTime.UtcNow:yyyy-MM-dd}";
 
-    var importer = new WordfreqImporter(dataSource, langCode, sourceVersion);
+    var importer = new WordfreqImporter(dataSource, langCode, source);
     var summary = await importer.ImportAsync(sourcePath);
 
     Console.WriteLine(

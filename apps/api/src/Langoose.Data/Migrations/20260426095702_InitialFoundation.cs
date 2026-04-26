@@ -13,6 +13,25 @@ namespace Langoose.Data.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
+                name: "background_jobs",
+                columns: table => new
+                {
+                    id = table.Column<Guid>(type: "uuid", nullable: false),
+                    type = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: false),
+                    status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    settings = table.Column<string>(type: "jsonb", nullable: false),
+                    execution_state = table.Column<string>(type: "jsonb", nullable: true),
+                    created_at_utc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    started_at_utc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    finished_at_utc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    updated_at_utc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("pk_background_jobs", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "dictionary_entries",
                 columns: table => new
                 {
@@ -39,22 +58,7 @@ namespace Langoose.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "import_records",
-                columns: table => new
-                {
-                    id = table.Column<Guid>(type: "uuid", nullable: false),
-                    user_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    row_count = table.Column<int>(type: "integer", nullable: false),
-                    pending_count = table.Column<int>(type: "integer", nullable: false),
-                    created_at_utc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("pk_import_records", x => x.id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "staging_entries",
+                name: "import_entries",
                 columns: table => new
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -76,7 +80,22 @@ namespace Langoose.Data.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("pk_staging_entries", x => x.id);
+                    table.PrimaryKey("pk_import_entries", x => x.id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "user_imports",
+                columns: table => new
+                {
+                    id = table.Column<Guid>(type: "uuid", nullable: false),
+                    user_id = table.Column<Guid>(type: "uuid", nullable: false),
+                    row_count = table.Column<int>(type: "integer", nullable: false),
+                    pending_count = table.Column<int>(type: "integer", nullable: false),
+                    created_at_utc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("pk_user_imports", x => x.id);
                 });
 
             migrationBuilder.CreateTable(
@@ -146,7 +165,7 @@ namespace Langoose.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "user_dictionary_entries",
+                name: "user_entries",
                 columns: table => new
                 {
                     id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -168,15 +187,15 @@ namespace Langoose.Data.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("pk_user_dictionary_entries", x => x.id);
+                    table.PrimaryKey("pk_user_entries", x => x.id);
                     table.ForeignKey(
-                        name: "fk_user_dictionary_entries_dictionary_entries_source_entry_id",
+                        name: "fk_user_entries_dictionary_entries_source_entry_id",
                         column: x => x.source_entry_id,
                         principalTable: "dictionary_entries",
                         principalColumn: "id",
                         onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
-                        name: "fk_user_dictionary_entries_dictionary_entries_target_entry_id",
+                        name: "fk_user_entries_dictionary_entries_target_entry_id",
                         column: x => x.target_entry_id,
                         principalTable: "dictionary_entries",
                         principalColumn: "id",
@@ -316,9 +335,15 @@ namespace Langoose.Data.Migrations
                 column: "target_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix_import_records_user_id",
-                table: "import_records",
-                column: "user_id");
+                name: "ix_import_entries_source_source_ref_id",
+                table: "import_entries",
+                columns: new[] { "source", "source_ref_id" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "ix_import_entries_status",
+                table: "import_entries",
+                column: "status");
 
             migrationBuilder.CreateIndex(
                 name: "ix_sense_translations_target_sense_id",
@@ -330,16 +355,6 @@ namespace Langoose.Data.Migrations
                 table: "senses",
                 columns: new[] { "dictionary_entry_id", "sense_index" },
                 unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "ix_staging_entries_source_source_ref_id",
-                table: "staging_entries",
-                columns: new[] { "source", "source_ref_id" });
-
-            migrationBuilder.CreateIndex(
-                name: "ix_staging_entries_status",
-                table: "staging_entries",
-                column: "status");
 
             migrationBuilder.CreateIndex(
                 name: "ix_study_events_dictionary_entry_id",
@@ -357,23 +372,28 @@ namespace Langoose.Data.Migrations
                 columns: new[] { "user_id", "created_at_utc" });
 
             migrationBuilder.CreateIndex(
-                name: "ix_user_dictionary_entries_enrichment_status_created_at_utc",
-                table: "user_dictionary_entries",
+                name: "ix_user_entries_enrichment_status_created_at_utc",
+                table: "user_entries",
                 columns: new[] { "enrichment_status", "created_at_utc" });
 
             migrationBuilder.CreateIndex(
-                name: "ix_user_dictionary_entries_source_entry_id",
-                table: "user_dictionary_entries",
+                name: "ix_user_entries_source_entry_id",
+                table: "user_entries",
                 column: "source_entry_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix_user_dictionary_entries_target_entry_id",
-                table: "user_dictionary_entries",
+                name: "ix_user_entries_target_entry_id",
+                table: "user_entries",
                 column: "target_entry_id");
 
             migrationBuilder.CreateIndex(
-                name: "ix_user_dictionary_entries_user_id",
-                table: "user_dictionary_entries",
+                name: "ix_user_entries_user_id",
+                table: "user_entries",
+                column: "user_id");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_user_imports_user_id",
+                table: "user_imports",
                 column: "user_id");
 
             migrationBuilder.CreateIndex(
@@ -397,25 +417,28 @@ namespace Langoose.Data.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
+                name: "background_jobs");
+
+            migrationBuilder.DropTable(
                 name: "content_flags");
 
             migrationBuilder.DropTable(
                 name: "entry_contexts_translations");
 
             migrationBuilder.DropTable(
-                name: "import_records");
+                name: "import_entries");
 
             migrationBuilder.DropTable(
                 name: "sense_translations");
 
             migrationBuilder.DropTable(
-                name: "staging_entries");
-
-            migrationBuilder.DropTable(
                 name: "study_events");
 
             migrationBuilder.DropTable(
-                name: "user_dictionary_entries");
+                name: "user_entries");
+
+            migrationBuilder.DropTable(
+                name: "user_imports");
 
             migrationBuilder.DropTable(
                 name: "user_progress");

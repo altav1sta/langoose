@@ -2,7 +2,7 @@ using Langoose.Domain.Enums;
 
 namespace Langoose.Domain.Models;
 
-public sealed class StagingEntry
+public sealed class ImportEntry
 {
     public required Guid Id { get; init; }
     public required EntrySource Source { get; set; }
@@ -11,7 +11,7 @@ public sealed class StagingEntry
     public required string Text { get; set; }
     public required string PartOfSpeech { get; set; }
     public required string Payload { get; set; }
-    public required StagingStatus Status { get; set; }
+    public required ImportEntryStatus Status { get; set; }
     public string? StatusReason { get; set; }
     public float? AiConfidence { get; set; }
     public string? AiReasoning { get; set; }

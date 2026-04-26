@@ -25,7 +25,7 @@ User adds "book" (noun) + "книга"
     yes   │   no
      │    │    │
      ▼    │    ▼
- Set      │  Create UserDictionaryEntry
+ Set      │  Create UserEntry
  Source +  │  (Pending, SourceEntry = null)
  Target    │        │
  Entry     │        │
@@ -60,13 +60,13 @@ User adds "book" (noun) + "книга"
 
 ```
 Task<EnrichmentResult[]> EnrichBatchAsync(
-    UserDictionaryEntry[] batch,
+    UserEntry[] batch,
     CancellationToken cancellationToken)
 ```
 
-The provider receives tracked `UserDictionaryEntry` items directly. It checks
+The provider receives tracked `UserEntry` items directly. It checks
 `SourceEntry`/`TargetEntry` navigation nullability to determine what to generate.
-POS comes from `UserDictionaryEntry.PartOfSpeech`.
+POS comes from `UserEntry.PartOfSpeech`.
 
 Two implementations in Core:
 
@@ -92,7 +92,7 @@ POS is not on the entry — it comes from the user entry.
 `EnrichmentBackgroundService` runs in the Worker project as a thin polling shell.
 `EnrichmentProcessor` in Core contains all batch processing logic.
 
-1. **Poll**: query UserDictionaryEntries where status is Pending or ProviderError
+1. **Poll**: query UserEntries where status is Pending or ProviderError
    (with attempts < max) and `EnrichmentNotBefore` is null or past.
    Include SourceEntry (with Translations) and TargetEntry.
 2. **Resolve**: for items missing navigations, batch-lookup existing entries by

@@ -34,7 +34,7 @@ See `docs/auth-mvp-decision.md` for the design rationale.
 ### GET /dictionary/items
 
 Returns a flat array of dictionary items combining DictionaryEntry +
-UserDictionaryEntry data. Each item includes:
+UserEntry data. Each item includes:
 
 - `id` — the entry ID
 - `text` — the word or phrase
@@ -62,7 +62,7 @@ Add a word. Request body:
 The system looks up the translation as a DictionaryEntry form, follows
 `BaseEntryId`, checks Translations navigation. If a match is found, the user
 entry links to the existing DictionaryEntry immediately. Otherwise, a pending
-UserDictionaryEntry is created for background enrichment.
+UserEntry is created for background enrichment.
 
 ### POST /dictionary/import
 

@@ -5,7 +5,7 @@
 Enrichment validates user input, generates dictionary entry forms, and links
 translations. It is a shared content layer: AI-generated content lives in
 `DictionaryEntry` / `EntryContext` and is reusable across all users.
-User-provided custom content lives in `UserDictionaryEntry` and is private
+User-provided custom content lives in `UserEntry` and is private
 per user.
 
 ## Domain Model
@@ -27,7 +27,7 @@ A learning context linked to a specific DictionaryEntry form. Contains `Text`
 `Translations` navigation (implicit M2M) links paired EntryContexts across
 languages. Join table: `entry_contexts_translations (source_id, target_id)`.
 
-### UserDictionaryEntry
+### UserEntry
 
 Per-user custom entry. Owns the enrichment lifecycle:
 - `SourceEntryId` and `TargetEntryId` — nullable FKs to source/target base forms
@@ -50,10 +50,10 @@ Per-user custom entry. Owns the enrichment lifecycle:
 
 `IEnrichmentProvider` in Domain:
 ```
-Task<EnrichmentResult[]> EnrichBatchAsync(UserDictionaryEntry[] batch, CancellationToken)
+Task<EnrichmentResult[]> EnrichBatchAsync(UserEntry[] batch, CancellationToken)
 ```
 
-The provider receives tracked `UserDictionaryEntry` items directly. It checks
+The provider receives tracked `UserEntry` items directly. It checks
 `SourceEntry`/`TargetEntry` navigation nullability to determine what to generate.
 No separate request DTO — the user entry has all needed context.
 
@@ -63,7 +63,7 @@ Each `EnrichmentResult` returns:
 - `SourceEntries?`, `TargetEntries?` — arrays of `EnrichedEntry` (base + derived forms)
 
 `EnrichedEntry` carries: `Text`, `IsBaseForm`, `GrammarLabel?`, `Difficulty?`.
-POS is not on the entry — it comes from `UserDictionaryEntry.PartOfSpeech`.
+POS is not on the entry — it comes from `UserEntry.PartOfSpeech`.
 
 ### Implementations (in Core/Providers)
 
@@ -106,7 +106,7 @@ Concrete consequences of "source-first":
   Kaikki's raw POS string (e.g. `adj`, not `adjective`). Mapping to a
   canonical vocabulary is a query-time concern.
 - **Etymology splits preserved as separate rows**. `wiktionary_entries`
-  has no UNIQUE / PK on `(lang_code, word, pos, source_version)` because
+  has no UNIQUE / PK on `(lang_code, word, pos, source)` because
   Wiktionary publishes one entry per etymology: English `lead` (noun) is
   two entries — the metal and the leash — with distinct `senses[]` and
   `translations[]` in their JSONB documents. Lookups by `(lang_code,
@@ -250,7 +250,7 @@ For each term, the provider produces:
 
 1. Look up DictionaryEntry("книга", ru, noun) → check Translations for English link
 2. If found → set SourceEntryId + TargetEntryId, status Enriched. Done.
-3. If not found → create UserDictionaryEntry(Pending). Worker picks it up.
+3. If not found → create UserEntry(Pending). Worker picks it up.
 
 ### Worker processes pending item
 
@@ -272,9 +272,9 @@ For each term, the provider produces:
 ## Review Checklist
 
 - Does DictionaryEntry only contain validated/enriched content?
-- Does UserDictionaryEntry own the pending/failed lifecycle?
+- Does UserEntry own the pending/failed lifecycle?
 - Are derived forms created for dedup lookups?
 - Are Translations linked (source → target direction)?
 - Does the provider use batch-oriented async methods?
-- Is PartOfSpeech required on both DictionaryEntry and UserDictionaryEntry?
+- Is PartOfSpeech required on both DictionaryEntry and UserEntry?
 - Are external API calls rate-limited?

@@ -137,8 +137,8 @@ public sealed class DictionaryServiceIntegrationTests
         await using var verifyDbContext = await dbContextFactory.CreateDbContextAsync();
         var store = await TestDataSnapshot.LoadAsync(verifyDbContext);
 
-        Assert.DoesNotContain(store.UserDictionaryEntries, e => e.UserId == userId);
+        Assert.DoesNotContain(store.UserEntries, e => e.UserId == userId);
         Assert.DoesNotContain(store.UserProgress, p => p.UserId == userId);
-        Assert.DoesNotContain(store.ImportRecords, r => r.UserId == userId);
+        Assert.DoesNotContain(store.UserImports, r => r.UserId == userId);
     }
 }

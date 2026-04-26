@@ -1,6 +1,6 @@
 namespace Langoose.Domain.Enums;
 
-public enum StagingStatus
+public enum ImportEntryStatus
 {
     Imported,
     HeuristicAccepted,

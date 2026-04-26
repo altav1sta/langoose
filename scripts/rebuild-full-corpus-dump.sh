@@ -9,7 +9,7 @@
 #   1. Ensure local Postgres is running
 #   2. Apply schema (idempotent)
 #   3. Reset wiktionary AND wordfreq data (TRUNCATE both tables +
-#      clear source_version metadata). Both resets are required:
+#      clear source metadata). Both resets are required:
 #      import-wordfreq deletes per-(lang, source), so a cross-date
 #      rebuild or a language dropped from LANGUAGES would leave stale
 #      rankings in the published dump.

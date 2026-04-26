@@ -8,7 +8,7 @@ public sealed record DictionaryListItem(
     string Language,
     string? Difficulty,
     bool IsPublic,
-    Guid? UserDictionaryEntryId,
+    Guid? UserEntryId,
     EnrichmentStatus? EnrichmentStatus,
     string? PartOfSpeech,
     string? Notes,

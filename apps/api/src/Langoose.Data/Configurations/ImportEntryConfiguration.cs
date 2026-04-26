@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Langoose.Data.Configurations;
 
-public sealed class StagingEntryConfiguration : IEntityTypeConfiguration<StagingEntry>
+public sealed class ImportEntryConfiguration : IEntityTypeConfiguration<ImportEntry>
 {
-    public void Configure(EntityTypeBuilder<StagingEntry> builder)
+    public void Configure(EntityTypeBuilder<ImportEntry> builder)
     {
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Source).HasConversion<string>().HasMaxLength(30);
@@ -20,6 +20,6 @@ public sealed class StagingEntryConfiguration : IEntityTypeConfiguration<Staging
         builder.Property(x => x.AiReasoning).HasMaxLength(2000);
 
         builder.HasIndex(x => x.Status);
-        builder.HasIndex(x => new { x.Source, x.SourceRefId });
+        builder.HasIndex(x => new { x.Source, x.SourceRefId }).IsUnique();
     }
 }

@@ -6,7 +6,7 @@ public interface IDictionaryService
 {
     Task<IReadOnlyList<DictionaryListItem>> GetVisibleEntriesAsync(Guid userId, CancellationToken cancellationToken);
 
-    Task<UserDictionaryEntry> AddUserEntryAsync(Guid userId, AddUserEntryInput input, CancellationToken cancellationToken);
+    Task<UserEntry> AddUserEntryAsync(Guid userId, AddUserEntryInput input, CancellationToken cancellationToken);
 
     Task<ImportResult> ImportCsvAsync(Guid userId, string csvContent, string fileName, CancellationToken cancellationToken);
 

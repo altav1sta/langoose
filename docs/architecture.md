@@ -97,7 +97,7 @@ The content model has 2 main entity tables with implicit M2M join tables:
   form. `Translations` navigation links paired contexts across languages
   (implicit M2M).
 
-User-specific tables: **UserDictionaryEntry** (per-user entries with enrichment
+User-specific tables: **UserEntry** (per-user entries with enrichment
 lifecycle), **UserEntryContext** (private learning contexts), **UserProgress**
 (spaced repetition state), **StudyEvent** (answer history).
 

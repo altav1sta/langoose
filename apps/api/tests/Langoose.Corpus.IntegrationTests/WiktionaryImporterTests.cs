@@ -95,7 +95,7 @@ public sealed class WiktionaryImporterTests(PostgresFixture postgres)
         // Kaikki/Wiktionary emits two "lead" (noun) entries — one per
         // etymology (metal vs. leash). Both must land as separate rows so
         // their distinct senses[] and translations[] remain accessible.
-        // The absence of UNIQUE/PK on (lang_code, word, pos, source_version)
+        // The absence of UNIQUE/PK on (lang_code, word, pos, source)
         // is what makes this work; adding one back would break this test.
         var etymologyNumbers = (await connection.QueryAsync<int>(
             """
@@ -252,7 +252,7 @@ public sealed class WiktionaryImporterTests(PostgresFixture postgres)
         // importer's pre-COPY DELETE would wipe the 6 en rows; without
         // the validation, the RU entries would then land with
         // lang_code='ru' while metadata gets recorded under
-        // source_version_wiktionary_en. Guard must trip before any of
+        // source_wiktionary_en. Guard must trip before any of
         // that happens.
         var mismatched = new WiktionaryImporter(postgres.DataSource, "en", "mismatched");
 
@@ -275,7 +275,7 @@ public sealed class WiktionaryImporterTests(PostgresFixture postgres)
         var metadataRows = (await connection.QueryAsync<string>(
             "SELECT key FROM corpus_metadata ORDER BY key")).ToArray();
         metadataRows.Should().ContainSingle()
-            .Which.Should().Be("source_version_wiktionary_en");
+            .Which.Should().Be("source_wiktionary_en");
     }
 
     [Fact]
@@ -313,7 +313,7 @@ public sealed class WiktionaryImporterTests(PostgresFixture postgres)
             count.Should().Be(6);
 
             var sourceVersion = await connection.QuerySingleOrDefaultAsync<string>(
-                "SELECT value FROM corpus_metadata WHERE key = 'source_version_wiktionary_en'");
+                "SELECT value FROM corpus_metadata WHERE key = 'source_wiktionary_en'");
             sourceVersion.Should().Be("seed");
         }
         finally
@@ -367,7 +367,7 @@ public sealed class WiktionaryImporterTests(PostgresFixture postgres)
         await using var connection = await postgres.DataSource.OpenConnectionAsync();
 
         var version = await connection.QuerySingleOrDefaultAsync<string>(
-            "SELECT value FROM corpus_metadata WHERE key = 'source_version_wiktionary_en'");
+            "SELECT value FROM corpus_metadata WHERE key = 'source_wiktionary_en'");
 
         version.Should().Be("v2026.04.15");
     }

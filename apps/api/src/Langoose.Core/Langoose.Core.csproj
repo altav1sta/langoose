@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Langoose.Domain\Langoose.Domain.csproj" />
     <ProjectReference Include="..\Langoose.Data\Langoose.Data.csproj" />
+    <ProjectReference Include="..\Langoose.Corpus.Data\Langoose.Corpus.Data.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

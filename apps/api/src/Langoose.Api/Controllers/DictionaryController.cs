@@ -29,7 +29,7 @@ public sealed class DictionaryController(
     }
 
     [HttpPost("entries")]
-    public async Task<ActionResult<UserDictionaryEntry>> AddEntry(
+    public async Task<ActionResult<UserEntry>> AddEntry(
         [FromBody] UserEntryRequest request,
         CancellationToken cancellationToken)
     {

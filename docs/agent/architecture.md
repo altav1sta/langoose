@@ -14,8 +14,10 @@ flowchart LR
   Worker["Langoose.Worker"] --> Core
   Worker --> Domain
   Worker --> Data
+  Worker --> CorpusData
   Core --> Domain
   Core --> Data
+  Core --> CorpusData
   Data --> Domain
   AuthData --> Domain
   DbTool["Langoose.DbTool"] --> Data
@@ -29,6 +31,7 @@ flowchart LR
   IntTests --> Domain
   CorpusIntTests["Corpus.IntegrationTests"] --> CorpusDbTool
   CorpusIntTests --> CorpusData
+  CorpusIntTests --> Worker
 ```
 
 ## Solution Layout
@@ -52,8 +55,8 @@ added to the `NestedProjects` section under the existing `tests` folder.
 `apps/api/src/Langoose.Domain/` — no dependencies.
 
 Contains:
-- **Entities**: `DictionaryEntry`, `EntryContext`, `UserDictionaryEntry`,
-  `UserProgress`, `StudyEvent`, `ContentFlag`, `ImportRecord`
+- **Entities**: `DictionaryEntry`, `EntryContext`, `UserEntry`,
+  `UserProgress`, `StudyEvent`, `ContentFlag`, `UserImport`
 - **Enums**: `EnrichmentStatus`, `StudyVerdict`, `FeedbackCode`
 - **Constants**: `ProgressDefaults`
 - **Service interfaces**: `IDictionaryService`, `IStudyService`, `IContentService`
@@ -72,15 +75,18 @@ Contains:
 
 ### Core
 
-`apps/api/src/Langoose.Core/` — depends on Domain and Data.
+`apps/api/src/Langoose.Core/` — depends on Domain, Data, and Corpus.Data.
 
 Contains:
 - **Services**: `DictionaryService`, `StudyService`, `ContentService`
   — implement interfaces from Domain
 - **Providers**: `LocalEnrichmentProvider` — implements `IEnrichmentProvider`
   from Domain. The corpus-based provider is tracked under #92.
+- **BulkImport**: `HeuristicFilter`, `ImportPayloadFactory` — pure
+  building blocks for the bulk-seed import; depend on Corpus.Data for
+  source-shape parsing.
 - **Utilities**: `TextNormalizer` — static utility, no interface
-- **Configuration**: settings classes (`EnrichmentSettings`, `FeaturesSettings`)
+- **Configuration**: settings classes (`EnrichmentSettings`, `BackgroundJobsSettings`, `BulkImportSettings`)
 
 Services accept and return domain models. They use `AppDbContext` directly — no
 repository-per-entity abstraction.
@@ -101,15 +107,20 @@ Controllers own all DTO ↔ domain model mapping. Services never see DTOs.
 
 ### Worker (presentation)
 
-`apps/api/src/Langoose.Worker/` — depends on Core, Domain, Data.
+`apps/api/src/Langoose.Worker/` — depends on Core, Domain, Data, Corpus.Data.
 
 Contains:
 - **Services**: `EnrichmentBackgroundService` — polls pending items, enriches in
   batches via `IEnrichmentProvider`
+- **Jobs**: `BackgroundJobService` (generic dispatcher polling
+  `background_jobs`) and per-type handlers like `BulkImportJobHandler`
+  (corpus → import bulk import with cursor-based resume); future
+  AI validation and promotion handlers land here too
 - `Program.cs`: generic host DI composition root
 - Own `appsettings.json`
 
-Runs as a separate process. Shares the same database.
+Runs as a separate process. Shares the same app database; the corpus
+database is read-only.
 
 ### Auth.Data
 
@@ -117,8 +128,9 @@ Runs as a separate process. Shares the same database.
 
 ### DbTool
 
-`apps/api/src/Langoose.DbTool/` — depends on Data, Domain.
-CLI for applying migrations and seeding in hosted environments.
+`apps/api/src/Langoose.DbTool/` — depends on Data, Auth.Data, Domain.
+CLI for applying migrations, seeding, and managing background jobs
+(`submit-bulk-import`, `list-jobs`, `show-job`, `cancel-job`).
 
 ### Corpus.Data
 

@@ -54,7 +54,7 @@ public sealed class ProtectedDataFlowTests
 
         await using var beforeScope = host.Services.CreateAsyncScope();
         var beforeDbContext = beforeScope.ServiceProvider.GetRequiredService<AppDbContext>();
-        Assert.Empty(beforeDbContext.UserDictionaryEntries.Where(x => x.UserId == ApiTestHost.AuthenticatedUserId));
+        Assert.Empty(beforeDbContext.UserEntries.Where(x => x.UserId == ApiTestHost.AuthenticatedUserId));
         Assert.Empty(beforeDbContext.UserProgress.Where(x => x.UserId == ApiTestHost.AuthenticatedUserId));
 
         var dictionaryResponse = await host.Client.GetAsync("/dictionary/entries");

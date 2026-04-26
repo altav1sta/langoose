@@ -28,8 +28,8 @@ Difficulty:         "B1"                                (from EntryContext.Diffi
 
 1. Build the studyable pool:
    - All public DictionaryEntries (base forms)
-   - DictionaryEntries linked from the user's enriched UserDictionaryEntries
-2. Exclude entries with no EntryContexts, pending/failed UserDictionaryEntries.
+   - DictionaryEntries linked from the user's enriched UserEntries
+2. Exclude entries with no EntryContexts, pending/failed UserEntries.
 3. Join UserProgress for scheduling (lazy create for new encounters).
 4. Order by DueAtUtc, then SuccessCount. Bias toward custom items.
 5. Pick a base entry → pick an EntryContext for one of its forms (rotate contexts).

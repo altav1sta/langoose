@@ -53,10 +53,10 @@ A user's study pool consists of:
 
 1. **Public DictionaryEntries** (base forms) — the curated base dictionary.
 2. **User's enriched custom entries** — DictionaryEntries linked from the user's
-   UserDictionaryEntries where `DictionaryEntryId` is not null.
+   UserEntries where `DictionaryEntryId` is not null.
 
 Items excluded from the pool:
-- UserDictionaryEntries with `EnrichmentStatus = Pending` or `Failed`
+- UserEntries with `EnrichmentStatus = Pending` or `Failed`
 - DictionaryEntries with no EntryContexts
 
 ### Selection Algorithm
