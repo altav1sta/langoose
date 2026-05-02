@@ -9,14 +9,14 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Langoose.DbTool;
 
-internal static class BulkImportCommands
+internal static class CorpusImportCommands
 {
-    public static async Task<int> SubmitBulkImportAsync(string[] args)
+    public static async Task<int> SubmitCorpusImportAsync(string[] args)
     {
         var language = GetRequiredOption(args, "--lang");
         var source = GetRequiredOption(args, "--source");
 
-        var settings = new BulkImportParams(language, source);
+        var settings = new CorpusImportParams(language, source, StartCursor: null);
 
         using var host = Program.BuildHost(args, configureAppDatabase: true, configureAuthDatabase: false);
         var contextFactory = host.Services.GetRequiredService<IDbContextFactory<AppDbContext>>();
@@ -26,7 +26,7 @@ internal static class BulkImportCommands
         var job = new BackgroundJob
         {
             Id = Guid.CreateVersion7(),
-            Type = JobType.BulkImport,
+            Type = JobType.CorpusImport,
             Status = JobStatus.Pending,
             Settings = JsonSerializer.Serialize(settings, AppJsonOptions.Default),
             ExecutionState = null,
@@ -38,7 +38,7 @@ internal static class BulkImportCommands
         await db.SaveChangesAsync();
 
         Console.WriteLine(
-            $"Submitted bulk-import job {job.Id} (lang={language}, source={source}).");
+            $"Submitted corpus-import job {job.Id} (lang={language}, source={source}).");
 
         return 0;
     }

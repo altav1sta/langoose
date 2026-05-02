@@ -314,7 +314,7 @@ two `jsonb` columns.
 ```
 background_jobs
   Id              Guid (v7)
-  Type            enum (BulkImport, AiValidation, Promotion, …)
+  Type            enum (CorpusImport, UserEntriesImport, AiValidation, Promotion, …)
   Status          enum (Pending, Running, Completed, Failed, Cancelled)
   Settings        jsonb        -- per-invocation inputs, type-specific
   ExecutionState  jsonb        -- cursor, counters, error info; updated per batch

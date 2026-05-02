@@ -10,6 +10,9 @@
   - `dotnet test apps/api/tests/Langoose.Api.IntegrationTests/Langoose.Api.IntegrationTests.csproj /p:RestoreConfigFile=apps/api/NuGet.Config`
 - Run API:
   - `dotnet run --project apps/api/src/Langoose.Api/Langoose.Api.csproj`
+- Run Worker:
+  - `dotnet run --project apps/api/src/Langoose.Worker/Langoose.Worker.csproj`
+  - polls `background_jobs` for `Pending` rows; needs Postgres up so the connection strings in `appsettings.json` resolve
 - Frontend build (from `apps/web`):
   - `npm run build`
 - Frontend tests (from `apps/web`):
@@ -18,8 +21,9 @@
   - `npm run dev`
 - Whole app:
   - `docker compose up -d postgres`
-  - `docker compose up -d api --build`
-  - `docker compose up -d web --build`
+  - `docker compose up -d app-api --build`
+  - `docker compose up -d app-worker --build`
+  - `docker compose up -d app-web --build`
 - E2E tests (requires the whole app running):
   - `docker compose --profile e2e up --build e2e`
 
@@ -33,16 +37,17 @@ conventions, entity details, and seeding.
 The bulk-seed pipeline (corpus → import → AI validation → review →
 promotion, see [dictionary-schema-design.md](dictionary-schema-design.md))
 is driven by `Langoose.DbTool` job-submission commands and executed
-asynchronously by `Langoose.Worker`'s generic `BackgroundJobService`. The
-CLI inserts a `Pending` row into `background_jobs`; the worker picks it
-up, dispatches to the matching handler (`BulkImportJobHandler` for
-`BulkImport`), streams corpus rows in batches, and persists progress +
-cursor in `ExecutionState` so a worker restart resumes mid-job.
+asynchronously by `Langoose.Worker`. One row in `background_jobs` =
+one batch run. The CLI inserts the first `Pending` row with
+`StartCursor=null`; `CorpusImportJob` claims it, dispatches to
+`ICorpusImportService.RunBatchAsync` for one batch, and on Completed
+auto-creates a continuation `Pending` row with the next cursor. The
+chain terminates when a run returns `Cursor=null` (no more data).
 
 - Submit a bulk import:
-  - `dotnet run --project apps/api/src/Langoose.DbTool -- submit-bulk-import --lang en --source <id>`
+  - `dotnet run --project apps/api/src/Langoose.DbTool -- submit-corpus-import --lang en --source <id>`
 - List jobs:
-  - `dotnet run --project apps/api/src/Langoose.DbTool -- list-jobs [--type BulkImport] [--status Running] [--limit N]`
+  - `dotnet run --project apps/api/src/Langoose.DbTool -- list-jobs [--type CorpusImport] [--status Running] [--limit N]`
 - Inspect a job:
   - `dotnet run --project apps/api/src/Langoose.DbTool -- show-job <id>`
 - Cancel a Pending or Running job:

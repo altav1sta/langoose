@@ -15,6 +15,7 @@ Related notes:
 - [staging-setup-runbook.md](staging-setup-runbook.md)
 - [staging-db-operations.md](staging-db-operations.md)
 - [staging-deployment-workflow.md](staging-deployment-workflow.md)
+- [staging-worker-railway.md](staging-worker-railway.md)
 
 ## Service Shape
 
@@ -39,6 +40,14 @@ Set these service variables in Railway:
 - `ConnectionStrings__AuthDatabase=<Neon staging connection string for langoose_auth>`
 - `Cors__AllowedOrigins__0=<staging web origin>`
 - `ForwardedHeaders__Enabled=true`
+- `PGGSSENCMODE=disable`
+
+Why `PGGSSENCMODE=disable`:
+
+- Npgsql 10 defaults to `Prefer` for GSS encryption, which makes the .NET runtime probe `libgssapi_krb5.so.2` on every connection
+- the slim runtime image does not ship that library, so the probe prints a benign load failure to stderr on every API restart
+- our setup uses password auth + TLS to Neon and never Kerberos, so disabling GSS encryption is correct on its own merits — the silent log is a side effect, not the goal
+- flip back to `Prefer` only if the database moves behind Active Directory / Kerberos auth (see `docs/staging-worker-railway.md` → "Required Variables" for the same rationale)
 
 Why this is required now:
 

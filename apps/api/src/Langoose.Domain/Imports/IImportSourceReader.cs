@@ -30,8 +30,8 @@ public interface IImportSourceReader
     /// snapshot, optionally resuming after <paramref name="cursor"/>. Each
     /// call returns up to <paramref name="batchSize"/> payloads in a stable
     /// source-defined order; an empty array signals no more data. The
-    /// cursor format is opaque — the handler derives the next cursor from
-    /// the last returned payload.
+    /// cursor format is opaque — callers derive the next cursor from the
+    /// last returned payload via <see cref="EncodeCursorAfter"/>.
     /// </summary>
     Task<ImportPayload[]> FetchBatchAsync(
         string language,
@@ -39,4 +39,12 @@ public interface IImportSourceReader
         int batchSize,
         string? cursor,
         CancellationToken ct);
+
+    /// <summary>
+    /// Encode an opaque resume cursor positioned just after the given
+    /// payload. Callers pass the result back to
+    /// <see cref="FetchBatchAsync"/>'s <c>cursor</c> parameter to continue
+    /// the stream from that position. Format is reader-defined.
+    /// </summary>
+    string EncodeCursorAfter(ImportPayload last);
 }

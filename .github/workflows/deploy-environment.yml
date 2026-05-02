@@ -10,6 +10,10 @@ on:
         required: false
         type: boolean
         default: true
+      deploy_worker:
+        required: false
+        type: boolean
+        default: true
       deploy_web:
         required: false
         type: boolean
@@ -34,6 +38,11 @@ on:
           - production
       deploy_api:
         description: Deploy the API service
+        required: false
+        type: boolean
+        default: true
+      deploy_worker:
+        description: Deploy the Worker service
         required: false
         type: boolean
         default: true
@@ -70,6 +79,7 @@ jobs:
       target_environment: ${{ steps.resolve.outputs.target_environment }}
       source_sha: ${{ steps.resolve.outputs.source_sha }}
       deploy_api: ${{ steps.resolve.outputs.deploy_api }}
+      deploy_worker: ${{ steps.resolve.outputs.deploy_worker }}
       deploy_web: ${{ steps.resolve.outputs.deploy_web }}
       run_migrations_app: ${{ steps.resolve.outputs.run_migrations_app }}
       run_migrations_auth: ${{ steps.resolve.outputs.run_migrations_auth }}
@@ -86,6 +96,7 @@ jobs:
           echo "target_environment=${{ inputs.target_environment }}" >> "$GITHUB_OUTPUT"
           echo "source_sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
           echo "deploy_api=${{ inputs.deploy_api }}" >> "$GITHUB_OUTPUT"
+          echo "deploy_worker=${{ inputs.deploy_worker }}" >> "$GITHUB_OUTPUT"
           echo "deploy_web=${{ inputs.deploy_web }}" >> "$GITHUB_OUTPUT"
           echo "run_migrations_app=${{ inputs.run_migrations_app }}" >> "$GITHUB_OUTPUT"
           echo "run_migrations_auth=${{ inputs.run_migrations_auth }}" >> "$GITHUB_OUTPUT"
@@ -99,6 +110,7 @@ jobs:
           fi
 
           if [ "${{ inputs.deploy_api }}" = "true" ] \
+              || [ "${{ inputs.deploy_worker }}" = "true" ] \
               || [ "${{ inputs.deploy_web }}" = "true" ] \
               || [ "${{ inputs.run_migrations_app }}" = "true" ] \
               || [ "${{ inputs.run_migrations_auth }}" = "true" ]; then
@@ -118,6 +130,7 @@ jobs:
       - name: Validate required secrets and variables
         env:
           DEPLOY_API: ${{ needs.resolve-context.outputs.deploy_api }}
+          DEPLOY_WORKER: ${{ needs.resolve-context.outputs.deploy_worker }}
           DEPLOY_WEB: ${{ needs.resolve-context.outputs.deploy_web }}
           RUN_MIGRATIONS_APP: ${{ needs.resolve-context.outputs.run_migrations_app }}
           RUN_MIGRATIONS_AUTH: ${{ needs.resolve-context.outputs.run_migrations_auth }}
@@ -127,6 +140,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
           RAILWAY_API_SERVICE: ${{ vars.RAILWAY_API_SERVICE }}
+          RAILWAY_WORKER_SERVICE: ${{ vars.RAILWAY_WORKER_SERVICE }}
           RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
@@ -143,14 +157,19 @@ jobs:
             exit 1
           fi
 
-          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_TOKEN" ]; then
-            echo "Missing RAILWAY_TOKEN secret for Railway deployment." >&2
-            exit 1
-          fi
-
-          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_PROJECT_ID" ]; then
-            echo "Missing RAILWAY_PROJECT_ID environment variable for Railway deployment." >&2
-            exit 1
+          if [ "$DEPLOY_API" = "true" ] || [ "$DEPLOY_WORKER" = "true" ]; then
+            if [ -z "$RAILWAY_TOKEN" ]; then
+              echo "Missing RAILWAY_TOKEN secret for Railway deployment." >&2
+              exit 1
+            fi
+            if [ -z "$RAILWAY_PROJECT_ID" ]; then
+              echo "Missing RAILWAY_PROJECT_ID environment variable for Railway deployment." >&2
+              exit 1
+            fi
+            if [ -z "$RAILWAY_ENVIRONMENT" ]; then
+              echo "Missing RAILWAY_ENVIRONMENT environment variable for Railway deployment." >&2
+              exit 1
+            fi
           fi
 
           if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_API_SERVICE" ]; then
@@ -158,8 +177,8 @@ jobs:
             exit 1
           fi
 
-          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_ENVIRONMENT" ]; then
-            echo "Missing RAILWAY_ENVIRONMENT environment variable for Railway deployment." >&2
+          if [ "$DEPLOY_WORKER" = "true" ] && [ -z "$RAILWAY_WORKER_SERVICE" ]; then
+            echo "Missing RAILWAY_WORKER_SERVICE environment variable for Railway deployment." >&2
             exit 1
           fi
 
@@ -305,6 +324,47 @@ jobs:
           railway up
           --ci
           --service "$RAILWAY_API_SERVICE"
+          --environment "$RAILWAY_ENVIRONMENT"
+          --project "$RAILWAY_PROJECT_ID"
+
+  deploy-worker:
+    name: Deploy Worker
+    runs-on: ubuntu-latest
+    needs:
+      - resolve-context
+      - validate-config
+      - auth-db-migrations
+      - app-db-migrations
+    if: >-
+      !cancelled()
+      && !contains(needs.*.result, 'failure')
+      && needs.resolve-context.outputs.deploy_worker == 'true'
+    environment: ${{ needs.resolve-context.outputs.target_environment }}
+
+    steps:
+      - name: Checkout deployment ref
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-context.outputs.source_sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli
+
+      - name: Deploy Worker to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
+          RAILWAY_WORKER_SERVICE: ${{ vars.RAILWAY_WORKER_SERVICE }}
+          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
+        run: >
+          railway up
+          --ci
+          --service "$RAILWAY_WORKER_SERVICE"
           --environment "$RAILWAY_ENVIRONMENT"
           --project "$RAILWAY_PROJECT_ID"
 

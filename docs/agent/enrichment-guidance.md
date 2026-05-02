@@ -196,27 +196,36 @@ sources there when their import code lands. Two distinct obligations:
 
 ## Background Worker
 
-Two classes split hosting from business logic:
+Two classes split row management from business logic, mirroring the
+bulk-import shape:
 
-`EnrichmentBackgroundService` (`Worker/Services/`) is a thin polling shell that
-extends `BackgroundService`. It checks the feature flag, creates a scope, and
-delegates to `IEnrichmentProcessor`.
+`UserEntriesImportJob` (`Worker/Jobs/`) owns the `background_jobs` row
+lifecycle. Each tick (gated by `EnableUserEntriesImport`) it creates a
+`JobType.Enrichment` row as `Running`, calls `RunBatchAsync`, and
+marks the row `Completed` (with counts) or `Failed` (with error).
+Every tick is a tracked run — even an empty one (Total=0) — so
+operators see a continuous record that the worker is alive.
 
-`EnrichmentProcessor` (`Core/Services/`) implements `IEnrichmentProcessor`
-(defined in Domain) and contains all batch processing logic.
+`UserEntriesImportService` (`Core/Services/`) implements `IUserEntriesImportService`
+(defined in Domain) and contains pure batch-processing logic. It does
+not read or write `background_jobs`.
 
-Poll cycle:
-1. Check feature flag via `IVariantFeatureManager.IsEnabledAsync("EnableAiEnrichment")`
-2. `EnrichmentProcessor.ProcessPendingBatchAsync()`:
+Per-run flow:
+1. **Job**: check feature flag via `IVariantFeatureManager.IsEnabledAsync("EnableUserEntriesImport")`
+2. **Job**: create `Running` `BackgroundJob` row of type `Enrichment`
+3. **Service** `RunBatchAsync(batchSize, maxRetries)`:
    a. Query pending items with `Include(SourceEntry.Translations, TargetEntry)`
-   b. Load missing entries by `EntryKey(lang, text, POS)` from DB
-   c. Set SourceEntry/TargetEntry navigations from lookup
-   d. Items with both entries and link → set Enriched, skip provider
-   e. Pass remaining items to provider (it reads navigations to know what to generate)
-   f. Create base + derived entries from results, link via Translations navigation
-   g. Terminal statuses (InvalidSource/InvalidTarget/InvalidLink) set directly
-   h. On provider exception: exponential backoff, ProviderError after max retries
-   i. Single `SaveChangesAsync` at the end
+   b. If none, return `BulkJobState` with Total=0 (no error)
+   c. Load missing entries by `EntryKey(lang, text, POS)` from DB
+   d. Set SourceEntry/TargetEntry navigations from lookup
+   e. Items with both entries and link → set Enriched, skip provider
+   f. Pass remaining items to provider (it reads navigations to know what to generate)
+   g. Create base + derived entries from results, link via Translations navigation
+   h. Terminal statuses (InvalidSource/InvalidTarget/InvalidLink) set directly
+   i. On provider exception: exponential backoff, ProviderError after max retries
+   j. Single `SaveChangesAsync` for the batch
+   k. Return `BulkJobState(TotalCount, ProcessedCount, FailedCount, Cursor=null, ErrorMessage=null)`
+4. **Job**: mark the row `Completed` with the returned state (or `Failed` on uncaught exception)
 
 ### Feature Management
 
@@ -226,14 +235,14 @@ Uses `Microsoft.FeatureManagement` NuGet package (v4.4+) with the standard
 ```json
 "feature_management": {
   "feature_flags": [
-    { "id": "EnableAiEnrichment", "enabled": false }
+    { "id": "EnableUserEntriesImport", "enabled": false }
   ]
 }
 ```
 
 ### Configuration
 
-`EnrichmentSettings` (`Worker/Configuration/`) bound from the `"Enrichment"` section:
+`UserEntriesImportSettings` (`Worker/Configuration/`) bound from the `"UserEntriesImport"` section:
 - `PollIntervalSeconds` (default 5)
 - `BatchSize` (default 10)
 - `MaxRetries` (default 3)

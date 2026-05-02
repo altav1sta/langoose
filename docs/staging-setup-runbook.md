@@ -42,6 +42,7 @@ Create the `staging` GitHub environment and set:
 - variables:
   - `RAILWAY_PROJECT_ID`
   - `RAILWAY_API_SERVICE`
+  - `RAILWAY_WORKER_SERVICE`
   - `RAILWAY_ENVIRONMENT`
   - `VERCEL_ORG_ID`
   - `VERCEL_PROJECT_ID`
@@ -55,10 +56,26 @@ Create or verify the staging API service and set:
 - `ConnectionStrings__AuthDatabase=<staging auth connection string>`
 - `Cors__AllowedOrigins__0=<staging web origin>`
 - `ForwardedHeaders__Enabled=true`
+- `PGGSSENCMODE=disable`
 
 Use:
 
 - config file: `/apps/api/src/Langoose.Api/railway.json`
+
+### Railway Worker Service
+
+Create or verify the staging worker service in the same Railway project and environment as the API, and set:
+
+- `DOTNET_ENVIRONMENT=Staging`
+- `ConnectionStrings__AppDatabase=<staging app connection string>`
+- `ConnectionStrings__CorpusDatabase=<staging corpus connection string>`
+- `PGGSSENCMODE=disable`
+
+Use:
+
+- config file: `/apps/api/src/Langoose.Worker/railway.json`
+
+See [staging-worker-railway.md](staging-worker-railway.md) for the worker service shape and smoke check.
 
 ### Vercel Web Project
 
@@ -79,14 +96,14 @@ For a normal change:
 2. let `CI` finish successfully for that merge
 3. let `Deploy Environment` start from that successful `CI` run
 4. confirm the deploy workflow applied auth and app migrations
-5. confirm the API and web deploy lanes ran
+5. confirm the API, worker, and web deploy lanes ran for whichever lanes the change touched
 6. run the smoke checks below
 
 For manual staging verification or redeploy:
 
 1. run `Deploy Environment`
 2. choose `target_environment=staging`
-3. choose whether to deploy the API, the web app, or both
+3. choose any subset of API, worker, and web app to deploy
 4. verify the same smoke checks afterward
 
 ## Smoke Checks
@@ -154,6 +171,8 @@ Use these notes when you need more than the quick runbook:
   - [staging-deployment-workflow.md](staging-deployment-workflow.md)
 - Railway-specific API setup:
   - [staging-api-railway.md](staging-api-railway.md)
+- Railway-specific worker setup:
+  - [staging-worker-railway.md](staging-worker-railway.md)
 - Vercel-specific web setup:
   - [staging-web-vercel.md](staging-web-vercel.md)
 - database reset, wipe, reseed, and recovery:

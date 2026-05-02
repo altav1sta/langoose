@@ -17,7 +17,10 @@
 - Prefer batch queries over per-item loops to minimize database round-trips.
 - Do not split a statement across lines when it fits on one line and reads clearly. Only break for genuinely long lines.
 - When a call or initializer is broken across lines, put each argument or member on its own line — do not mix columnar and inline styles.
-- Add a blank line before `if`, `for`, `foreach`, `while`, `try`, `return`, and `await` statements, unless they are the first statement in a block.
+- Add a blank line before `if`, `for`, `foreach`, `while`, `using`, `await using`, `try`, `return`, and `await` statements, unless they are the first statement in a block or part of a tightly-coupled logical group (e.g. consecutive resource acquisitions, a sequence of awaits that compose one operation).
+- Settings / configuration models: no business-default values like `= 5` or `= "wiktionary"` in the C# class — those belong in `appsettings.json`. Allowed: empty-collection defaults (`= []`) which represent "no items configured" rather than a biased value, and the implicit CLR default for value types (`bool` → `false`, `int` → `0`). Reference-type properties without a sensible empty default should be `required` so the compiler enforces explicit construction.
+- Avoid `= null!;` initializers. They silence the nullable-reference compiler without expressing intent. Pick one: make the property nullable (`Type?`) when it really can be absent, or mark it `required` when the contract is "you must supply this". EF navigation properties almost always want nullable.
+- Use target-typed `new()` for object creation when the type is obvious from the surrounding context (variable type, return type, parameter type, collection element type). Skip the redundant type name. Don't use it when the initializer is long enough that the type name materially aids readability or when the surrounding code is heavily dynamic.
 
 ## Related Canonical Docs
 

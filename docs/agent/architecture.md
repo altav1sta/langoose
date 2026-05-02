@@ -86,15 +86,37 @@ Contains:
   — implement interfaces from Domain
 - **Providers**: `LocalEnrichmentProvider` — implements `IEnrichmentProvider`
   from Domain. The corpus-based provider is tracked under #92.
-- **BulkImport**: `HeuristicFilter` — pure rule-application for the
-  bulk-seed import. Source-shape parsing lives in the per-source
+- **Heuristic**: `HeuristicFilter` — pure rule-application for the
+  corpus-import pipeline. Source-shape parsing lives in the per-source
   `IImportSourceReader` implementation (e.g.
   `Corpus.Data/WiktionaryImportSourceReader`).
 - **Utilities**: `TextNormalizer` — static utility, no interface
-- **Configuration**: `HeuristicFilterSettings` (consumed by `HeuristicFilter`). Per-service tunables (`EnrichmentSettings`, `BulkImportSettings`) live in Worker — each background service owns its own settings (poll interval, batch size, etc.).
+- **Configuration**: `HeuristicFilterSettings` (consumed by `HeuristicFilter`). Per-job tunables (`UserEntriesImportSettings`, `CorpusImportSettings`) live in Worker — each job owns its own settings (poll interval, batch size, etc.) and passes primitives down to the Core service.
 
 Services accept and return domain models. They use `AppDbContext` directly — no
 repository-per-entity abstraction.
+
+The two long-running services follow the same shape — pure
+batch-processing logic, no awareness of `background_jobs`. Each call
+processes exactly one batch and returns a `BulkJobState` (the unified
+per-run state record):
+- `UserEntriesImportService` implements `IUserEntriesImportService` — `RunBatchAsync`
+  processes one batch of pending user-entry enrichments and returns
+  counts. Empty ticks return Total=0 (still recorded by the job for
+  liveness).
+- `CorpusImportService` implements `ICorpusImportService` — `RunBatchAsync`
+  fetches one batch from corpus via `IImportSourceReader`, applies the
+  heuristic filter, and returns counts plus the next cursor.
+
+One row in `background_jobs` = one batch run. The Worker side
+(`Worker/Jobs/`) owns the row lifecycle: claiming/creating rows,
+persisting `BulkJobState` as `ExecutionState`, marking terminal status.
+For CorpusImport specifically, after a run completes with non-null
+`Cursor`, the job auto-creates a continuation `Pending` row with that
+cursor as the next `CorpusImportParams.StartCursor` — the chain
+terminates when a run returns `Cursor=null`.
+
+Services know nothing about jobs; jobs know nothing about business logic.
 
 ### Api (presentation)
 
@@ -115,12 +137,12 @@ Controllers own all DTO ↔ domain model mapping. Services never see DTOs.
 `apps/api/src/Langoose.Worker/` — depends on Core, Domain, Data, Corpus.Data.
 
 Contains:
-- **Services**: `EnrichmentBackgroundService` — polls pending items, enriches in
-  batches via `IEnrichmentProvider`
-- **Jobs**: `BackgroundJobService` (generic dispatcher polling
-  `background_jobs`) and per-type handlers like `BulkImportJobHandler`
-  (corpus → import bulk import with cursor-based resume); future
-  AI validation and promotion handlers land here too
+- **Jobs**: per-`JobType` polling loops that dispatch into Core services.
+  `UserEntriesImportJob` runs the periodic enrichment loop (gated by the
+  `EnableUserEntriesImport` feature flag) and dispatches to `IUserEntriesImportService`.
+  `CorpusImportJob` claims operator-submitted `Pending` rows of type
+  `CorpusImport` from `background_jobs` and dispatches to `ICorpusImportService`.
+  Future AI validation and promotion jobs follow the same shape.
 - `Program.cs`: generic host DI composition root
 - Own `appsettings.json`
 

@@ -89,8 +89,15 @@ POS is not on the entry — it comes from the user entry.
 
 ## Background Worker
 
-`EnrichmentBackgroundService` runs in the Worker project as a thin polling shell.
-`EnrichmentProcessor` in Core contains all batch processing logic.
+`UserEntriesImportJob` runs in the Worker project. It owns the
+`background_jobs` row lifecycle: each tick (gated by the feature flag)
+it creates a `JobType.Enrichment` row as `Running`, dispatches to
+`IUserEntriesImportService.RunBatchAsync`, and marks the row `Completed`
+(with counts, possibly Total=0) or `Failed` (with error). Every tick
+is a tracked run so the operator sees continuous worker liveness.
+
+`UserEntriesImportService` in Core contains pure batch-processing logic — no
+awareness of the `background_jobs` table.
 
 1. **Poll**: query UserEntries where status is Pending or ProviderError
    (with attempts < max) and `EnrichmentNotBefore` is null or past.
@@ -144,13 +151,13 @@ No provider call needed.
 
 ## Feature Flag
 
-`EnableAiEnrichment` feature flag (via `Microsoft.FeatureManagement`) controls
+`EnableUserEntriesImport` feature flag (via `Microsoft.FeatureManagement`) controls
 whether the Worker processes pending items. Configured in `appsettings.json`:
 
 ```json
 "feature_management": {
   "feature_flags": [
-    { "id": "EnableAiEnrichment", "enabled": false }
+    { "id": "EnableUserEntriesImport", "enabled": false }
   ]
 }
 ```

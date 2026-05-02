@@ -14,6 +14,7 @@ Related notes:
 - [staging-setup-runbook.md](staging-setup-runbook.md)
 - [staging-db-operations.md](staging-db-operations.md)
 - [staging-api-railway.md](staging-api-railway.md)
+- [staging-worker-railway.md](staging-worker-railway.md)
 - [staging-web-vercel.md](staging-web-vercel.md)
 
 ## Workflow
@@ -29,8 +30,8 @@ staging. This keeps CI and deploy in a single pipeline run for main pushes witho
 PR CI.
 
 The CD workflow detects which parts of the app changed and passes granular deploy flags. When only frontend files
-change, the deploy skips the DbTool image build, database migrations, and API deploy. Manual runs through
-`deploy-environment.yml` can still choose whether to deploy the API, the web app, or both.
+change, the deploy skips the DbTool image build, database migrations, and the API and worker deploys. Manual runs
+through `deploy-environment.yml` can still choose whether to deploy the API, the worker, the web app, or any subset.
 
 ## What It Can Do
 
@@ -39,6 +40,7 @@ The workflow orchestrates these steps:
 - auth database migrations
 - app database migrations
 - API deploy to Railway
+- Worker deploy to Railway
 - web deploy to Vercel
 
 This keeps the update path explicit without folding base-content seeding into every deploy. Seeding remains a separate
@@ -69,11 +71,13 @@ Use the same secret names in every environment.
 ### Variables
 
 - `RAILWAY_PROJECT_ID`
-  Railway project ID that contains the API service
+  Railway project ID that contains the API and worker services
 - `RAILWAY_API_SERVICE`
   Railway API service name or ID
+- `RAILWAY_WORKER_SERVICE`
+  Railway worker service name or ID
 - `RAILWAY_ENVIRONMENT`
-  Railway environment name or ID used by the API deploy step
+  Railway environment name or ID used by both the API and worker deploy steps
 - `VERCEL_ORG_ID`
   Vercel team or personal account ID for the web project
 - `VERCEL_PROJECT_ID`
@@ -83,11 +87,12 @@ Use the same secret names in every environment.
 
 ### Railway
 
-The workflow deploys the API through the Railway CLI using a project token.
+The workflow deploys the API and the worker through the Railway CLI using a project token. Both services live in the
+same Railway project and environment and share the same Neon app database.
 
 The CLI supports project tokens for CI/CD through the `RAILWAY_TOKEN` environment variable, and `railway up` can target
-specific services, environments, and projects. This makes it suitable for GitHub-driven deploys of the API from
-trusted `main`. Sources:
+specific services, environments, and projects. This makes it suitable for GitHub-driven deploys of the API and the
+worker from trusted `main`. Sources:
 
 - [Railway CLI](https://docs.railway.com/cli)
 - [railway up](https://docs.railway.com/cli/up)
@@ -96,8 +101,9 @@ Current workflow behavior:
 
 - checks out the resolved deployment ref
 - installs the Railway CLI
-- runs `railway up` in CI mode against the configured API service in the configured Railway environment
+- runs `railway up` in CI mode against the configured API and worker services in the configured Railway environment
 - deploys from the repo root so Railway can resolve the existing repo-root-relative config and Dockerfile paths
+- API and worker deploys run in parallel after migrations finish
 
 ### Vercel
 
@@ -130,18 +136,19 @@ For a normal staging release:
 For manual production dispatch:
 
 - choose `target_environment=production`
-- choose whether to deploy the API, the web app, or both
+- choose any subset of API, worker, and web app to deploy
 - auth and app migrations still run first
 
 For manual staging dispatch:
 
 - choose `target_environment=staging`
-- choose whether to deploy the API, the web app, or both
+- choose any subset of API, worker, and web app to deploy
 - auth and app migrations still run first
 
 For automatic staging runs after `CD` on `main`:
 
-- changes under `apps/api/` trigger migrations and API deploy
+- API-relevant backend changes (`Langoose.Api/`, `Langoose.Auth.Data/`, or shared layers) trigger the API deploy
+- worker-relevant backend changes (`Langoose.Worker/`, `Langoose.Corpus.Data/`, or shared layers) trigger the worker deploy
 - changes under `apps/web/` trigger web deploy
 - changes outside `apps/` skip the deploy entirely
 - migrations and DbTool image build only run when backend changes are detected
@@ -153,8 +160,8 @@ The workflow enforces this order:
 1. validate environment configuration
 2. auth migrations
 3. app migrations
-4. API deploy when selected
-5. web deploy when selected
+4. API deploy and worker deploy in parallel when selected
+5. web deploy when selected (depends on the API deploy)
 
 This keeps schema-changing work ahead of hosted deploy steps.
 
@@ -165,6 +172,6 @@ This model keeps deployment automation aligned with the actual staging architect
 - database maintenance stays explicit
 - staging deploys happen automatically from trusted `main`
 - manual dispatch can target either staging or production
-- API deploy uses Railway's supported CLI and project-token path
+- API and worker deploys both use Railway's supported CLI and project-token path
 - web deploy uses Vercel's supported CLI path
 - staging remains operable from GitHub without mixing provider-specific ad hoc steps into the normal release path
