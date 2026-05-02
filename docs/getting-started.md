@@ -9,16 +9,26 @@
 
 ## Quick Start
 
-### 1. Start the database
+### 1. Set up environment variables
+
+```bash
+cp .env.example .env
+```
+
+`compose.yml` reads `.env` for service environment variables. The
+template carries safe local-dev defaults; tweak `.env` (gitignored) for
+per-machine overrides like `POSTGRES_DATA_PATH=...`.
+
+### 2. Start the database
 
 ```bash
 docker compose up -d postgres
 ```
 
 This starts PostgreSQL on port 5432 with three databases: `langoose_app`,
-`langoose_auth`, and `langoose_corpus`. Credentials are in `compose.yml`.
+`langoose_auth`, and `langoose_corpus`. Credentials are in `.env`.
 
-### 2. Run the API
+### 3. Run the API
 
 ```bash
 dotnet run --project apps/api/src/Langoose.Api/Langoose.Api.csproj
@@ -27,7 +37,7 @@ dotnet run --project apps/api/src/Langoose.Api/Langoose.Api.csproj
 On first run, the API auto-applies migrations and seeds base dictionary content.
 The API listens on `http://localhost:5000` by default.
 
-### 3. Run the frontend
+### 4. Run the frontend
 
 ```bash
 cd apps/web
@@ -37,7 +47,7 @@ npm run dev
 
 The frontend runs on `http://localhost:5173` and proxies API calls to port 5000.
 
-### 4. Run the Worker
+### 5. Run the Worker
 
 ```bash
 dotnet run --project apps/api/src/Langoose.Worker/Langoose.Worker.csproj

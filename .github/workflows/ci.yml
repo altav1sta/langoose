@@ -273,6 +273,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Seed .env from .env.example
+        run: cp .env.example .env
+
       - name: Run Compose auth e2e
         run: docker compose --profile e2e up --build e2e
 
