@@ -71,7 +71,11 @@ public sealed class CorpusImportJob(
         {
             var state = await service.RunBatchAsync(settings, _batchSize, stoppingToken);
 
-            await MarkCompletedAsync(jobId, state, stoppingToken);
+            if (!await TryMarkCompletedAsync(jobId, state, stoppingToken))
+            {
+                logger.LogInformation("Corpus import job {JobId} cancelled by operator; chain stops.", jobId);
+                return state;
+            }
 
             if (state.Cursor is not null)
                 await SubmitContinuationAsync(settings, state.Cursor, stoppingToken);
@@ -88,7 +92,7 @@ public sealed class CorpusImportJob(
 
             var failed = new BulkJobState { ErrorMessage = ex.Message };
 
-            await MarkFailedAsync(jobId, failed, CancellationToken.None);
+            await TryMarkFailedAsync(jobId, failed, CancellationToken.None);
 
             return failed;
         }
@@ -128,32 +132,37 @@ public sealed class CorpusImportJob(
         return rowsAffected > 0 ? pendingId : null;
     }
 
-    private async Task MarkCompletedAsync(Guid jobId, BulkJobState state, CancellationToken ct)
+    private Task<bool> TryMarkCompletedAsync(Guid jobId, BulkJobState state, CancellationToken ct) =>
+        TryTransitionAsync(jobId, state, JobStatus.Completed, ct);
+
+    private Task<bool> TryMarkFailedAsync(Guid jobId, BulkJobState state, CancellationToken ct) =>
+        TryTransitionAsync(jobId, state, JobStatus.Failed, ct);
+
+    private async Task<bool> TryTransitionAsync(
+        Guid jobId, BulkJobState state, JobStatus terminalStatus, CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var job = await db.BackgroundJobs.FirstAsync(x => x.Id == jobId, ct);
         var now = DateTimeOffset.UtcNow;
+        var stateJson = JsonSerializer.Serialize(state, AppJsonOptions.Default);
 
-        job.Status = JobStatus.Completed;
-        job.FinishedAtUtc = now;
-        job.UpdatedAtUtc = now;
-        job.ExecutionState = JsonSerializer.Serialize(state, AppJsonOptions.Default);
+        var transitioned = await db.BackgroundJobs
+            .Where(x => x.Id == jobId && x.Status == JobStatus.Running)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.Status, terminalStatus)
+                .SetProperty(x => x.FinishedAtUtc, now)
+                .SetProperty(x => x.UpdatedAtUtc, now)
+                .SetProperty(x => x.ExecutionState, stateJson), ct);
 
-        await db.SaveChangesAsync(ct);
-    }
+        if (transitioned > 0)
+            return true;
 
-    private async Task MarkFailedAsync(Guid jobId, BulkJobState state, CancellationToken ct)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var job = await db.BackgroundJobs.FirstAsync(x => x.Id == jobId, ct);
-        var now = DateTimeOffset.UtcNow;
+        await db.BackgroundJobs
+            .Where(x => x.Id == jobId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.UpdatedAtUtc, now)
+                .SetProperty(x => x.ExecutionState, stateJson), ct);
 
-        job.Status = JobStatus.Failed;
-        job.FinishedAtUtc = now;
-        job.UpdatedAtUtc = now;
-        job.ExecutionState = JsonSerializer.Serialize(state, AppJsonOptions.Default);
-
-        await db.SaveChangesAsync(ct);
+        return false;
     }
 
     private async Task SubmitContinuationAsync(CorpusImportParams previous, string nextCursor, CancellationToken ct)

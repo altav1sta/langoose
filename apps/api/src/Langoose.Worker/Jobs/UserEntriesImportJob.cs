@@ -65,19 +65,23 @@ public sealed class UserEntriesImportJob(
 
             var state = await service.RunBatchAsync(_settings.BatchSize, _settings.MaxRetries, ct);
 
-            await MarkCompletedAsync(jobId, state, ct);
+            if (!await TryMarkCompletedAsync(jobId, state, ct))
+            {
+                logger.LogInformation("User-entries import job {JobId} cancelled by operator.", jobId);
+                return false;
+            }
 
             return state.TotalCount > 0;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            await MarkFailedAsync(jobId, new() { ErrorMessage = "Cancelled" }, CancellationToken.None);
+            await TryMarkFailedAsync(jobId, new() { ErrorMessage = "Cancelled" }, CancellationToken.None);
             throw;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "User-entries import job {JobId} failed.", jobId);
-            await MarkFailedAsync(jobId, new() { ErrorMessage = ex.Message }, CancellationToken.None);
+            await TryMarkFailedAsync(jobId, new() { ErrorMessage = ex.Message }, CancellationToken.None);
             return false;
         }
     }
@@ -107,31 +111,36 @@ public sealed class UserEntriesImportJob(
         return jobId;
     }
 
-    private async Task MarkCompletedAsync(Guid jobId, BulkJobState state, CancellationToken ct)
+    private Task<bool> TryMarkCompletedAsync(Guid jobId, BulkJobState state, CancellationToken ct) =>
+        TryTransitionAsync(jobId, state, JobStatus.Completed, ct);
+
+    private Task<bool> TryMarkFailedAsync(Guid jobId, BulkJobState state, CancellationToken ct) =>
+        TryTransitionAsync(jobId, state, JobStatus.Failed, ct);
+
+    private async Task<bool> TryTransitionAsync(
+        Guid jobId, BulkJobState state, JobStatus terminalStatus, CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var job = await db.BackgroundJobs.FirstAsync(x => x.Id == jobId, ct);
         var now = DateTimeOffset.UtcNow;
+        var stateJson = JsonSerializer.Serialize(state, AppJsonOptions.Default);
 
-        job.Status = JobStatus.Completed;
-        job.FinishedAtUtc = now;
-        job.UpdatedAtUtc = now;
-        job.ExecutionState = JsonSerializer.Serialize(state, AppJsonOptions.Default);
+        var transitioned = await db.BackgroundJobs
+            .Where(x => x.Id == jobId && x.Status == JobStatus.Running)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.Status, terminalStatus)
+                .SetProperty(x => x.FinishedAtUtc, now)
+                .SetProperty(x => x.UpdatedAtUtc, now)
+                .SetProperty(x => x.ExecutionState, stateJson), ct);
 
-        await db.SaveChangesAsync(ct);
-    }
+        if (transitioned > 0)
+            return true;
 
-    private async Task MarkFailedAsync(Guid jobId, BulkJobState state, CancellationToken ct)
-    {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-        var job = await db.BackgroundJobs.FirstAsync(x => x.Id == jobId, ct);
-        var now = DateTimeOffset.UtcNow;
+        await db.BackgroundJobs
+            .Where(x => x.Id == jobId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.UpdatedAtUtc, now)
+                .SetProperty(x => x.ExecutionState, stateJson), ct);
 
-        job.Status = JobStatus.Failed;
-        job.FinishedAtUtc = now;
-        job.UpdatedAtUtc = now;
-        job.ExecutionState = JsonSerializer.Serialize(state, AppJsonOptions.Default);
-
-        await db.SaveChangesAsync(ct);
+        return false;
     }
 }
