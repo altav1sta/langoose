@@ -2,5 +2,6 @@ namespace Langoose.Domain.Enums;
 
 public enum JobType
 {
-    BulkImport
+    CorpusImport,
+    UserEntriesImport
 }

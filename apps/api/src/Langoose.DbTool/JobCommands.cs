@@ -188,18 +188,15 @@ internal static class JobCommands
 
         switch (type)
         {
-            case JobType.BulkImport:
-                var prior = JsonSerializer.Deserialize<BulkImportState>(
+            case JobType.CorpusImport:
+                var prior = JsonSerializer.Deserialize<BulkJobState>(
                     sourceExecutionState, AppJsonOptions.Default);
                 if (prior?.Cursor is null)
                     return null;
 
-                var resumed = new BulkImportState(
-                    prior.Cursor,
-                    ProcessedCount: 0,
-                    HeuristicAcceptedCount: 0,
-                    HeuristicRejectedCount: 0,
-                    ErrorMessage: null);
+                // Resume from the saved cursor with zeroed counters — the
+                // resubmitted run accumulates fresh totals from this point.
+                var resumed = new BulkJobState { Cursor = prior.Cursor };
                 return JsonSerializer.Serialize(resumed, AppJsonOptions.Default);
             default:
                 return null;

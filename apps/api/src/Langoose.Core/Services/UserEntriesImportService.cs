@@ -1,5 +1,6 @@
 using Langoose.Data;
 using Langoose.Domain.Enums;
+using Langoose.Domain.Jobs;
 using Langoose.Domain.Models;
 using Langoose.Domain.Services;
 using Microsoft.EntityFrameworkCore;
@@ -7,12 +8,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Langoose.Core.Services;
 
-public sealed class EnrichmentProcessor(
+public sealed class UserEntriesImportService(
     AppDbContext dbContext,
     IEnrichmentProvider enrichmentProvider,
-    ILogger<EnrichmentProcessor> logger) : IEnrichmentProcessor
+    ILogger<UserEntriesImportService> logger) : IUserEntriesImportService
 {
-    public async Task ProcessPendingBatchAsync(
+    public async Task<BulkJobState> RunBatchAsync(
         int batchSize, int maxRetries, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
@@ -25,11 +26,12 @@ public sealed class EnrichmentProcessor(
             .Where(x => x.EnrichmentStatus == EnrichmentStatus.Pending
                 || (x.EnrichmentStatus == EnrichmentStatus.ProviderError && x.EnrichmentAttempts < maxRetries))
             .Where(x => x.EnrichmentNotBefore == null || x.EnrichmentNotBefore <= now)
+            .OrderBy(x => x.Id)
             .Take(batchSize)
             .ToArrayAsync(cancellationToken);
 
         if (pendingItems.Length == 0)
-            return;
+            return BuildState(pendingItems);
 
         logger.LogInformation("Found {Count} pending items to enrich.", pendingItems.Length);
 
@@ -131,7 +133,7 @@ public sealed class EnrichmentProcessor(
 
                 await dbContext.SaveChangesAsync(cancellationToken);
 
-                return;
+                return BuildState(pendingItems);
             }
 
             var resultByItem = results.ToDictionary(x => x.UserEntryId);
@@ -179,6 +181,28 @@ public sealed class EnrichmentProcessor(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        return BuildState(pendingItems);
+    }
+
+    private static BulkJobState BuildState(UserEntry[] pendingItems)
+    {
+        int enriched = 0;
+        int failed = 0;
+
+        for (int i = 0; i < pendingItems.Length; i++)
+        {
+            var status = pendingItems[i].EnrichmentStatus;
+            if (status == EnrichmentStatus.Enriched) enriched++;
+            else if (status == EnrichmentStatus.ProviderError) failed++;
+        }
+
+        return new()
+        {
+            TotalCount = pendingItems.Length,
+            ProcessedCount = enriched,
+            FailedCount = failed
+        };
     }
 
     private DictionaryEntry CreateBaseEntryOrThrow(

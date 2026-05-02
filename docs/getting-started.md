@@ -9,16 +9,26 @@
 
 ## Quick Start
 
-### 1. Start the database
+### 1. Set up environment variables
+
+```bash
+cp .env.example .env
+```
+
+`compose.yml` reads `.env` for service environment variables. The
+template carries safe local-dev defaults; tweak `.env` (gitignored) for
+per-machine overrides like `POSTGRES_DATA_PATH=...`.
+
+### 2. Start the database
 
 ```bash
 docker compose up -d postgres
 ```
 
-This starts PostgreSQL on port 5432 with two databases: `langoose_app` and
-`langoose_auth`. Credentials are in `docker-compose.yml`.
+This starts PostgreSQL on port 5432 with three databases: `langoose_app`,
+`langoose_auth`, and `langoose_corpus`. Credentials are in `.env`.
 
-### 2. Run the API
+### 3. Run the API
 
 ```bash
 dotnet run --project apps/api/src/Langoose.Api/Langoose.Api.csproj
@@ -27,7 +37,7 @@ dotnet run --project apps/api/src/Langoose.Api/Langoose.Api.csproj
 On first run, the API auto-applies migrations and seeds base dictionary content.
 The API listens on `http://localhost:5000` by default.
 
-### 3. Run the frontend
+### 4. Run the frontend
 
 ```bash
 cd apps/web
@@ -37,14 +47,23 @@ npm run dev
 
 The frontend runs on `http://localhost:5173` and proxies API calls to port 5000.
 
-### 4. Run the Worker (optional)
+### 5. Run the Worker
 
 ```bash
 dotnet run --project apps/api/src/Langoose.Worker/Langoose.Worker.csproj
 ```
 
-The Worker processes background enrichment. Only needed when testing enrichment
-features. Requires `Features.EnableAiEnrichment = true` in appsettings.
+The Worker polls `background_jobs` for `Pending` rows and dispatches them to
+the matching handler — currently the bulk-import pipeline (see
+[agent/workflows.md](agent/workflows.md) → "Bulk dictionary pipeline") and the
+enrichment loop. Run it whenever you submit a job via `Langoose.DbTool` or
+want to exercise enrichment.
+
+The Worker connects to `langoose_app` and `langoose_corpus` using the
+connection strings in its `appsettings.json`. The API auto-applies app-database
+migrations on startup, so start the API at least once first (or run
+`dotnet run --project apps/api/src/Langoose.DbTool -- apply-app-migrations`)
+before starting the Worker against an empty database.
 
 ## Running with Docker Compose
 
@@ -52,8 +71,9 @@ To run everything containerized:
 
 ```bash
 docker compose up -d postgres
-docker compose up -d api --build
-docker compose up -d web --build
+docker compose up -d app-api --build
+docker compose up -d app-worker --build
+docker compose up -d app-web --build
 ```
 
 ## Build and Test
@@ -123,10 +143,10 @@ The API reads configuration from `appsettings.json`:
 
 | Section | Key settings |
 |---------|-------------|
-| ConnectionStrings | AppDatabase, AuthDatabase, CorpusDatabase (future) |
+| ConnectionStrings | AppDatabase, AuthDatabase, CorpusDatabase |
 | Cors | AllowedOrigins |
 | ForwardedHeaders | Enabled, KnownProxies |
-| Features | EnableAiEnrichment |
+| Features | EnableUserEntriesImport |
 | Enrichment | PollIntervalSeconds, BatchSize, MaxRetries |
 
 For local development, the defaults in `appsettings.json` work with the Docker

@@ -1,84 +1,67 @@
 services:
-  api:
+  app-api:
     build:
       context: .
       dockerfile: apps/api/src/Langoose.Api/Dockerfile
-    container_name: langoose-api
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__AppDatabase: Host=postgres;Port=5432;Database=langoose_app;Username=langoose;Password=langoose
-      ConnectionStrings__AuthDatabase: Host=postgres;Port=5432;Database=langoose_auth;Username=langoose;Password=langoose
+    container_name: langoose-app-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
     ports:
       - "5000:8080"
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 10s
-    depends_on:
-      postgres:
-        condition: service_healthy
 
-  worker:
-    build:
-      context: .
-      dockerfile: apps/api/src/Langoose.Worker/Dockerfile
-    container_name: langoose-worker
-    environment:
-      ConnectionStrings__AppDatabase: Host=postgres;Port=5432;Database=langoose_app;Username=langoose;Password=langoose
-      ConnectionStrings__CorpusDatabase: Host=postgres;Port=5432;Database=langoose_corpus;Username=langoose;Password=langoose
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  web:
+  app-web:
     build:
       context: ./apps/web
       dockerfile: Dockerfile
-    container_name: langoose-web
+    container_name: langoose-app-web
     depends_on:
-      api:
-        condition: service_healthy
-    environment:
-      LANGOOSE_API_BASE_URL: /api
+      app-api:
+        condition: service_started
+    env_file: .env
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1 >/dev/null 2>&1 || exit 1"]
       interval: 10s
-      timeout: 5s
       retries: 5
       start_period: 10s
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1 >/dev/null 2>&1 || exit 1"]
+      timeout: 5s
     ports:
       - "5173:80"
 
+  app-worker:
+    build:
+      context: .
+      dockerfile: apps/api/src/Langoose.Worker/Dockerfile
+    container_name: langoose-app-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+
   e2e:
-    profiles: ["e2e"]
     build:
       context: ./tests/e2e
       dockerfile: Dockerfile
-    depends_on:
-      api:
-        condition: service_healthy
-      web:
-        condition: service_healthy
-    environment:
-      PLAYWRIGHT_BASE_URL: http://web
     command: npm test
+    depends_on:
+      app-api:
+        condition: service_started
+      app-web:
+        condition: service_healthy
+    env_file: .env
+    profiles: ["e2e"]
 
   postgres:
-    image: postgres:17-alpine
     container_name: langoose-postgres
-    environment:
-      POSTGRES_USER: langoose
-      POSTGRES_PASSWORD: langoose
-      POSTGRES_DB: postgres
+    env_file: .env
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U langoose -d langoose"]
       interval: 10s
-      timeout: 5s
       retries: 5
       start_period: 10s
+      test: ["CMD-SHELL", "pg_isready -U langoose -d langoose"]
+      timeout: 5s
+    image: postgres:17-alpine
     ports:
       - "5432:5432"
     volumes:

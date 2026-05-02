@@ -74,7 +74,7 @@ Dependencies point inward. Domain has no dependencies; everything else depends o
 | Data | `Langoose.Data` | AppDbContext, entity configurations, migrations, seeding. Depends on Domain. |
 | Core | `Langoose.Core` | Service implementations, enrichment providers, TextNormalizer. Depends on Domain + Data. |
 | Api | `Langoose.Api` | Controllers, request/response DTOs, middleware, DI composition. Depends on Core + Domain + Data + Auth.Data. |
-| Worker | `Langoose.Worker` | EnrichmentBackgroundService, DI composition. Depends on Core + Domain + Data. |
+| Worker | `Langoose.Worker` | `UserEntriesImportJob`, `CorpusImportJob` polling loops + DI composition. Dispatches into Core services. Depends on Core + Domain + Data + Corpus.Data. |
 
 Additional projects:
 - `Langoose.Auth.Data` — auth DbContext, Identity + OpenIddict persistence. Depends on Domain.
@@ -136,8 +136,9 @@ different migration lifecycle).
 
 - **Local**: `docker compose up` for PostgreSQL, `dotnet run` for API and Worker,
   `npm run dev` for frontend.
-- **Staging**: Vercel (web) + Railway (API) + Neon (PostgreSQL). Vercel proxies
-  `/api/*` to Railway for same-origin cookies.
+- **Staging**: Vercel (web) + Railway (API and Worker as separate services) + Neon (PostgreSQL).
+  Vercel proxies `/api/*` to the Railway API for same-origin cookies. The Worker has no HTTP
+  surface; it polls `background_jobs` on the same Neon app database.
 - **Production**: not yet determined (M4 scope).
 
 See `docs/staging-*.md` for staging setup details.

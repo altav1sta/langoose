@@ -1,14 +1,28 @@
 using FluentAssertions;
 using Langoose.Core.Configuration;
-using Langoose.Core.BulkImport;
+using Langoose.Core.Heuristic;
+using Microsoft.Extensions.Options;
 using Xunit;
 
-namespace Langoose.Core.UnitTests.BulkImport;
+namespace Langoose.Core.UnitTests.Heuristic;
 
 public sealed class HeuristicFilterTests
 {
+    // Mirrors appsettings.json defaults. Settings models no longer carry
+    // their own defaults, so each construction site is explicit; this
+    // helper keeps test-side overrides tight without leaking the rule.
+    private static HeuristicFilterSettings Settings(
+        int minLength = 2,
+        int maxLength = 300,
+        string[]? blocklist = null) => new()
+    {
+        MinLength = minLength,
+        MaxLength = maxLength,
+        PosBlocklist = blocklist ?? ["name", "abbrev", "symbol", "intj"]
+    };
+
     private static HeuristicFilter Build(HeuristicFilterSettings? settings = null) =>
-        new(settings ?? new HeuristicFilterSettings());
+        new(Options.Create(settings ?? Settings()));
 
     [Theory]
     [InlineData("book", "noun")]
@@ -37,9 +51,7 @@ public sealed class HeuristicFilterTests
     [Fact]
     public void Evaluate_TooLong_Rejects()
     {
-        var settings = new HeuristicFilterSettings { MinLength = 2, MaxLength = 5 };
-
-        var verdict = Build(settings).Evaluate("longerthan5", "noun");
+        var verdict = Build(Settings(maxLength: 5)).Evaluate("longerthan5", "noun");
 
         verdict.Accepted.Should().BeFalse();
         verdict.Reason.Should().Contain("length");
@@ -74,9 +86,7 @@ public sealed class HeuristicFilterTests
     [Fact]
     public void Evaluate_BlocklistIsCaseInsensitive_Rejects()
     {
-        var settings = new HeuristicFilterSettings { PosBlocklist = ["Name"] };
-
-        var verdict = Build(settings).Evaluate("Paris", "name");
+        var verdict = Build(Settings(blocklist: ["Name"])).Evaluate("Paris", "name");
 
         verdict.Accepted.Should().BeFalse();
     }
@@ -84,9 +94,7 @@ public sealed class HeuristicFilterTests
     [Fact]
     public void Evaluate_LengthFailsBeforeCharacterCheck()
     {
-        var settings = new HeuristicFilterSettings { MinLength = 10, MaxLength = 20 };
-
-        var verdict = Build(settings).Evaluate("a/b", "noun");
+        var verdict = Build(Settings(minLength: 10, maxLength: 20)).Evaluate("a/b", "noun");
 
         verdict.Accepted.Should().BeFalse();
         verdict.Reason.Should().Contain("length");

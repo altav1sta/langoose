@@ -10,10 +10,25 @@ namespace Langoose.DbTool;
 
 public static class Program
 {
+    private static readonly string[] KnownCommands =
+    [
+        "apply-app-migrations",
+        "apply-auth-migrations",
+        "seed-app",
+        "submit-corpus-import",
+        "list-jobs",
+        "show-job",
+        "cancel-job",
+        "resubmit-job"
+    ];
+
     public static async Task<int> Main(string[] args)
     {
+        // No args: design-time tools (e.g. `dotnet ef`) invoke the
+        // assembly to build a host for migrations. Build and exit silently.
         if (args.Length == 0)
         {
+            using var host = BuildHost(args);
             return 0;
         }
 
@@ -25,20 +40,21 @@ public static class Program
             "apply-app-migrations" => await ApplyAppMigrationsAsync(commandArgs),
             "apply-auth-migrations" => await ApplyAuthMigrationsAsync(commandArgs),
             "seed-app" => await SeedAppAsync(commandArgs),
-            "submit-bulk-import" => await BulkImportCommands.SubmitBulkImportAsync(commandArgs),
+            "submit-corpus-import" => await CorpusImportCommands.SubmitCorpusImportAsync(commandArgs),
             "list-jobs" => await JobCommands.ListJobsAsync(commandArgs),
             "show-job" => await JobCommands.ShowJobAsync(commandArgs),
             "cancel-job" => await JobCommands.CancelJobAsync(commandArgs),
             "resubmit-job" => await JobCommands.ResubmitJobAsync(commandArgs),
-            _ => RunHostForTooling(args)
+            _ => UnknownCommand(command)
         };
     }
 
-    private static int RunHostForTooling(string[] args)
+    private static int UnknownCommand(string command)
     {
-        using var host = BuildHost(args);
+        Console.Error.WriteLine($"Unknown command: '{command}'.");
+        Console.Error.WriteLine($"Available commands: {string.Join(", ", KnownCommands)}.");
 
-        return 0;
+        return 1;
     }
 
     public static HostApplicationBuilder CreateApplicationBuilder(string[] args)

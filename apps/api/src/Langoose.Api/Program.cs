@@ -21,12 +21,15 @@ var appConnectionString = builder.Configuration.GetConnectionString("AppDatabase
     ?? throw new InvalidOperationException("Connection string 'AppDatabase' is not configured.");
 var authConnectionString = builder.Configuration.GetConnectionString("AuthDatabase")
     ?? throw new InvalidOperationException("Connection string 'AuthDatabase' is not configured.");
+// When a section is missing, fall back to a default-constructed
+// instance — empty origin/proxy/network arrays and Enabled=false are
+// the model's collection / value-type defaults, so this is safe-empty.
 var cors = builder.Configuration
     .GetSection(CorsSettings.SectionName)
-    .Get<CorsSettings>() ?? new CorsSettings();
+    .Get<CorsSettings>() ?? new();
 var forwardedHeaders = builder.Configuration
     .GetSection(ForwardedHeadersSettings.SectionName)
-    .Get<ForwardedHeadersSettings>() ?? new ForwardedHeadersSettings();
+    .Get<ForwardedHeadersSettings>() ?? new();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddHealthChecks();

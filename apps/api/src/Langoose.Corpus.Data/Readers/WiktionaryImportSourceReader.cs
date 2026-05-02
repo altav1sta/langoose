@@ -129,13 +129,8 @@ public sealed class WiktionaryImportSourceReader(NpgsqlDataSource dataSource) : 
         return parts.Length == 2 ? (parts[0], parts[1]) : (null, null);
     }
 
-    /// <summary>
-    /// Encode the cursor for a payload — handler calls this with the
-    /// last payload of a batch to derive the resume position. Format
-    /// matches what <see cref="DecodeCursor"/> expects.
-    /// </summary>
-    public static string EncodeCursor(string word, string pos) =>
-        $"{word}{CursorDelimiter}{pos}";
+    public string EncodeCursorAfter(ImportPayload last) =>
+        $"{last.Entry.Text}{CursorDelimiter}{last.Entry.Pos}";
 
     private const char CursorDelimiter = '\t';
 }

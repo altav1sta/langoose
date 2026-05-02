@@ -18,7 +18,8 @@ jobs:
     name: Changes
     runs-on: ubuntu-latest
     outputs:
-      backend: ${{ steps.detect.outputs.backend }}
+      api: ${{ steps.detect.outputs.api }}
+      worker: ${{ steps.detect.outputs.worker }}
       frontend: ${{ steps.detect.outputs.frontend }}
       migrations_app: ${{ steps.detect.outputs.migrations_app }}
       migrations_auth: ${{ steps.detect.outputs.migrations_auth }}
@@ -39,22 +40,43 @@ jobs:
 
             if (files.length >= 300) {
               core.info('Compare API returned 300+ files — assuming truncation, deploying everything');
-              core.setOutput('backend', 'true');
+              core.setOutput('api', 'true');
+              core.setOutput('worker', 'true');
               core.setOutput('frontend', 'true');
               core.setOutput('migrations_app', 'true');
               core.setOutput('migrations_auth', 'true');
               return;
             }
 
-            const isBackendRuntime = (f) =>
-              f.startsWith('apps/api/src/') &&
-              !f.startsWith('apps/api/src/Langoose.Corpus.') &&
-              !f.startsWith('apps/api/src/Langoose.DbTool/');
+            // Backend layout (see CLAUDE.md):
+            //   - shared between API and Worker: Core, Data, Domain
+            //   - API-only:    Langoose.Api, Langoose.Auth.Data
+            //   - Worker-only: Langoose.Worker, Langoose.Corpus.Data
+            //   - tools (no runtime deploy): Langoose.DbTool, Langoose.Corpus.DbTool
+            // NuGet.Config affects every backend build, so it triggers both.
+            const sharedPrefixes = [
+              'apps/api/src/Langoose.Core/',
+              'apps/api/src/Langoose.Data/',
+              'apps/api/src/Langoose.Domain/'
+            ];
+            const apiPrefixes = [
+              'apps/api/src/Langoose.Api/',
+              'apps/api/src/Langoose.Auth.Data/'
+            ];
+            const workerPrefixes = [
+              'apps/api/src/Langoose.Worker/',
+              'apps/api/src/Langoose.Corpus.Data/'
+            ];
+            const sharedFiles = ['apps/api/NuGet.Config'];
 
             const startsWithAny = (f, prefixes) =>
               prefixes.some(p => f.startsWith(p));
+            const matchesAny = (f, prefixes, exact = []) =>
+              startsWithAny(f, prefixes) || exact.includes(f);
 
-            const backend = files.some(isBackendRuntime);
+            const sharedTouched = files.some(f => matchesAny(f, sharedPrefixes, sharedFiles));
+            const api = sharedTouched || files.some(f => startsWithAny(f, apiPrefixes));
+            const worker = sharedTouched || files.some(f => startsWithAny(f, workerPrefixes));
             const frontend = files.some(f => f.startsWith('apps/web/'));
 
             const dbtoolPrefix = 'apps/api/src/Langoose.DbTool/';
@@ -67,7 +89,8 @@ jobs:
               dbtoolPrefix
             ]));
 
-            core.setOutput('backend', backend ? 'true' : 'false');
+            core.setOutput('api', api ? 'true' : 'false');
+            core.setOutput('worker', worker ? 'true' : 'false');
             core.setOutput('frontend', frontend ? 'true' : 'false');
             core.setOutput('migrations_app', migrationsApp ? 'true' : 'false');
             core.setOutput('migrations_auth', migrationsAuth ? 'true' : 'false');
@@ -78,14 +101,16 @@ jobs:
       - ci
       - changes
     if: >-
-      needs.changes.outputs.backend == 'true'
+      needs.changes.outputs.api == 'true'
+      || needs.changes.outputs.worker == 'true'
       || needs.changes.outputs.frontend == 'true'
       || needs.changes.outputs.migrations_app == 'true'
       || needs.changes.outputs.migrations_auth == 'true'
     uses: ./.github/workflows/deploy-environment.yml
     with:
       target_environment: staging
-      deploy_api: ${{ needs.changes.outputs.backend == 'true' }}
+      deploy_api: ${{ needs.changes.outputs.api == 'true' }}
+      deploy_worker: ${{ needs.changes.outputs.worker == 'true' }}
       deploy_web: ${{ needs.changes.outputs.frontend == 'true' }}
       run_migrations_app: ${{ needs.changes.outputs.migrations_app == 'true' }}
       run_migrations_auth: ${{ needs.changes.outputs.migrations_auth == 'true' }}
