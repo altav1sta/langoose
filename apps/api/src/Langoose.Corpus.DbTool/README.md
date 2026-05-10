@@ -1,8 +1,8 @@
 # Langoose.Corpus.DbTool
 
 CLI for initialising the `langoose_corpus` database schema and running
-per-source importers (Wiktionary, wordfreq today; CEFR-J, Tatoeba etc. as
-they're added in follow-up sub-issues of #92).
+per-source importers (Wiktionary, wordfreq, Tatoeba today; CEFR-J,
+Global Voices etc. as they're added in follow-up sub-issues of #92 / #91).
 
 > **Data comes from upstream projects under copyleft licenses.** Every
 > source the importer consumes is documented in
@@ -45,8 +45,9 @@ Idempotent — re-run safely after pulling schema changes.
 
 ### 3. Download source data per language
 
-Two parallel sources, one pair per language. Both are cached locally
-under `data/corpus/`; later steps assume the files are present.
+Three sources today: Kaikki and wordfreq are per-language;
+Tatoeba is per-pair. All cached locally under `data/corpus/`; later
+steps assume the files are present.
 
 ```bash
 # Kaikki Wiktionary JSONL extracts. Compressed sizes: English ~450 MB,
@@ -61,6 +62,14 @@ scripts/download-kaikki.sh ru
 # to use a local interpreter instead (must have `wordfreq` installed).
 scripts/download-wordfreq.sh en
 scripts/download-wordfreq.sh ru
+
+# Tatoeba sentence dumps + the shared global links file. Output goes
+# into data/corpus/tatoeba/ (per-language sentence files coexist as
+# siblings; links.tsv is shared across every pair import). Re-running
+# with another pair adds new sentence files and skips the others.
+# Decompresses Tatoeba's .bz2 archives so the importer needs no bzip2
+# dependency itself.
+scripts/download-tatoeba.sh en ru
 ```
 
 ### 4. Import
@@ -91,6 +100,22 @@ dotnet run --project apps/api/src/Langoose.Corpus.DbTool -- \
     import-wiktionary --lang en --source ./data/corpus/wiktionary-en.jsonl.gz \
     --frequency-filter-top 2000
 ```
+
+Import Tatoeba sentences and the cross-language link table. One
+invocation handles both languages of the pair plus the filtered links:
+
+```bash
+dotnet run --project apps/api/src/Langoose.Corpus.DbTool -- \
+    import-tatoeba --lang en --pair-lang ru \
+    --source ./data/corpus/tatoeba
+```
+
+Multi-pair coexistence (e.g. en-ru and en-de in the same database) is
+out of scope for #113 — each `import-tatoeba` run wipes both
+partitions and the entire `tatoeba_links` table before reloading. The
+rebuild scripts below import a single pair (default: first two
+languages in `LANGUAGES`); a follow-up will revisit multi-pair when
+the dump pipeline grows beyond one pair.
 
 The importer prints progress every 50k entries during COPY plus a per-step
 breakdown on finish (`drop indexes / truncate / copy / build indexes /
@@ -155,11 +180,17 @@ scripts/download-wordfreq.sh  en   # uses Docker by default (PYTHON=python3 to o
 
 scripts/download-kaikki.sh    ru
 scripts/download-wordfreq.sh  ru
+
+# Tatoeba bilingual sentence pair (text only — audio is CC-BY-NC and
+# excluded). Default pair = first two LANGUAGES; override via
+# TATOEBA_PAIR. Set TATOEBA_PAIR="" before the rebuild to skip
+# Tatoeba entirely.
+scripts/download-tatoeba.sh   en ru
 ```
 
-The rebuild scripts in step 2 fail fast if either file is missing for
-any language in `LANGUAGES`, with a pointer to the right download
-command per missing file.
+The rebuild scripts in step 2 fail fast if any required file is
+missing — Kaikki + wordfreq for every language in `LANGUAGES`, plus
+the three Tatoeba files for `TATOEBA_PAIR` if set.
 
 ### Step 2 — Rebuild the dump locally
 
@@ -168,16 +199,18 @@ command per missing file.
 >
 > 1. Starts local Postgres (`docker compose up -d postgres`)
 > 2. Applies the corpus schema (`init`, idempotent)
-> 3. Resets both source tables (`reset-wiktionary` + `reset-wordfreq`):
->    drops every `wiktionary_entries_<lang>` partition, TRUNCATEs
->    `wordfreq_rankings`, and clears `source_*` metadata rows.
->    Both resets are required: `import-wordfreq` only deletes per
->    `(lang, source)`, so a cross-date rebuild or a language dropped
->    from `LANGUAGES` would otherwise leave stale rankings behind, and
->    a partition for a removed language would linger as an empty
->    partition in the dump. The dump is thereby deterministic from the
->    `LANGUAGES` list — anything removed from the list since a previous
->    rebuild is gone from the new dump.
+> 3. Resets all three source areas (`reset-wiktionary` +
+>    `reset-wordfreq` + `reset-tatoeba`): drops every
+>    `wiktionary_entries_<lang>` and `tatoeba_sentences_<lang>`
+>    partition, TRUNCATEs `wordfreq_rankings` and `tatoeba_links`,
+>    and clears `source_*` metadata rows. All three resets are
+>    required: `import-wordfreq` only deletes per `(lang, source)`,
+>    so a cross-date rebuild or a language dropped from `LANGUAGES`
+>    would otherwise leave stale rankings behind; a wiktionary or
+>    tatoeba partition for a removed language would linger as an
+>    empty partition in the dump. The dump is thereby deterministic
+>    from `LANGUAGES` + `TATOEBA_PAIR` — anything removed since a
+>    previous rebuild is gone from the new dump.
 > 4. Imports the wordfreq TSV per language via `import-wordfreq`.
 >    Required by the test rebuild (drives the frequency filter);
 >    included in the full rebuild so the published dump ships rankings.
@@ -186,8 +219,19 @@ command per missing file.
 >    adds `--frequency-filter-top $LIMIT` so only headwords in the top
 >    N of wordfreq for that language land. The full rebuild imports
 >    everything.
-> 6. `rebuild-indexes` once, over all imported data at once
-> 7. `pg_dump -Fc` of the whole `langoose_corpus` DB → `data/dump/…`
+> 6. Imports the Tatoeba bilingual pair (default: first two languages
+>    in `LANGUAGES`) via `import-tatoeba`. The test rebuild adds
+>    `--max-pairs $LIMIT` — keeps at most `LIMIT` cross-language
+>    sentence pairs (with up to 2 pairs per sentence), each
+>    contributing both link directions, and drops sentences not
+>    referenced by any kept pair. Every sentence in the test dump
+>    participates in a usable translation pair, and every pair has
+>    both directions present. Will be replaced by a lemma-frequency
+>    filter once #114 lands; see
+>    [`docs/agent/parallel-corpora.md`](../../../../docs/agent/parallel-corpora.md).
+>    Set `TATOEBA_PAIR=""` to skip Tatoeba entirely.
+> 7. `rebuild-indexes` once, over all imported data at once
+> 8. `pg_dump -Fc` of the whole `langoose_corpus` DB → `data/dump/…`
 >
 > So the dump contains exactly `LANGUAGES` — nothing more, nothing
 > less — regardless of what was in the DB before. The reset step makes
@@ -222,6 +266,15 @@ LANGUAGES="ang,enm,de" scripts/rebuild-full-corpus-dump.sh
 LIMIT=2000 LANGUAGES="en" scripts/rebuild-test-corpus-dump.sh
 DATE_STAMP=2026-04-15 scripts/rebuild-full-corpus-dump.sh
 FORCE=1 scripts/rebuild-test-corpus-dump.sh   # no confirmation prompt
+
+# TATOEBA_PAIR defaults to the first two languages in LANGUAGES.
+# Override or skip:
+TATOEBA_PAIR="en-de" scripts/rebuild-full-corpus-dump.sh
+TATOEBA_PAIR="" scripts/rebuild-full-corpus-dump.sh   # skip Tatoeba
+
+# Test rebuild reuses LIMIT for both wiktionary frequency-top
+# and Tatoeba max-links, so a single dial sizes both slices.
+LIMIT=5000 scripts/rebuild-test-corpus-dump.sh
 ```
 
 After the rebuild, the local `langoose_corpus` database holds exactly
@@ -287,12 +340,14 @@ each.
 | `init` | Apply embedded SQL schema files in order. Idempotent. |
 | `import-wiktionary --lang <code> --source <jsonl> [--source-version <ver>] [--limit <n>] [--frequency-filter-top <n>] [--defer-indexes]` | Bulk-load a Kaikki Wiktionary JSONL extract. Replaces existing rows for that language. `--frequency-filter-top` keeps only headwords in the top N of `wordfreq_rankings` (run `import-wordfreq` first). |
 | `import-wordfreq --lang <code> --source <tsv> [--source-version <ver>]` | Bulk-load a wordfreq frequency-ranking TSV (`word\trank\tzipf_score`, `.gz` allowed). Replaces existing rows for that (lang, source). Fetch the TSV with `scripts/download-wordfreq.sh`. |
+| `import-tatoeba --lang <code> --pair-lang <code> --source <dir> [--source-version <ver>] [--max-pairs <n>]` | Bulk-load a Tatoeba bilingual pair from a directory containing `<lang>_sentences.tsv`, `<pair-lang>_sentences.tsv`, and `links.tsv` (plain or `.gz`). Filters the global links file to rows whose endpoints both span the imported pair. `--max-pairs` caps the dump at N cross-language sentence pairs (with at most 2 per sentence), each contributing both link directions, and drops orphan sentences — guarantees a fully-linked, bidirectional test dump. Will be replaced by a lemma-frequency filter once #114 lands. Fetch via `scripts/download-tatoeba.sh`. See [`docs/agent/parallel-corpora.md`](../../../../docs/agent/parallel-corpora.md). |
 | `reset-wiktionary` | Drop every `wiktionary_entries_<lang>` partition (and its indexes) and clear `source_wiktionary_*` metadata. Use at the start of a bulk multi-language rebuild — partitions for languages no longer in `LANGUAGES` are removed, not just emptied. |
 | `reset-wordfreq` | Truncate `wordfreq_rankings`, clear `source_wordfreq_*` metadata. Required at the start of a rebuild — `import-wordfreq` only deletes per `(lang, source)`, so cross-date rebuilds or dropped languages would otherwise accumulate stale rankings. |
+| `reset-tatoeba` | Drop every `tatoeba_sentences_<lang>` partition, truncate `tatoeba_links`, and clear `source_tatoeba_*` metadata. Tatoeba counterpart of `reset-wiktionary` for restarting a corpus rebuild. |
 | `rebuild-indexes` | Iterate every `wiktionary_entries_<lang>` partition and drop+recreate its two indexes. Idempotent. Used as the final step of a multi-language `--defer-indexes` build. |
 
-Future commands tracked under #92: `import-cefrj`, `import-tatoeba`,
-`dump`, `restore`.
+Future commands tracked under #91 / #92: `import-globalvoices`,
+`import-cefrj`, `dump`, `restore`.
 
 ## Configuration
 
@@ -313,7 +368,7 @@ Environment variable override: `ConnectionStrings__CorpusDatabase=...`.
 Run `dotnet test apps/api/tests/Langoose.Corpus.IntegrationTests`. Each
 test class spins up its own Postgres container via Testcontainers and
 disposes it afterwards, so nothing on your local Postgres is touched.
-This covers the importer end-to-end (schema, COPY, index drop/rebuild,
-metadata, `reset-wiktionary`, `rebuild-indexes`). `Program.cs` is thin
-argument-parsing plumbing — the logic it dispatches to is fully covered
-by these tests.
+This covers each importer end-to-end (schema, COPY, partition lifecycle,
+link filtering, metadata, `reset-{wiktionary,wordfreq,tatoeba}`,
+`rebuild-indexes`). `Program.cs` is thin argument-parsing plumbing —
+the logic it dispatches to is fully covered by these tests.

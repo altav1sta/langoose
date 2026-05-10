@@ -31,3 +31,10 @@ allow-listing, and JSONB containment lookups.
 `fixtures/wordfreq-{lang}-sample.tsv` are short (~10-row) TSV fixtures that
 exercise the wordfreq importer's parse + replace path, and drive the
 `--frequency-filter-top` test on the Wiktionary importer.
+
+`fixtures/tatoeba/` mirrors the layout `scripts/download-tatoeba.sh`
+produces: `{en,ru}_sentences.tsv` (~5 sentences each, `id\tlang\ttext`)
+plus `links.tsv` with cross-language pairs and a couple of orphan rows
+the importer must filter. Drives the AC round-trip test (lookup by
+`(lang_code, sentence_id)` then follow a link to the paired sentence)
+and the orphan-filtering test.

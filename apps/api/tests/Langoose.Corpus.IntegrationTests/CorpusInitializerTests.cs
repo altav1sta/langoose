@@ -40,6 +40,9 @@ public sealed class CorpusInitializerTests(PostgresFixture postgres)
 
         tableNames.Should().Contain("corpus_metadata");
         tableNames.Should().Contain("wiktionary_entries");
+        tableNames.Should().Contain("wordfreq_rankings");
+        tableNames.Should().Contain("tatoeba_sentences");
+        tableNames.Should().Contain("tatoeba_links");
     }
 
     [Fact]
@@ -94,6 +97,55 @@ public sealed class CorpusInitializerTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task ApplySchemaAsync_OnFreshDatabase_CreatesTatoebaSentencesAsPartitionedTable()
+    {
+        var initializer = new CorpusInitializer(postgres.DataSource);
+
+        await initializer.ApplySchemaAsync();
+
+        await using var connection = await postgres.DataSource.OpenConnectionAsync();
+        // Same shape check as wiktionary: relkind 'p' = partitioned table.
+        var relkind = await connection.QuerySingleAsync<char>(
+            """
+            SELECT c.relkind
+            FROM pg_class c
+            JOIN pg_namespace ns ON ns.oid = c.relnamespace
+            WHERE c.relname = 'tatoeba_sentences' AND ns.nspname = 'public'
+            """);
+
+        relkind.Should().Be('p');
+    }
+
+    [Fact]
+    public async Task ApplySchemaAsync_OnFreshDatabase_RegistersTatoebaHelperFunctions()
+    {
+        var initializer = new CorpusInitializer(postgres.DataSource);
+
+        await initializer.ApplySchemaAsync();
+
+        await using var connection = await postgres.DataSource.OpenConnectionAsync();
+        var functions = (await connection.QueryAsync<string>(
+            """
+            SELECT proname
+            FROM pg_proc p
+            JOIN pg_namespace ns ON ns.oid = p.pronamespace
+            WHERE ns.nspname = 'public'
+              AND proname LIKE 'corpus_tatoeba_%'
+            ORDER BY proname
+            """)).ToArray();
+
+        // Tatoeba doesn't manage user indexes (PK is sufficient), so the
+        // helper surface is smaller than Wiktionary's: ensure/drop/truncate
+        // partition + lang-code assert + list.
+        functions.Should().Equal(
+            "corpus_tatoeba_assert_lang_code",
+            "corpus_tatoeba_drop_partition",
+            "corpus_tatoeba_ensure_partition",
+            "corpus_tatoeba_list_partition_lang_codes",
+            "corpus_tatoeba_truncate_partition");
+    }
+
+    [Fact]
     public async Task ApplySchemaAsync_RunTwice_IsIdempotent()
     {
         var initializer = new CorpusInitializer(postgres.DataSource);
@@ -107,9 +159,11 @@ public sealed class CorpusInitializerTests(PostgresFixture postgres)
             SELECT COUNT(*)
             FROM information_schema.tables
             WHERE table_schema = 'public'
-              AND table_name IN ('corpus_metadata', 'wiktionary_entries')
+              AND table_name IN ('corpus_metadata', 'wiktionary_entries',
+                                 'wordfreq_rankings', 'tatoeba_sentences',
+                                 'tatoeba_links')
             """);
 
-        tableCount.Should().Be(2);
+        tableCount.Should().Be(5);
     }
 }

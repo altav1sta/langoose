@@ -80,8 +80,9 @@ that powers the corpus-based provider. Schema and importer live in:
 
 - `apps/api/src/Langoose.Corpus.Data/` — embedded SQL schema files, POCOs,
   Dapper-based query layer (no EF, no migrations).
-- `apps/api/src/Langoose.Corpus.DbTool/` — CLI for `init` and
-  `import-wiktionary` (and future importers).
+- `apps/api/src/Langoose.Corpus.DbTool/` — CLI for `init`,
+  `import-wiktionary`, `import-wordfreq`, `import-tatoeba`,
+  and the matching `reset-*` commands.
 
 ### Source-first schema
 
@@ -156,9 +157,14 @@ Sibling tables under the same source-first principle:
   (e.g. `wordfreq-2026-04-25`). Drives `--frequency-filter-top` on
   `import-wiktionary` and ranks multi-candidate translations in the
   corpus-backed provider. Imported via `import-wordfreq` (#96).
+- `tatoeba_sentences` (LIST-partitioned by `lang_code`) +
+  `tatoeba_links` (flat) — example-sentence corpus and the global
+  translation-link table for context generation (#113). PK
+  `(lang_code, sentence_id)` doubles as the lookup index; no JSONB.
+  Imported via `import-tatoeba --lang <code> --pair-lang <code>
+  --source <dir>`. See [`parallel-corpora.md`](parallel-corpora.md)
+  for source-survey rationale and the license matrix.
 - (future) `cefr_levels` (flat) — CEFR difficulty per word
-- (future) `tatoeba_sentences` + `tatoeba_links` (hybrid) — example
-  sentences for context generation (#91)
 
 ### JSON serialisation
 
@@ -171,28 +177,33 @@ when introducing them.
 ### Distribution
 
 For development the DbTool runs `import-wiktionary --lang en --source <jsonl>`
-against a Kaikki extract. For production a pre-built `pg_dump` artifact is
-restored — much faster than re-importing JSONL on every deploy.
+against a Kaikki extract, plus `import-tatoeba --lang <code> --pair-lang
+<code> --source <dir>` for example sentences. For production a pre-built
+`pg_dump` artifact is restored — much faster than re-importing on every
+deploy.
 
-Source files (Kaikki JSONL, Tatoeba TSV) are downloaded out of band by
-maintainer scripts under `scripts/`, never fetched at deploy time.
+Source files (Kaikki JSONL, wordfreq TSV, Tatoeba TSV/links) are
+downloaded out of band by maintainer scripts under `scripts/`, never
+fetched at deploy time.
 
 ### Attribution
 
-Wiktionary data is licensed CC-BY-SA 4.0. Future source additions
-(Tatoeba CC-BY 2.0, CEFR-J open) carry their own attribution
-requirements. The canonical list of every external data source shipped
-or evaluated by the project lives in
-[`ATTRIBUTION.md`](../../ATTRIBUTION.md) at the repo root — add new
-sources there when their import code lands. Two distinct obligations:
+Wiktionary data is licensed CC-BY-SA 4.0. Tatoeba is CC-BY 2.0 (text
+only — audio is CC-BY-NC and is not imported). Future source additions
+(CEFR-J open, etc.) carry their own attribution requirements. The
+canonical list of every external data source shipped or evaluated by
+the project lives in [`ATTRIBUTION.md`](../../ATTRIBUTION.md) at the
+repo root — add new sources there when their import code lands. Two
+distinct obligations:
 
 - **Redistribution.** Any dump artifact published via
   `scripts/publish-{full,test}-corpus-dump.sh` must carry the attribution
   file; the scripts upload `ATTRIBUTION.md` alongside the `.dump` asset
   and cite the sources in the release body.
 - **UI surfacing.** The web UI must render a visible attribution notice
-  wherever Wiktionary-derived content (translations, forms, example
-  sentences) is shown to end users. Tracked under epic #92.
+  wherever third-party corpus content (Wiktionary translations and
+  forms, Tatoeba example sentences, etc.) is shown to end users.
+  Tracked under epic #92.
 
 ## Background Worker
 

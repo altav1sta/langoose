@@ -27,7 +27,7 @@ The product combines:
 - [`docs`](docs): supporting product and implementation docs
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): contribution workflow
 - [`ATTRIBUTION.md`](ATTRIBUTION.md): third-party data sources and
-  license terms (Wiktionary via Kaikki, future: wordfreq, Tatoeba, …)
+  license terms (Wiktionary via Kaikki, wordfreq, Tatoeba)
 
 ## Quick Start
 

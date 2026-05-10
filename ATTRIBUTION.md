@@ -41,6 +41,31 @@ obliges derivative works to keep the same license and credit the source.
   table (`source_version_wiktionary_<lang>`) so the exact upstream
   snapshot is always traceable.
 
+### Tatoeba
+
+- **Source:** [Tatoeba](https://tatoeba.org/) — open database of
+  short, crowd-translated example sentences in many languages.
+- **What we use:** Per-language sentence dumps (text only — audio is
+  CC-BY-NC and is **not** imported) plus the global translation-links
+  file. Fetched offline via
+  [`scripts/download-tatoeba.sh`](scripts/download-tatoeba.sh) and
+  bulk-loaded into `tatoeba_sentences` + `tatoeba_links` by
+  `import-tatoeba`. Powers contextual examples in the learning loop
+  (paired sentences across the user's source/target languages drive
+  `EntryContext` materialisation).
+- **License:**
+  [Creative Commons Attribution 2.0 Generic (CC-BY 2.0)](https://creativecommons.org/licenses/by/2.0/)
+  for sentence text. Audio is CC-BY-NC and is excluded from our
+  imports because the dump must remain redistributable without an NC
+  restriction.
+- **Attribution:** "Example sentences from Tatoeba (CC-BY 2.0)." The
+  source identifier (e.g. `tatoeba-2026-05-03`) is recorded in both
+  the data tables (`tatoeba_sentences.source`, `tatoeba_links.source`)
+  and `corpus_metadata` as `source_tatoeba_<lang>_<pair-lang>` so the
+  exact upstream snapshot is always traceable. UI surfacing of this
+  attribution is tracked separately under epic
+  [#92](https://github.com/altav1sta/langoose/issues/92).
+
 ### wordfreq
 
 - **Source:** [wordfreq](https://github.com/rspeer/wordfreq) — Robyn
@@ -74,8 +99,9 @@ obliges derivative works to keep the same license and credit the source.
   release notes. The dump itself is therefore available under
   CC-BY-SA 4.0 to match the upstream.
 - **UI attribution.** The Langoose web UI will render a visible
-  attribution notice anywhere Wiktionary-derived content is surfaced to
-  end users (translations, inflected forms, example sentences). This
+  attribution notice anywhere third-party corpus content is surfaced to
+  end users — Wiktionary translations and inflected forms (CC-BY-SA),
+  Tatoeba example sentences (CC-BY 2.0), and any future source. This
   work is tracked separately as part of epic
   [#92](https://github.com/altav1sta/langoose/issues/92) and is not yet
   shipped.
@@ -105,9 +131,9 @@ Already queued in the enrichment epic ([#92](https://github.com/altav1sta/langoo
 each will be added here when its import code lands.
 
 - **CEFR-J** — English CEFR level data. Open with citation.
-- **Tatoeba** ([#91](https://github.com/altav1sta/langoose/issues/91)) —
-  example-sentence corpus used for generating contextual examples.
-  Text is CC-BY 2.0; audio is CC-BY-NC and will not be used.
+- **Global Voices** ([#91](https://github.com/altav1sta/langoose/issues/91))
+  — second example-sentence corpus, CC-BY 3.0. Editorially reviewed
+  news with a more formal register than Tatoeba.
 
 ## Contact
 
