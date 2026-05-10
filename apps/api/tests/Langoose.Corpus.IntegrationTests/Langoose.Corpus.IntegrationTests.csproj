@@ -29,10 +29,10 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
   </ItemGroup>
   <ItemGroup>
-    <None Update="fixtures\*.jsonl">
+    <None Update="fixtures\**\*.jsonl">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="fixtures\*.tsv">
+    <None Update="fixtures\**\*.tsv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

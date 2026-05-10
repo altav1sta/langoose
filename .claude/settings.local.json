@@ -24,6 +24,7 @@
       "Bash(gh run:*)",
       "Bash(git checkout:*)",
       "Bash(git fetch *)",
+      "Bash(git log *)",
       "Bash(git pull:*)",
       "Bash(git show *)",
       "Bash(git stash:*)",

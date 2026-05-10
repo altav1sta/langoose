@@ -28,6 +28,11 @@ if (args.Length == 0)
                                             languages dropped from LANGUAGES, which
                                             would pollute --frequency-filter-top and
                                             the published dump.
+          reset-tatoeba                     Drop every tatoeba_sentences_<lang>
+                                            partition, truncate tatoeba_links, and
+                                            clear all source_tatoeba_* metadata rows.
+                                            Tatoeba counterpart of reset-wiktionary
+                                            for restarting a corpus rebuild.
           import-wiktionary --lang <code>   Import a Kaikki Wiktionary JSONL extract.
                             --source <path>
                             [--source-version <ver>]
@@ -50,6 +55,30 @@ if (args.Length == 0)
                                             the `source` column so multiple frequency
                                             sources (wordfreq, SUBTLEX, ...) can
                                             coexist for the same language.
+          import-tatoeba    --lang <code>   Import a Tatoeba bilingual sentence pair
+                            --pair-lang <code>
+                            --source <dir>  Directory containing
+                                            <lang>_sentences.tsv,
+                                            <pair-lang>_sentences.tsv, and
+                                            links.tsv (plain or .gz). Fetch via
+                                            scripts/download-tatoeba.sh.
+                            [--source-version <ver>]
+                                            Defaults to tatoeba-<UTC date>. Recorded
+                                            against the corpus_metadata key
+                                            source_tatoeba_<lang>_<pair-lang>.
+                            [--max-pairs <n>]
+                                            Mini-dump cap: keep at most <n>
+                                            cross-language sentence pairs (with
+                                            at most 2 per sentence for diversity)
+                                            plus all link rows for those pairs
+                                            (typically 2 rows per pair — both
+                                            directions). Drops sentences not
+                                            referenced by any kept pair.
+                                            Guarantees the dump carries both
+                                            directions for every kept pair.
+                                            Will be superseded by a lemma-
+                                            frequency filter once #114 lands.
+                                            See docs/agent/parallel-corpora.md.
           rebuild-indexes                   For every wiktionary_entries_<lang>
                                             partition that exists, drop and
                                             recreate its two indexes. Idempotent.
@@ -80,8 +109,10 @@ return command switch
     "init" => await RunInitAsync(dataSource),
     "reset-wiktionary" => await RunResetWiktionaryAsync(dataSource),
     "reset-wordfreq" => await RunResetWordfreqAsync(dataSource),
+    "reset-tatoeba" => await RunResetTatoebaAsync(dataSource),
     "import-wiktionary" => await RunImportWiktionaryAsync(dataSource, commandArgs),
     "import-wordfreq" => await RunImportWordfreqAsync(dataSource, commandArgs),
+    "import-tatoeba" => await RunImportTatoebaAsync(dataSource, commandArgs),
     "rebuild-indexes" => await RunRebuildIndexesAsync(dataSource),
     _ => UnknownCommand(command)
 };
@@ -177,6 +208,41 @@ static async Task<int> RunResetWordfreqAsync(NpgsqlDataSource dataSource)
     return 0;
 }
 
+static async Task<int> RunResetTatoebaAsync(NpgsqlDataSource dataSource)
+{
+    var stopwatch = Stopwatch.StartNew();
+    Console.WriteLine("Resetting tatoeba data (drop all partitions + truncate links + clear metadata)...");
+
+    await using var connection = await dataSource.OpenConnectionAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+
+    var partitions = await TatoebaIndexMaintenance.ListPartitionLangCodesAsync(
+        connection, transaction, default);
+    foreach (var lang in partitions)
+    {
+        await TatoebaIndexMaintenance.DropPartitionAsync(
+            connection, transaction, lang, default);
+    }
+
+    await using (var command = connection.CreateCommand())
+    {
+        command.Transaction = transaction;
+        command.CommandTimeout = 0;
+        command.CommandText = """
+            TRUNCATE TABLE tatoeba_links;
+            DELETE FROM corpus_metadata
+                WHERE key LIKE 'source_tatoeba_%';
+            """;
+        await command.ExecuteNonQueryAsync();
+    }
+
+    await transaction.CommitAsync();
+
+    Console.WriteLine(
+        $"Done in {FormatDuration(stopwatch.Elapsed)}. Dropped {partitions.Count} partition(s).");
+    return 0;
+}
+
 static async Task<int> RunImportWiktionaryAsync(NpgsqlDataSource dataSource, string[] commandArgs)
 {
     var langCode = GetRequiredOption(commandArgs, "--lang");
@@ -216,6 +282,28 @@ static async Task<int> RunImportWordfreqAsync(NpgsqlDataSource dataSource, strin
     Console.WriteLine(
         $"""
         Imported {summary.EntriesImported} rankings from {summary.Source} (source {summary.SourceVersion}).
+        """);
+
+    return 0;
+}
+
+static async Task<int> RunImportTatoebaAsync(NpgsqlDataSource dataSource, string[] commandArgs)
+{
+    var langCode = GetRequiredOption(commandArgs, "--lang");
+    var pairLangCode = GetRequiredOption(commandArgs, "--pair-lang");
+    var sourcePath = GetRequiredOption(commandArgs, "--source");
+    var source = GetOption(commandArgs, "--source-version")
+        ?? $"tatoeba-{DateTime.UtcNow:yyyy-MM-dd}";
+    var maxPairs = GetOption(commandArgs, "--max-pairs") is { } maxPairsText
+        ? long.Parse(maxPairsText)
+        : (long?)null;
+
+    var importer = new TatoebaImporter(dataSource, langCode, pairLangCode, source, maxPairs);
+    var summary = await importer.ImportAsync(sourcePath);
+
+    Console.WriteLine(
+        $"""
+        Imported {summary.EntriesImported} sentences+links from {summary.Source} (source {summary.SourceVersion}).
         """);
 
     return 0;
