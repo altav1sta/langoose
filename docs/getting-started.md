@@ -6,6 +6,7 @@
 - [Node.js 20+](https://nodejs.org/) and npm
 - [Docker](https://www.docker.com/) and Docker Compose (for PostgreSQL)
 - [Git](https://git-scm.com/)
+- Bash (Git Bash or WSL on Windows) — required for `scripts/*.sh`
 
 ## Quick Start
 

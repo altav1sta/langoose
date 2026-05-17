@@ -12,25 +12,39 @@ fail() {
   exit 2
 }
 
+# Resolve a path that's relative to another file. Returns the absolute
+# path of (dirname(base_file) + relative_path), with . and .. segments
+# collapsed via `cd && pwd`. Caller validates existence downstream.
 resolve_from_file() {
   local base_file="$1"
   local relative_path="$2"
-  python - <<'PY' "$base_file" "$relative_path"
-import os, sys
-base_file = sys.argv[1]
-relative_path = sys.argv[2]
-print(os.path.abspath(os.path.join(os.path.dirname(base_file), relative_path)))
-PY
+  local combined combined_dir combined_base
+  combined="$(dirname "$base_file")/$relative_path"
+  combined_dir=$(dirname "$combined")
+  combined_base=$(basename "$combined")
+  if [[ -d "$combined_dir" ]]; then
+    echo "$(cd "$combined_dir" && pwd)/$combined_base"
+  else
+    # Directory part doesn't exist; return as-is and let the downstream
+    # `-f` check produce a clean "doc does not exist" error.
+    echo "$combined"
+  fi
 }
 
+# Convert an absolute path to a repo-root-relative one. The script cd's
+# to the repo root at the top, so $PWD is the repo root here.
 to_repo_relative() {
   local absolute_path="$1"
-  python - <<'PY' "$absolute_path"
-import os, sys
-absolute_path = os.path.abspath(sys.argv[1])
-repo_root = os.path.abspath(".")
-print(os.path.relpath(absolute_path, repo_root).replace("\\", "/"))
-PY
+  local repo_root
+  repo_root=$(pwd)
+  if [[ "$absolute_path" == "$repo_root/"* ]]; then
+    echo "${absolute_path#"$repo_root"/}"
+  elif [[ "$absolute_path" == "$repo_root" ]]; then
+    echo "."
+  else
+    # Path is outside the repo — shouldn't happen for our inputs.
+    echo "$absolute_path"
+  fi
 }
 
 mapfile -t doc_files < <(find "${docs_root}" -maxdepth 1 -type f -name '*.md' -printf '%P\n' | sort)
