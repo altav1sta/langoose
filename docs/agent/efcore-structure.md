@@ -31,6 +31,12 @@ Contains `AuthUser`, `AuthSession`, and OpenIddict tables. Unchanged by domain r
 - `EFCore.NamingConventions` with `UseSnakeCaseNamingConvention()` in
   `AppDbContext.OnConfiguring` — all table, column, index, and FK names are
   auto-converted to snake_case. No manual `ToTable()` calls needed.
+- Connection strings to Neon (and any pooled PostgreSQL provider) must use
+  `Channel Binding=Prefer` rather than `Require`. Npgsql 10's channel-binding
+  implementation hangs against pooled endpoints under certain TLS session
+  conditions, even though the bare TCP+SSL path is fine and libpq works the
+  same way. `Prefer` still negotiates channel binding when both sides
+  support it, but degrades gracefully when they don't.
 - One `IEntityTypeConfiguration<T>` per entity in `Data/Configurations/`.
 - Use `ApplyConfigurationsFromAssembly` in `AppDbContext.OnModelCreating`.
 - Enum fields stored as strings via `HasConversion<string>()`.

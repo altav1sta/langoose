@@ -264,7 +264,10 @@ Env overrides:
 # Unsupported codes fail fast with a pointer to that file. Default: "en,ru".
 LANGUAGES="ang,enm,de" scripts/rebuild-full-corpus-dump.sh
 LIMIT=2000 LANGUAGES="en" scripts/rebuild-test-corpus-dump.sh
-DATE_STAMP=2026-04-15 scripts/rebuild-full-corpus-dump.sh
+# Default stamp is UTC date+time (e.g. 20260415143022), so
+# multiple rebuilds per day get distinct filenames. Override to a
+# date-only or any custom suffix when you want a stable name.
+DATE_STAMP=20260415 scripts/rebuild-full-corpus-dump.sh
 FORCE=1 scripts/rebuild-test-corpus-dump.sh   # no confirmation prompt
 
 # TATOEBA_PAIR defaults to the first two languages in LANGUAGES.
@@ -283,55 +286,66 @@ before shipping.
 
 ### Step 3 — Publish when ready
 
-Flavour-specific scripts — each one knows its own tagging policy and
-target:
+Dumps live in an S3-compatible object store (one bucket, key prefix
+`dump/`). Two publish scripts, one per flavour:
 
 ```bash
-# Full (permanent dated release, for production)
-scripts/publish-full-corpus-dump.sh data/dump/corpus-full-2026-04-15.dump
-#   → release tag: corpus-full-2026-04-15 (unique, preserved)
+# Full (immutable per-build key, for production)
+scripts/publish-full-corpus-dump.sh data/dump/corpus-full-20260415143022.dump
+#   → s3://$CORPUS_BUCKET/dump/corpus-full-20260415143022.dump
+#     (rebuild script's default UTC timestamp suffix gives each
+#     build a unique key automatically)
 
-# Test (rolling release, for staging) — publishes data/dump/test-corpus.dump
+# Test (rolling key, for staging) — publishes data/dump/test-corpus.dump
 scripts/publish-test-corpus-dump.sh
-#   → release tag: test-corpus (single, overwritten on each publish)
+#   → s3://$CORPUS_BUCKET/dump/test-corpus.dump
+#     (overwritten on each publish)
 ```
 
-Both scripts `--target main`, so tags always land on preserved history
-even if you were on a feature branch while running the rebuild. Make sure
-`main` is up to date on the remote before publishing.
+Both scripts run the AWS CLI inside a one-shot `amazon/aws-cli`
+container, so the host only needs Docker — no AWS CLI install required.
+Required env vars:
 
-The test script deletes and recreates its release each time so the
-rolling tag actually moves to current main — `gh release edit --target`
-is a no-op on already-published tags.
+| Variable | Purpose |
+|----------|---------|
+| `AWS_ACCESS_KEY_ID` | Access key for the object store |
+| `AWS_SECRET_ACCESS_KEY` | Secret access key |
+| `AWS_ENDPOINT_URL_S3` | Full https endpoint of the provider |
+| `CORPUS_BUCKET` | Bucket name |
 
-### Step 4 — Restore to an environment → GitHub UI → Actions → "Corpus Restore" → Run workflow
+The full-dump script refuses to overwrite an existing key as a
+defense-in-depth backstop. In normal use the rebuild script's UTC
+timestamp suffix prevents collisions — you only hit the refusal if you
+explicitly reuse a `DATE_STAMP` value.
 
-Inputs:
+### Step 4 — Restore to an environment
 
-| Input | Description |
-|-------|-------------|
-| `target_environment` | `staging` or `production` |
-| `release_tag` | `test-corpus` for staging, `corpus-full-<date>` for prod. |
+Restore runs on the host that owns the corpus DB container (production:
+the box hosting the corpus Postgres; local dev: your machine). pg_restore
+runs inside the corpus DB container so the connection stays on the
+loopback — the corpus database never needs to be reachable from outside
+its host.
 
-The workflow downloads the single `.dump` asset attached to the release
-(filename-agnostic, tag-agnostic) and runs `pg_restore --clean --if-exists`
-against the target's corpus database. **This drops and recreates every
+```bash
+scripts/restore-corpus.sh dump/test-corpus.dump                     # staging
+scripts/restore-corpus.sh dump/corpus-full-20260415143022.dump  # production
+```
+
+Required env vars on the host running the restore:
+
+| Variable | Purpose |
+|----------|---------|
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_ENDPOINT_URL_S3` / `CORPUS_BUCKET` | Same as publish — to pull the dump |
+| `CORPUS_DB_CONTAINER` | Docker container name/id of the corpus Postgres |
+| `CORPUS_DB_NAME` | Database name inside that container |
+| `CORPUS_DB_USER` | Role used by pg_restore (typically the owner) |
+
+`pg_restore --clean --if-exists` is used, so the target database is
+wiped and rebuilt from the dump. **This drops and recreates every
 object in the target DB** — the restored state is exactly the snapshot
 the dump was built from. There's no additive/delta mode; to add a
 language to production, rebuild the dump with the full language list
 and restore again.
-
-### One-time setup per environment
-
-In GitHub → **Settings → Environments → {staging|production} → Secrets**,
-add:
-
-| Secret | Value |
-|--------|-------|
-| `CORPUS_DATABASE` | Full Postgres connection string for that env's corpus database (Neon) |
-
-That's it. From then on, "build dump" and "restore corpus" are two clicks
-each.
 
 ## Subcommands
 

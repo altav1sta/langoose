@@ -1,9 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bash scripts/sync-rules.sh status)",
-      "Bash(bash scripts/sync-rules.sh to-claude)",
-      "Bash(bash scripts/sync-rules.sh to-codex)",
       "Bash(docker compose:*)",
       "Bash(docker info:*)",
       "Bash(docker version:*)",

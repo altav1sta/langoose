@@ -1,0 +1,96 @@
+name: Coolify Deploy
+description: >-
+  Trigger a Coolify deployment for a single application UUID and block
+  until it reaches a terminal status. Fails the workflow if the deploy
+  finishes in a failed/cancelled/skipped state, or if it doesn't reach
+  any terminal state within the timeout.
+
+inputs:
+  url:
+    description: 'Coolify base URL, e.g. https://coolify.example.com (no trailing slash, no path)'
+    required: true
+  token:
+    description: 'Coolify API token with deploy permission'
+    required: true
+  uuid:
+    description: 'Application UUID in Coolify'
+    required: true
+  timeout-seconds:
+    description: 'Hard cap on polling time. .NET-on-ARM builds typically finish in 5-8 min.'
+    required: false
+    default: '900'
+  poll-interval-seconds:
+    description: 'Seconds between status polls.'
+    required: false
+    default: '10'
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        COOLIFY_URL: ${{ inputs.url }}
+        COOLIFY_API_TOKEN: ${{ inputs.token }}
+        COOLIFY_APP_UUID: ${{ inputs.uuid }}
+        TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
+        POLL_INTERVAL: ${{ inputs.poll-interval-seconds }}
+      run: |
+        set -eu
+
+        # 1. Trigger the deploy. force=true bypasses build cache so a
+        #    redeploy from the same git ref still rebuilds the image.
+        response=$(curl -sS -w '\n%{http_code}' \
+          -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+          "$COOLIFY_URL/api/v1/deploy?uuid=$COOLIFY_APP_UUID&force=true")
+        body=$(printf '%s' "$response" | sed '$d')
+        http_code=$(printf '%s' "$response" | tail -n1)
+        echo "$body"
+        if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+          echo "::error::Coolify deploy trigger failed (HTTP $http_code)."
+          exit 1
+        fi
+
+        # 2. Extract the deployment UUID Coolify allocated.
+        deployment_uuid=$(printf '%s' "$body" \
+          | jq -r '.deployments[0].deployment_uuid // empty')
+        if [ -z "$deployment_uuid" ]; then
+          echo "::error::Coolify response did not include a deployment_uuid."
+          exit 1
+        fi
+        echo "Polling deployment $deployment_uuid (timeout ${TIMEOUT_SECONDS}s)..."
+
+        # 3. Poll for a terminal state. Status enum (per Coolify source +
+        #    community deploy actions):
+        #      success: successful, finished
+        #      failure: failed, cancelled, skipped
+        #      ongoing: running, pending, queued, in_progress, processing
+        #    Any other value is treated as ongoing — we keep polling
+        #    within the timeout rather than guess at intent.
+        deadline=$((SECONDS + TIMEOUT_SECONDS))
+        last_status=""
+        while [ $SECONDS -lt $deadline ]; do
+          status=$(curl -sS \
+            -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+            "$COOLIFY_URL/api/v1/deployments/$deployment_uuid" \
+            | jq -r '.status // "unknown"')
+          if [ "$status" != "$last_status" ]; then
+            echo "  status=$status"
+            last_status="$status"
+          fi
+          case "$status" in
+            successful|finished)
+              echo "::notice::Coolify deployment $deployment_uuid finished: $status"
+              exit 0
+              ;;
+            failed|cancelled|skipped)
+              echo "::error::Coolify deployment $deployment_uuid did not succeed: $status"
+              exit 1
+              ;;
+            *)
+              sleep "$POLL_INTERVAL"
+              ;;
+          esac
+        done
+
+        echo "::error::Timed out after ${TIMEOUT_SECONDS}s waiting for deployment $deployment_uuid (last status: $last_status)."
+        exit 1
