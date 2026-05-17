@@ -53,6 +53,10 @@ The frontend runs on `http://localhost:5173` and proxies API calls to port 5000.
 dotnet run --project apps/api/src/Langoose.Worker/Langoose.Worker.csproj
 ```
 
+The Worker also hosts a minimal Kestrel listener on `http://localhost:5050`
+(distinct from the API's `:5000`) to expose `/health` for orchestrator
+liveness probes; you can ignore it locally.
+
 The Worker polls `background_jobs` for `Pending` rows and dispatches them to
 the matching handler — currently the bulk-import pipeline (see
 [agent/workflows.md](agent/workflows.md) → "Bulk dictionary pipeline") and the
@@ -129,8 +133,11 @@ dotnet ef migrations add <MigrationName> \
   --context AuthDbContext
 ```
 
-Migrations are auto-applied on startup locally. For staging/production, use
-`Langoose.DbTool` (see `docs/staging-db-operations.md`).
+Migrations are auto-applied on startup locally. For staging/production they
+run from CI via [`app-db-migrations.yml`](../.github/workflows/app-db-migrations.yml)
+and [`auth-db-migrations.yml`](../.github/workflows/auth-db-migrations.yml),
+which invoke `Langoose.DbTool`'s `apply-app-migrations` / `apply-auth-migrations`
+subcommands against the target environment's connection strings.
 
 ## Project Structure
 
