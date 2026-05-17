@@ -12,12 +12,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.FeatureManagement;
 using Npgsql;
 
-var builder = Host.CreateApplicationBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("AppDatabase")
     ?? throw new InvalidOperationException("Connection string 'AppDatabase' is not configured.");
 var corpusConnectionString = builder.Configuration.GetConnectionString("CorpusDatabase")
     ?? throw new InvalidOperationException("Connection string 'CorpusDatabase' is not configured.");
+
+builder.Services.AddHealthChecks();
 
 builder.Services.AddDbContextFactory<AppDbContext>(
     options => options.UseNpgsql(connectionString));
@@ -46,6 +48,8 @@ builder.Services.AddFeatureManagement();
 builder.Services.AddHostedService<UserEntriesImportJob>();
 builder.Services.AddHostedService<CorpusImportJob>();
 
-var host = builder.Build();
+var app = builder.Build();
 
-host.Run();
+app.MapHealthChecks("/health");
+
+app.Run();

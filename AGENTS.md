@@ -41,6 +41,7 @@ Keep this table in sync when adding or removing docs under `docs/agent/`.
 | `docs/agent/api-contracts.md` | DTO mapping, response shapes, frontend type alignment |
 | `docs/agent/dictionary-rules.md` | Visibility, form-based dedup, CSV import/export, product invariants |
 | `docs/agent/dictionary-schema-design.md` | ADR for senses, phrases, ranked translations, provenance, staging tables, background jobs |
+| `docs/agent/parallel-corpora.md` | Source survey for example-sentence corpora, license matrix, schema rationale |
 | `docs/agent/study-engine.md` | Study cards, answer evaluation, grading tolerances, scheduling |
 | `docs/agent/enrichment-guidance.md` | Provider interface, worker, content generation, rate limiting |
 | `docs/agent/auth-hosting.md` | Cookies, antiforgery, OpenIddict, proxy, Data Protection |
@@ -62,6 +63,7 @@ Keep this table in sync when adding or removing docs under `docs/agent/`.
 | `docs/agent/api-contracts.md` | `langoose-api-contracts` | |
 | `docs/agent/dictionary-rules.md` | `langoose-dictionary-imports` | |
 | `docs/agent/dictionary-schema-design.md` | `doc-only` | ADR; supersedes flat-translations model — see efcore-structure for current entity shape |
+| `docs/agent/parallel-corpora.md` | `doc-only` | Source survey + license rationale; no dedicated skill |
 | `docs/agent/study-engine.md` | `langoose-study-engine` | |
 | `docs/agent/enrichment-guidance.md` | `doc-only` | No dedicated skill yet |
 | `docs/agent/auth-hosting.md` | `langoose-auth-hosting` | |

@@ -136,9 +136,10 @@ different migration lifecycle).
 
 - **Local**: `docker compose up` for PostgreSQL, `dotnet run` for API and Worker,
   `npm run dev` for frontend.
-- **Staging**: Vercel (web) + Railway (API and Worker as separate services) + Neon (PostgreSQL).
-  Vercel proxies `/api/*` to the Railway API for same-origin cookies. The Worker has no HTTP
-  surface; it polls `background_jobs` on the same Neon app database.
+- **Staging**: Vercel (web) + Coolify (API and Worker as separate apps) + Neon
+  (app and auth PostgreSQL). The corpus PostgreSQL is self-hosted alongside the
+  apps on the same Coolify instance so it can stay on a private network and
+  hold larger datasets without paying for managed-DB storage. Vercel proxies
+  `/api/*` to the API for same-origin cookies. Both API and Worker expose
+  `/health` for Coolify's HTTP liveness probes.
 - **Production**: not yet determined (M4 scope).
-
-See `docs/staging-*.md` for staging setup details.

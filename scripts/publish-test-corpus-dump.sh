@@ -1,26 +1,36 @@
 #!/usr/bin/env bash
 # Publish the test corpus dump (data/dump/test-corpus.dump, built by
-# scripts/rebuild-test-corpus-dump.sh) to GitHub Releases under a rolling
-# tag. Each publish replaces the previous one so git history doesn't
-# accumulate a tag per staging rebuild.
+# scripts/rebuild-test-corpus-dump.sh) to the corpus object store (any
+# S3-compatible bucket). Rolling key — each publish overwrites the
+# previous one.
 #
-# Tag scheme: test-corpus (single, rolling — no date, no -latest suffix
-# because there's only ever one).
-# Target: always `main`. The existing release + tag are deleted and
-# recreated on every publish so the tag actually moves to current main
-# — `gh release edit --target` is a no-op on already-published tags.
+# Object key: dump/test-corpus.dump.
 #
 # Usage:
 #   scripts/publish-test-corpus-dump.sh
 #
-# After publishing, restore via GitHub Actions → "Corpus Restore" workflow
-# with release_tag=test-corpus.
+# Required env vars (source from repo-root .env or your shell):
+#   AWS_ACCESS_KEY_ID
+#   AWS_SECRET_ACCESS_KEY
+#   AWS_ENDPOINT_URL_S3       full https endpoint of the bucket provider
+#   CORPUS_BUCKET             bucket name
+#
+# After publishing, restore by running scripts/restore-corpus.sh on the
+# host that runs the corpus DB.
 
 set -euo pipefail
 
+# Load env vars from local .env if present (gitignored).
+ENV_FILE="${ENV_FILE:-.env}"
+if [[ -f "$ENV_FILE" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set +a
+fi
+
 DUMP_FILE="data/dump/test-corpus.dump"
-RELEASE_TAG="test-corpus"
-ATTRIBUTION_FILE="ATTRIBUTION.md"
+OBJECT_KEY="dump/test-corpus.dump"
 
 if [[ ! -f "$DUMP_FILE" ]]; then
     echo "Dump file not found: $DUMP_FILE" >&2
@@ -28,39 +38,39 @@ if [[ ! -f "$DUMP_FILE" ]]; then
     exit 1
 fi
 
-if [[ ! -f "$ATTRIBUTION_FILE" ]]; then
-    echo "Expected $ATTRIBUTION_FILE at the repo root; aborting so we don't" >&2
-    echo "publish a dump without its required CC-BY-SA attribution notice." >&2
-    exit 1
-fi
+: "${AWS_ACCESS_KEY_ID:?AWS_ACCESS_KEY_ID env var required (set in $ENV_FILE or your shell)}"
+: "${AWS_SECRET_ACCESS_KEY:?AWS_SECRET_ACCESS_KEY env var required}"
+: "${AWS_ENDPOINT_URL_S3:?AWS_ENDPOINT_URL_S3 env var required}"
+: "${CORPUS_BUCKET:?CORPUS_BUCKET env var required}"
 
 SIZE=$(du -h "$DUMP_FILE" | cut -f1)
+DUMP_FILENAME=$(basename "$DUMP_FILE")
+DUMP_ABS=$(cd "$(dirname "$DUMP_FILE")" && pwd)/$DUMP_FILENAME
 
-echo "Publishing $DUMP_FILE ($SIZE) as rolling release $RELEASE_TAG (targeting main)..."
+# Translate posix paths to native Windows form when running under Git
+# Bash, since Docker Desktop on Windows doesn't recognise MSYS /tmp/...
+# style. Plain pass-through on Linux/macOS where cygpath isn't present.
+to_host_path() {
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -w "$1"
+    else
+        echo "$1"
+    fi
+}
+DUMP_ABS_HOST=$(to_host_path "$DUMP_ABS")
 
-# Concise body — test releases are overwritten constantly, so no point in
-# a long notice block. Single logical line per paragraph; GitHub Releases
-# turns bare newlines into hard breaks.
-RELEASE_NOTES=$(cat <<EOF
-Rolling staging dump, rebuilt and overwritten on every publish. Built on $(date -u +%Y-%m-%dT%H:%M:%SZ). Use \`corpus-full-*\` releases for production.
+echo "Uploading $DUMP_FILE ($SIZE) → s3://$CORPUS_BUCKET/$OBJECT_KEY ..."
 
-Derived from [Wiktionary](https://www.wiktionary.org/) via [Kaikki.org](https://kaikki.org/) (subset of ~2000 entries/language, frequency-filtered) plus [wordfreq](https://github.com/rspeer/wordfreq) frequency rankings. All sources are distributed under [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), so the dump itself is too; see the \`ATTRIBUTION.md\` asset for the full notice.
-EOF
-)
-
-# Delete + recreate so the tag actually moves forward. `gh release edit
-# --target` is ignored for already-published tags, so moving the tag
-# needs a full drop-and-recreate.
-if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-    echo "Deleting existing $RELEASE_TAG release + tag so it can be recreated at current main..."
-    gh release delete "$RELEASE_TAG" --cleanup-tag --yes
-fi
-
-gh release create "$RELEASE_TAG" "$DUMP_FILE" "$ATTRIBUTION_FILE" \
-    --notes "$RELEASE_NOTES" \
-    --target main
+# MSYS_NO_PATHCONV=1: stops Git Bash from rewriting the in-container
+# /dumps/... arg to a host-style C:\... path before docker sees it.
+MSYS_NO_PATHCONV=1 docker run --rm \
+    -e AWS_ACCESS_KEY_ID \
+    -e AWS_SECRET_ACCESS_KEY \
+    -e AWS_ENDPOINT_URL_S3 \
+    -v "$DUMP_ABS_HOST:/dumps/$DUMP_FILENAME:ro" \
+    amazon/aws-cli \
+    s3 cp "/dumps/$DUMP_FILENAME" "s3://$CORPUS_BUCKET/$OBJECT_KEY"
 
 echo ""
-echo "Done. Restore to staging:"
-echo "  GitHub → Actions → Corpus Restore → Run workflow"
-echo "    release_tag: $RELEASE_TAG"
+echo "Done. To restore to the staging corpus database, run on the host that owns it:"
+echo "  scripts/restore-corpus.sh $OBJECT_KEY"

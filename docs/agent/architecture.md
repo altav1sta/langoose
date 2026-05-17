@@ -143,7 +143,9 @@ Contains:
   `CorpusImportJob` claims operator-submitted `Pending` rows of type
   `CorpusImport` from `background_jobs` and dispatches to `ICorpusImportService`.
   Future AI validation and promotion jobs follow the same shape.
-- `Program.cs`: generic host DI composition root
+- `Program.cs`: web host DI composition root. Hosts a minimal Kestrel
+  listener that exposes `/health` for orchestrator liveness probes; the
+  jobs themselves are `IHostedService`s and do all real work.
 - Own `appsettings.json`
 
 Runs as a separate process. Shares the same app database; the corpus

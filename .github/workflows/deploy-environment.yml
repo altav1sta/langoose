@@ -136,12 +136,11 @@ jobs:
           RUN_MIGRATIONS_AUTH: ${{ needs.resolve-context.outputs.run_migrations_auth }}
           AUTH_DATABASE: ${{ secrets.AUTH_DATABASE }}
           APP_DATABASE: ${{ secrets.APP_DATABASE }}
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
-          RAILWAY_API_SERVICE: ${{ vars.RAILWAY_API_SERVICE }}
-          RAILWAY_WORKER_SERVICE: ${{ vars.RAILWAY_WORKER_SERVICE }}
-          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
+          COOLIFY_URL: ${{ vars.COOLIFY_URL }}
+          COOLIFY_API_UUID: ${{ vars.COOLIFY_API_UUID }}
+          COOLIFY_WORKER_UUID: ${{ vars.COOLIFY_WORKER_UUID }}
           VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
         run: |
@@ -158,27 +157,23 @@ jobs:
           fi
 
           if [ "$DEPLOY_API" = "true" ] || [ "$DEPLOY_WORKER" = "true" ]; then
-            if [ -z "$RAILWAY_TOKEN" ]; then
-              echo "Missing RAILWAY_TOKEN secret for Railway deployment." >&2
+            if [ -z "$COOLIFY_API_TOKEN" ]; then
+              echo "Missing COOLIFY_API_TOKEN secret for Coolify deployment." >&2
               exit 1
             fi
-            if [ -z "$RAILWAY_PROJECT_ID" ]; then
-              echo "Missing RAILWAY_PROJECT_ID environment variable for Railway deployment." >&2
-              exit 1
-            fi
-            if [ -z "$RAILWAY_ENVIRONMENT" ]; then
-              echo "Missing RAILWAY_ENVIRONMENT environment variable for Railway deployment." >&2
+            if [ -z "$COOLIFY_URL" ]; then
+              echo "Missing COOLIFY_URL environment variable for Coolify deployment." >&2
               exit 1
             fi
           fi
 
-          if [ "$DEPLOY_API" = "true" ] && [ -z "$RAILWAY_API_SERVICE" ]; then
-            echo "Missing RAILWAY_API_SERVICE environment variable for Railway deployment." >&2
+          if [ "$DEPLOY_API" = "true" ] && [ -z "$COOLIFY_API_UUID" ]; then
+            echo "Missing COOLIFY_API_UUID environment variable for Coolify deployment." >&2
             exit 1
           fi
 
-          if [ "$DEPLOY_WORKER" = "true" ] && [ -z "$RAILWAY_WORKER_SERVICE" ]; then
-            echo "Missing RAILWAY_WORKER_SERVICE environment variable for Railway deployment." >&2
+          if [ "$DEPLOY_WORKER" = "true" ] && [ -z "$COOLIFY_WORKER_UUID" ]; then
+            echo "Missing COOLIFY_WORKER_UUID environment variable for Coolify deployment." >&2
             exit 1
           fi
 
@@ -301,31 +296,28 @@ jobs:
     environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     steps:
-      - name: Checkout deployment ref
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.resolve-context.outputs.source_sha }}
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: Install Railway CLI
-        run: npm install --global @railway/cli
-
-      - name: Deploy API to Railway
+      - name: Trigger API deploy on Coolify
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
-          RAILWAY_API_SERVICE: ${{ vars.RAILWAY_API_SERVICE }}
-          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
-        run: >
-          railway up
-          --ci
-          --service "$RAILWAY_API_SERVICE"
-          --environment "$RAILWAY_ENVIRONMENT"
-          --project "$RAILWAY_PROJECT_ID"
+          COOLIFY_URL: ${{ vars.COOLIFY_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_API_UUID: ${{ vars.COOLIFY_API_UUID }}
+        run: |
+          set -eu
+          # Coolify pulls the latest commit from the branch the app
+          # tracks (typically `main` for staging, a release tag for
+          # production). force=true makes Coolify rebuild the image
+          # from source rather than reuse a cached layer that may have
+          # gone stale across deploys.
+          response=$(curl -sS -w '\n%{http_code}' \
+            -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+            "$COOLIFY_URL/api/v1/deploy?uuid=$COOLIFY_API_UUID&force=true")
+          body=$(printf '%s' "$response" | sed '$d')
+          status=$(printf '%s' "$response" | tail -n1)
+          echo "$body"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "Coolify deploy trigger failed (HTTP $status)." >&2
+            exit 1
+          fi
 
   deploy-worker:
     name: Deploy Worker
@@ -342,31 +334,23 @@ jobs:
     environment: ${{ needs.resolve-context.outputs.target_environment }}
 
     steps:
-      - name: Checkout deployment ref
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.resolve-context.outputs.source_sha }}
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22
-
-      - name: Install Railway CLI
-        run: npm install --global @railway/cli
-
-      - name: Deploy Worker to Railway
+      - name: Trigger Worker deploy on Coolify
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
-          RAILWAY_WORKER_SERVICE: ${{ vars.RAILWAY_WORKER_SERVICE }}
-          RAILWAY_ENVIRONMENT: ${{ vars.RAILWAY_ENVIRONMENT }}
-        run: >
-          railway up
-          --ci
-          --service "$RAILWAY_WORKER_SERVICE"
-          --environment "$RAILWAY_ENVIRONMENT"
-          --project "$RAILWAY_PROJECT_ID"
+          COOLIFY_URL: ${{ vars.COOLIFY_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_WORKER_UUID: ${{ vars.COOLIFY_WORKER_UUID }}
+        run: |
+          set -eu
+          response=$(curl -sS -w '\n%{http_code}' \
+            -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+            "$COOLIFY_URL/api/v1/deploy?uuid=$COOLIFY_WORKER_UUID&force=true")
+          body=$(printf '%s' "$response" | sed '$d')
+          status=$(printf '%s' "$response" | tail -n1)
+          echo "$body"
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            echo "Coolify deploy trigger failed (HTTP $status)." >&2
+            exit 1
+          fi
 
   deploy-web:
     name: Deploy Web

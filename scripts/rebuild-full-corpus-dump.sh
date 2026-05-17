@@ -23,7 +23,10 @@
 #      first-two-langs in LANGUAGES). Single pair per #113; multi-pair
 #      coexistence is a follow-up.
 #   7. rebuild-indexes once over all imported data
-#   8. pg_dump the whole langoose_corpus DB → data/dump/corpus-full-YYYY-MM-DD.dump
+#   8. pg_dump the whole langoose_corpus DB → data/dump/corpus-full-<stamp>.dump
+#      where <stamp> defaults to a UTC date+time (e.g. 20260415143022),
+#      so multiple rebuilds in one day produce distinct filenames you can
+#      publish independently.
 #
 # This script does NOT download anything. Source data must already be
 # on disk before running it. Fetch first with:
@@ -48,12 +51,18 @@
 #                                        LANGUAGES has 2+ entries; empty
 #                                        otherwise. Set to "" explicitly
 #                                        to skip Tatoeba.
-#   DATE_STAMP="2026-04-15"              Override the date in the output filename
+#   DATE_STAMP="20260415143022"      Override the timestamp suffix used in
+#                                        the output filename. Default is a UTC
+#                                        date+time so multiple rebuilds per day
+#                                        get distinct files. Use a date-only
+#                                        override (e.g. "20260415") if you
+#                                        want a clean per-day name and accept
+#                                        the publish-side overwrite guard.
 #   FORCE=1                              Skip the interactive confirmation prompt
 
 set -euo pipefail
 
-DATE_STAMP="${DATE_STAMP:-$(date -u +%Y-%m-%d)}"
+DATE_STAMP="${DATE_STAMP:-$(date -u +%Y%m%d%H%M%S)}"
 LANGUAGES="${LANGUAGES:-en,ru}"
 DUMP_FILE="data/dump/corpus-full-${DATE_STAMP}.dump"
 

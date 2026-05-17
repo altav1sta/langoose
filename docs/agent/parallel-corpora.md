@@ -42,15 +42,22 @@ A parallel corpus must clear four bars to land in `langoose_corpus`:
 
 ## License matrix
 
-| Source | Text license | Audio | Status | Notes |
-|--------|--------------|-------|--------|-------|
-| Tatoeba | CC-BY 2.0 | CC-BY-NC (excluded) | shipping (#113) | Crowd-translated short sentences, ~12M total, ~400 langs |
-| Global Voices | CC-BY 3.0 | n/a | next (#91) | Editorially reviewed news; smaller, formal register |
-| ParaCrawl v9 | CC0 | n/a | deferred | Web-scraped, very large, very noisy, B1+ requires aggressive filtering |
-| Europarl v7 | open redistribution | n/a | deferred | EU parliament; B1+ formal but no Russian — wrong fit for primary L2 |
-| OpenSubtitles | mixed | n/a | rejected | Some sub-corpora are NC; alignment is too noisy |
-| CEFR-J | open with citation | n/a | future | Wordlist (vocabulary tagging), not parallel sentences — overlay, not source |
-| English Profile | commercial | n/a | rejected | Licence cost |
+Most of these are mirrored by [OPUS](https://opus.nlpl.eu/), an
+aggregator that hosts pre-aligned parallel corpora from many original
+projects. We credit OPUS rather than re-evaluating every individual
+source: when a corpus shows up here, OPUS is usually the most convenient
+distribution channel even if the upstream project also publishes its
+own dumps.
+
+| Source | Text license | Status | Notes |
+|--------|--------------|--------|-------|
+| Tatoeba | CC-BY 2.0 | shipping (#113) | Crowd-translated short sentences, ~12M total, ~400 langs |
+| Global Voices | CC-BY 3.0 | next (#91) | Editorially reviewed news; smaller, formal register |
+| ParaCrawl | CC0 | deferred | Web-scraped, very large, noisy; B1+ requires aggressive filtering |
+| Europarl | open redistribution | deferred | EU parliament; formal register but no Russian — wrong fit for primary L2 |
+| OpenSubtitles | mixed | rejected | Some sub-corpora are NC; alignment is too noisy for grading |
+| CEFR-J | open with citation | future | Wordlist (vocabulary tagging), not parallel sentences — overlay, not source |
+| English Profile | commercial | rejected | Licence cost |
 
 ## Source-first storage
 
